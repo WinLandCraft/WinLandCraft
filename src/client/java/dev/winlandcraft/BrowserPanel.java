@@ -286,13 +286,21 @@ public class BrowserPanel extends WorldPanel {
         }
     }
     void drawSurface(PanelCanvas canvas) {
-            canvas.rect(-3, -titlebarHeight() - 3, pixelWidth() + 6, pixelHeight() + titlebarHeight() + 6, 0, 0xFF536579);
+            boolean browserReady = active != null && active.browser.getRenderer().getTextureID() > 0;
+            // The frame is a border, not a full quad behind the page (which would also z-fight).
+            canvas.rect(-3, -titlebarHeight() - 3, pixelWidth() + 6, 3, 0, 0xFF536579);
+            canvas.rect(-3, pixelHeight(), pixelWidth() + 6, 3, 0, 0xFF536579);
+            canvas.rect(-3, -titlebarHeight(), 3, pixelHeight() + titlebarHeight(), 0, 0xFF536579);
+            canvas.rect(pixelWidth(), -titlebarHeight(), 3, pixelHeight() + titlebarHeight(), 0, 0xFF536579);
             canvas.rect(0, -titlebarHeight(), pixelWidth(), titlebarHeight(), 0.3f, 0xFF314D63);
             canvas.text(fit(windowTitle(), pixelWidth() - (grouped() ? 168 : 68), 1.5f), 12, -22, 0xFFF0F5FC, 1.5f);
             renderUngroup(canvas);
             canvas.rect(pixelWidth() - 40, -titlebarHeight(), 40, titlebarHeight(), 0.4f, 0xFF854551);
             canvas.text("X", pixelWidth() - 25, -22, 0xFFFFFFFF, 1.5f);
-            canvas.rect(0, 0, pixelWidth(), pixelHeight(), 0.1f, 0xFF18212D);
+            // Do not put a nearly coplanar backing quad behind a live browser texture. At
+            // distance the depth buffer cannot distinguish the pixel-scaled 0.1 z gap and
+            // alternates between both surfaces, producing dark stripes across the page.
+            if (!browserReady) canvas.rect(0, 0, pixelWidth(), pixelHeight(), 0.1f, 0xFF18212D);
             if (!standalone) {
                 canvas.rect(0, 0, SIDE, pixelHeight(), 0.2f, 0xFF202C3B);
                 canvas.rect(12, 12, 236, 48, 0.3f, editing ? 0xFF39566F : 0xFF121C29);
@@ -325,7 +333,7 @@ public class BrowserPanel extends WorldPanel {
                 canvas.text(tabs.size() + " tabs | Scroll list", 16, pixelHeight() - 41, 0xFF9BAABD, 1.2f);
                 canvas.text(editing ? "Enter: go | Esc: leave" : "Click URL to type | G: page", 16, pixelHeight() - 20, 0xFF9BAABD, 1.2f);
             }
-            if (active != null && active.browser.getRenderer().getTextureID() > 0)
+            if (browserReady)
                 canvas.texture(active.texture, SIDE, 0, pixelWidth() - SIDE, pixelHeight(), 0.2f);
             else canvas.text(failed ? "Browser failed. Reopen to retry." : "Waiting for Chromium...", SIDE + 40, 40, 0xFFFFFFFF, 2);
             if (menu != null) {
