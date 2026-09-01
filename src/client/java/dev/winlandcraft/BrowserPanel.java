@@ -355,7 +355,9 @@ public class BrowserPanel extends WorldPanel {
             width = webWidth; height = webHeight;
             icon = new WebsiteIcon(id);
             texture = ResourceLocation.fromNamespaceAndPath("winlandcraft", "browser_tab_" + id);
-            browser = MCEF.createBrowser("about:blank", false, webWidth, webHeight);
+            // Native creation is asynchronous: an immediate loadURL can run before the
+            // browser exists. Supply the destination as CEF's initial navigation instead.
+            browser = MCEF.createBrowser(url, false, webWidth, webHeight);
             try {
                 browserCreated(browser);
                 browser.setCursorChangeListener(cursor -> { });
@@ -365,7 +367,6 @@ public class BrowserPanel extends WorldPanel {
                     @Override public void releaseId() { }
                     @Override public void close() { }
                 });
-                browser.loadURL(url);
             } catch (RuntimeException | LinkageError error) { browserClosed(browser);browser.close(); throw error; }
         }
         void close() {
