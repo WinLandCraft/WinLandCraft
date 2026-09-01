@@ -1,5 +1,6 @@
 package dev.winlandcraft;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
@@ -9,7 +10,7 @@ public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
         packets();media();placement();
-        System.out.println("Streaming: bounded packet codecs, ownership/dimension validation, replay/partial frame rejection, VP9/Opus envelope and keyframe queue limits, read-only controls, scaled and curved replica geometry passed.");
+        System.out.println("Streaming: bounded packet codecs, ownership/dimension validation, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, read-only controls, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {
         return new StreamProtocol.State(owner,SESSION,ResourceLocation.withDefaultNamespace("overworld"),1,2,3,0,0,0,1,3.2f,1.88f,1280,752,0,1);
@@ -51,7 +52,10 @@ public final class StreamChecks {
     private static void media() {
         var key=new StreamMedia(StreamMedia.VIDEO,true,123456,1280,720,new byte[]{1,2,3});
         var parsed=StreamMedia.read(key.pack());
-        check(parsed!=null&&parsed.key()&&parsed.timeUs()==123456&&parsed.width()==1280,"video envelope");
+        check(parsed!=null&&parsed.key()&&parsed.codec()==StreamMedia.VP9&&parsed.timeUs()==123456&&parsed.width()==1280&&Arrays.equals(parsed.data(),key.data()),"video envelope");
+        var h264=new StreamMedia(StreamMedia.VIDEO,true,StreamMedia.H264,123456,1280,720,new byte[]{1,2,3});
+        check(StreamMedia.read(h264.pack()).codec()==StreamMedia.H264,"H.264 codec marker");
+        check(StreamMedia.read(new StreamMedia(StreamMedia.VIDEO,true,2,123456,1280,720,new byte[]{1}).pack())==null,"unknown codec rejected");
         var audio=new StreamMedia(StreamMedia.AUDIO,true,123457,0,0,new byte[]{4,5});
         check(StreamMedia.read(audio.pack()).kind()==StreamMedia.AUDIO,"audio envelope");
         check(StreamMedia.read(new byte[]{0,1,2})==null,"invalid envelope");
@@ -63,6 +67,14 @@ public final class StreamChecks {
         check(StreamMedia.read(queue.poll()).kind()==StreamMedia.VIDEO,"ordered video");
         check(StreamMedia.read(queue.poll()).kind()==StreamMedia.AUDIO,"ordered audio");
         queue.clear();check(!queue.offer(audio.pack()),"reset waits for a new video clock");
+        var batched=new MediaBridge.Queue();check(batched.offer(key.pack()),"batch starts with keyframe");
+        for(int i=0;i<80;i++)check(batched.offer(audio.pack()),"audio accepted into batch");
+        check(batchCount(batched.pollBatch())==64,"bridge batch is capped at 64 packets");
+        check(batchCount(batched.pollBatch())==17&&batched.stats().queued()==0,"bridge batch drains remaining packets");
+    }
+    private static int batchCount(MediaBridge.Queue.Batch batch) {
+        int bytes=0;for(var packet:batch.packets()){check(StreamMedia.header(packet)!=null,"valid batched media packet");bytes+=Integer.BYTES+packet.length;}
+        check(bytes==batch.bytes(),"complete batch length");return batch.packets().length;
     }
     private static void placement() {
         for(float curvature:new float[]{0,.6f,1}) {

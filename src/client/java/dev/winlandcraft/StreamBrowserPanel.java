@@ -11,7 +11,11 @@ final class StreamBrowserPanel extends BrowserPanel {
     volatile com.cinemamod.mcef.MCEFBrowser audioTab;
     volatile String streamStatus="Starting codecs...";
     private StreamAudioMonitor monitor;
-    synchronized void monitor(byte[] data){if(audioTab==null)return;if(monitor==null)monitor=new StreamAudioMonitor();monitor.offer(data);}
+    /** Consumes one shared audio-packet owner in all cases. */
+    synchronized void monitor(StreamAudio.Packet packet){
+        if(audioTab==null){packet.release();return;}
+        if(monitor==null)monitor=new StreamAudioMonitor();monitor.offer(packet);
+    }
     StreamBrowserPanel(){setAppName("Browser(streamable)");}
     @Override public boolean canGroup(){return false;}
     @Override protected int listTop(){return 340;}

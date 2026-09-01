@@ -28,9 +28,10 @@ dependencies {
     modClientRuntimeOnly "com.cinemamod:mcef-fabric:${project.mcef_version}"
 }
 
+def modVersion = version.toString()
 processResources {
-    inputs.property 'version', project.version
-    filesMatching('fabric.mod.json') { expand version: project.version }
+    inputs.property 'version', modVersion
+    filesMatching('fabric.mod.json') { expand version: modVersion }
 }
 
 java {
@@ -126,7 +127,11 @@ tasks.register('verifyMixinPackaging') {
                     }
                 }
             }
-            logger.lifecycle('Packaged input/cursor mixins: configuration, refmap, and all 8 mappings verified.')
+            def vaapiMixin = 'McefVaapiMixin'
+            if (!config.client.contains(vaapiMixin)) throw new GradleException("Missing mixin: ${vaapiMixin}")
+            def vaapiClass = config.package.replace('.', '/') + '/' + vaapiMixin
+            if (zip.getEntry(vaapiClass + '.class') == null) throw new GradleException("Missing class: ${vaapiClass}")
+            logger.lifecycle('Packaged input/cursor and MCEF VA-API mixins: configuration, refmap, all 8 mappings, and classes verified.')
         }
     }
 }

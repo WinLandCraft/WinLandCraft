@@ -8,7 +8,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-/** Owner-side video capture plus timestamped VP9/Opus relay. Chromium handles media codecs. */
+/** Owner-side capture and timestamped H.264/VP9/Opus relay. Chromium handles media codecs. */
 final class StreamClient {
     private final AppWindows apps;
     private final StreamCapture capture=new StreamCapture();
@@ -17,6 +17,7 @@ final class StreamClient {
     private MediaBridge.Endpoint encoder;
     private StreamProtocol.State published;
     private long lastState,nextFrame,sequence;
+    private long sentUnits,sentParts,sentBytes,sentVideo,sentAudio,nextSenderHealth;
     StreamClient(AppWindows apps){this.apps=apps;}
     void register() {
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.State.TYPE,(p,c)->receive(p));
@@ -25,7 +26,7 @@ final class StreamClient {
             if(panel==null||!panel.isOpen()||panel.decoder==null||!panel.session.equals(p.session()))return;
             byte[] bytes=panel.assembly.accept(p,System.currentTimeMillis());
             if(bytes!=null) {
-                if(panel.lastSequence>=0&&p.sequence()!=panel.lastSequence+1)panel.decoder.incoming.clear();
+                if(panel.lastSequence>=0&&p.sequence()!=panel.lastSequence+1){panel.sequenceGaps++;panel.decoder.incoming.clear();}
                 panel.lastSequence=p.sequence();panel.receive(bytes);
             }
         });
@@ -46,7 +47,8 @@ final class StreamClient {
         if(panel==null) {
             if(remote.size()>=StreamProtocol.MAX_STREAMS)return;
             try {
-                panel=new RemoteStreamPanel(state);panel.start(media().create(false));remote.put(state.owner(),panel);apps.windows.add(panel);
+                panel=new RemoteStreamPanel(state);panel.start(media().create(false,"receiver owner="+shortId(state.owner())));remote.put(state.owner(),panel);apps.windows.add(panel);
+                WinLandCraftClient.LOGGER.info("Started receiving browser stream from {} (session {})",shortId(state.owner()),shortId(state.session()));
             }catch(Exception|LinkageError failure){if(panel!=null)panel.close();WinLandCraftClient.LOGGER.error("Could not start stream playback",failure);return;}
         }
         panel.apply(state);
@@ -59,10 +61,11 @@ final class StreamClient {
         if(client.player==null||client.level==null||!panel.isOpen()||panel.broadcastSession==null||!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)) {stopPublishing();return;}
         if(published!=null&&!published.session().equals(panel.broadcastSession))stopPublishing();
         if(encoder==null)try {
-            encoder=media().create(true);panel.encoder=encoder;panel.streamStatus="Starting VP9 + Opus...";
+            encoder=media().create(true,"sender");panel.encoder=encoder;panel.streamStatus="Starting video + Opus...";
+            sentUnits=sentParts=sentBytes=sentVideo=sentAudio=0;sequence=nextFrame=nextSenderHealth=0;
         }catch(Exception|LinkageError failure){WinLandCraftClient.LOGGER.error("Could not start stream codecs",failure);fail("Could not start browser streaming. See latest.log.");return;}
         encoder.quality=StreamQuality.current();encoder.tick();
-        panel.streamStatus=encoder.error.isEmpty()?(encoder.ready?"Live: VP9 + Opus":"Starting VP9 + Opus..."):encoder.error;
+        panel.streamStatus=encoder.error.isEmpty()?(encoder.ready?"Live: "+encoder.videoCodec+" ("+encoder.videoAcceleration+") + Opus":"Starting video + Opus..."):encoder.error;
         if(!encoder.error.isEmpty()) {
             String reason=encoder.error;WinLandCraftClient.LOGGER.warn("Stream codec error: {}",reason);
             client.player.displayClientMessage(Component.literal("Stream codec error: "+reason),false);
@@ -70,7 +73,15 @@ final class StreamClient {
         }
         if(published!=null)for(int i=0;i<128;i++) {
             byte[] packet=encoder.encoded.poll();if(packet==null)break;
-            for(var part:StreamProtocol.split(published.owner(),published.session(),sequence++,packet))ClientPlayNetworking.send(part);
+            if((packet[4]&255)==StreamMedia.VIDEO)sentVideo++;else sentAudio++;
+            var parts=StreamProtocol.split(published.owner(),published.session(),sequence++,packet);
+            for(var part:parts){ClientPlayNetworking.send(part);sentParts++;sentBytes+=part.bytes().length;}
+            sentUnits++;
+        }
+        if(published!=null&&now>=nextSenderHealth) {
+            nextSenderHealth=now+10_000;
+            WinLandCraftClient.LOGGER.info("Stream sender network health: session={}, media={} (video={}, audio={}), parts={}, payloadBytes={}, sequence={}",
+                    shortId(published.session()),sentUnits,sentVideo,sentAudio,sentParts,sentBytes,sequence);
         }
         if(now-lastState<100)return;
         var state=snapshot(panel,client.player.getUUID(),panel.broadcastSession);
@@ -106,12 +117,17 @@ final class StreamClient {
         var player=Minecraft.getInstance().player;if(player!=null)player.displayClientMessage(Component.literal(message),false);
     }
     private void stopPublishing() {
+        if(published==null&&encoder==null)return;
         if(published!=null&&ClientPlayNetworking.canSend(StreamProtocol.Stop.TYPE))ClientPlayNetworking.send(new StreamProtocol.Stop(published.owner(),published.session()));
-        published=null;lastState=0;capture.close();
+        published=null;lastState=nextFrame=sequence=0;capture.close();
         apps.streamBrowser.encoder=null;
         if(encoder!=null){encoder.close();encoder=null;}
     }
-    private void remove(RemoteStreamPanel panel){remote.remove(panel.owner);apps.windows.remove(panel);panel.close();}
+    private void remove(RemoteStreamPanel panel){
+        WinLandCraftClient.LOGGER.info("Stopped receiving browser stream from {}: {}",shortId(panel.owner),panel.health());
+        remote.remove(panel.owner);apps.windows.remove(panel);panel.close();
+    }
+    static String shortId(UUID id){return id.toString().substring(0,8);}
     void clear(){stopPublishing();for(var panel:List.copyOf(remote.values()))remove(panel);if(bridge!=null){bridge.close();bridge=null;}}
     void shutdown(){clear();}
 }

@@ -8,13 +8,15 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.IdentifiedLayer;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -78,12 +80,13 @@ public final class WinLandCraftClient implements ClientModInitializer {
             apps.windows.forEach(window -> window.render(context));
             controls.renderHandles(context);
         });
-        HudRenderCallback.EVENT.register((graphics, delta) -> {
-            var client = Minecraft.getInstance();
-            controls.renderResizeHint(graphics);
-            if (controls.isTyping() && !client.options.hideGui)
-                graphics.drawString(client.font, "Typing in window | Esc to return", 8, 8, 0xFF51CFDF, true);
-        });
+        HudLayerRegistrationCallback.EVENT.register(layers -> layers.addLayer(IdentifiedLayer.of(
+                ResourceLocation.fromNamespaceAndPath("winlandcraft", "interaction_hints"), (graphics, delta) -> {
+                    var client = Minecraft.getInstance();
+                    controls.renderResizeHint(graphics);
+                    if (controls.isTyping() && !client.options.hideGui)
+                        graphics.drawString(client.font, "Typing in window | Esc to return", 8, 8, 0xFF51CFDF, true);
+                })));
         WorldRenderEvents.END.register(context -> streams.renderCapture());
         // Fabric can notify disconnect on Netty's IO thread. Input state and CEF/GL resources
         // belong to the client/render thread, including when disconnect races a world tick.

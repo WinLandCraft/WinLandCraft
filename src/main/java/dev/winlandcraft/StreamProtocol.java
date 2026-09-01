@@ -6,12 +6,12 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
-/** Bounded VP9/Opus relay protocol. No client or codec dependencies on the server. */
+/** Bounded H.264/VP9/Opus relay protocol. No client or codec dependencies on the server. */
 public final class StreamProtocol {
     public static final int PART_BYTES = 24_000, MAX_FRAME_BYTES = 768_000, MAX_PARTS = 32;
     public static final int MAX_STREAMS = 16, MAX_IMAGE_WIDTH = 1920, MAX_IMAGE_HEIGHT = 1080;
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> type(String name) {
-        return new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("winlandcraft", name+"_v3"));
+        return new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("winlandcraft", name+"_v4"));
     }
     public record State(UUID owner, UUID session, ResourceLocation dimension,
                         double x, double y, double z, float qx, float qy, float qz, float qw,
@@ -58,25 +58,34 @@ public final class StreamProtocol {
     public static java.util.List<Frame> split(UUID owner,UUID session,long sequence,byte[] bytes) {
         if(bytes.length==0||bytes.length>MAX_FRAME_BYTES)throw new IllegalArgumentException("Frame size");
         int count=(bytes.length+PART_BYTES-1)/PART_BYTES;
-        var parts=new java.util.ArrayList<Frame>();
+        var parts=new java.util.ArrayList<Frame>(count);
         for(int i=0;i<count;i++)parts.add(new Frame(owner,session,sequence,i,count,java.util.Arrays.copyOfRange(bytes,i*PART_BYTES,Math.min(bytes.length,(i+1)*PART_BYTES))));
         return parts;
     }
     /** In-order assembly, one bounded frame at a time. Incomplete or replayed frames are discarded. */
     public static final class Assembly {
         private long sequence=-1, started;
-        private int next,count;
-        private java.io.ByteArrayOutputStream data;
-        public byte[] accept(Frame frame,long now) {
-            if(!frame.valid())return null;
+        private int next,count,total;
+        private byte[][] chunks;
+        private long parts,completed,invalid,replayed,abandoned;
+        public synchronized byte[] accept(Frame frame,long now) {
+            parts++;
+            if(!frame.valid()){invalid++;return null;}
             if(frame.part==0) {
-                if(frame.sequence<=sequence)return null;
-                sequence=frame.sequence;started=now;next=0;count=frame.count;data=new java.io.ByteArrayOutputStream();
+                if(frame.sequence<=sequence){replayed++;return null;}
+                if(chunks!=null)abandoned++;
+                sequence=frame.sequence;started=now;next=0;count=frame.count;total=0;chunks=new byte[count][];
             }
-            if(data==null||frame.sequence!=sequence||frame.part!=next||frame.count!=count||now-started>2_000) {data=null;return null;}
-            data.writeBytes(frame.bytes);next++;
+            if(chunks==null||frame.sequence!=sequence||frame.part!=next||frame.count!=count||now-started>2_000) {
+                abandoned++;chunks=null;return null;
+            }
+            chunks[next]=frame.bytes;total+=frame.bytes.length;next++;
             if(next!=count)return null;
-            byte[] result=data.toByteArray();data=null;return result;
+            byte[] result=new byte[total];int offset=0;
+            for(var chunk:chunks){System.arraycopy(chunk,0,result,offset,chunk.length);offset+=chunk.length;}
+            chunks=null;completed++;return result;
         }
+        public synchronized Stats stats(){return new Stats(parts,completed,invalid,replayed,abandoned,chunks!=null);}
+        public record Stats(long parts,long completed,long invalid,long replayed,long abandoned,boolean assembling){}
     }
 }
