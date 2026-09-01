@@ -1,0 +1,133 @@
+plugins {
+    id 'fabric-loom' version '1.9.2'
+}
+
+version = project.mod_version
+group = 'dev.winlandcraft'
+
+repositories {
+    maven { url = 'https://mcef-download.cinemamod.com/repositories/releases' }
+}
+
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        winlandcraft {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    modCompileOnly "com.cinemamod:mcef:${project.mcef_version}"
+    modClientRuntimeOnly "com.cinemamod:mcef-fabric:${project.mcef_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+}
+
+// Dependency-free geometry checks against the actual client window implementation.
+sourceSets {
+    geometryCheck {
+        compileClasspath = sourceSets.client.output + sourceSets.client.compileClasspath
+        runtimeClasspath = output + compileClasspath
+    }
+}
+tasks.register('verifyWindowGeometry', JavaExec) {
+    dependsOn geometryCheckClasses
+    // RenderSystem's queue check initializes LWJGL's allocator, but never creates a GL context.
+    classpath = sourceSets.geometryCheck.runtimeClasspath + configurations.minecraftNatives
+    mainClass = 'dev.winlandcraft.WindowGeometryChecks'
+}
+check.dependsOn verifyWindowGeometry
+tasks.register('verifyStreaming', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.StreamChecks'
+}
+check.dependsOn verifyStreaming
+tasks.register('verifyFavicons', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.FaviconChecks'
+}
+check.dependsOn verifyFavicons
+tasks.register('verifyBrowserAddresses', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.BrowserAddressChecks'
+}
+check.dependsOn verifyBrowserAddresses
+tasks.register('verifyWebApps', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.WebAppChecks'
+}
+check.dependsOn verifyWebApps
+tasks.register('verifyResourceCounters', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.ResourceChecks'
+}
+tasks.register('smokeResourceCounters', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.ResourceChecks'
+    args '--live'
+}
+check.dependsOn verifyResourceCounters
+
+// Development launches can hide missing refmap declarations. Check the distributable JAR.
+tasks.register('verifyMixinPackaging') {
+    dependsOn remapJar
+    doLast {
+        def parser = new groovy.json.JsonSlurper()
+        new java.util.zip.ZipFile(tasks.remapJar.archiveFile.get().asFile).withCloseable { zip ->
+            def readJson = { String path ->
+                def entry = zip.getEntry(path)
+                if (entry == null) throw new GradleException("Missing packaged resource: ${path}")
+                zip.getInputStream(entry).withCloseable { parser.parse(it) }
+            }
+            def mod = readJson('fabric.mod.json')
+            def expected = [MouseHandlerMixin: ['onPress', 'onScroll'],
+                            KeyboardHandlerMixin: ['keyPress', 'charTyped'],
+                            GuiMixin: ['renderCrosshair'],
+                            MinecraftMixin: ['startAttack', 'continueAttack', 'startUseItem']]
+            if (!mod.mixins.contains('winlandcraft.client.mixins.json')) {
+                throw new GradleException('Input mixin configuration is not registered')
+            }
+            def config = readJson('winlandcraft.client.mixins.json')
+            if (!config.refmap) throw new GradleException('Input mixins have no refmap configured')
+            def refmap = readJson(config.refmap)
+            expected.each { mixin, methods ->
+                if (!config.client.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
+                def className = config.package.replace('.', '/') + '/' + mixin
+                if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
+                methods.each { method ->
+                    def target = refmap.mappings[className]?.get(method)
+                    if (!(target instanceof String) || !target.startsWith('Lnet/minecraft/class_')) {
+                        throw new GradleException("Missing production mapping: ${className}.${method}")
+                    }
+                }
+            }
+            logger.lifecycle('Packaged input/cursor mixins: configuration, refmap, and all 8 mappings verified.')
+        }
+    }
+}
+check.dependsOn verifyMixinPackaging

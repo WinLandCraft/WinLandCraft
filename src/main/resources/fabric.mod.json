@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "winlandcraft",
+  "version": "${version}",
+  "name": "WinLandCraft",
+  "description": "Local webapps in interactive Minecraft world windows. Tasks panel prototype.",
+  "environment": "*",
+  "mixins": ["winlandcraft.client.mixins.json"],
+  "entrypoints": {
+    "main": ["dev.winlandcraft.WinLandCraft"],
+    "client": ["dev.winlandcraft.WinLandCraftClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": "1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "suggests": { "mcef": "2.1.6-1.21.4" }
+}

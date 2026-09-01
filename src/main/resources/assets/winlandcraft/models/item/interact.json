@@ -1,0 +1,36 @@
+{
+  "parent": "minecraft:block/block",
+  "textures": {
+    "body": "minecraft:block/black_concrete",
+    "accent": "minecraft:block/blue_concrete",
+    "particle": "minecraft:block/blue_concrete"
+  },
+  "elements": [
+    {
+      "from": [1, 5, 7], "to": [15, 11, 9],
+      "faces": {
+        "north": {"texture": "#body"}, "south": {"texture": "#body"},
+        "east": {"texture": "#body"}, "west": {"texture": "#body"},
+        "up": {"texture": "#body"}, "down": {"texture": "#accent"}
+      }
+    },
+    {
+      "from": [2, 7, 6.9], "to": [5, 10, 9.1],
+      "faces": {"north": {"texture": "#accent"}, "south": {"texture": "#accent"}}
+    },
+    {
+      "from": [6, 7, 6.9], "to": [9, 10, 9.1],
+      "faces": {"north": {"texture": "#accent"}, "south": {"texture": "#accent"}}
+    },
+    {
+      "from": [10, 7, 6.9], "to": [13, 10, 9.1],
+      "faces": {"north": {"texture": "#accent"}, "south": {"texture": "#accent"}}
+    }
+  ],
+  "display": {
+    "gui": {"rotation": [0, 0, 0], "translation": [0, 0, 0], "scale": [1, 1, 1]},
+    "firstperson_righthand": {"rotation": [0, -20, 0], "translation": [0, 1, 0], "scale": [0.8, 0.8, 0.8]},
+    "firstperson_lefthand": {"rotation": [0, 20, 0], "translation": [0, 1, 0], "scale": [0.8, 0.8, 0.8]}
+  }
+}
+

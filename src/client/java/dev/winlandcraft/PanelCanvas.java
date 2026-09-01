@@ -1,0 +1,101 @@
+package dev.winlandcraft;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.renderer.LightTexture;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+
+/** Top-left pixel coordinates shared by native panels and CEF textures. */
+public final class PanelCanvas implements AutoCloseable {
+    private final PoseStack pose;
+    private final org.joml.Matrix4f worldMatrix;
+    private MultiBufferSource buffers;
+    private boolean curved;
+    /** Flat app-only render target, also used to capture the native sidebar and titlebar. */
+    PanelCanvas(PoseStack pose, MultiBufferSource buffers) {
+        this.pose=pose;this.buffers=buffers;worldMatrix=new org.joml.Matrix4f(pose.last().pose());pose.pushPose();
+    }
+    public PanelCanvas(WorldRenderContext context,WorldPanel panel) {
+        this(context,panel.position,panel.orientation,panel.worldWidth()/panel.pixelWidth(),panel.worldHeight()/panel.pixelHeight(),panel.pixelWidth(),panel.pixelHeight());
+        if(panel.curve!=null && panel.curve.amount>=.0001f) {
+            curved=true;
+            // Undo the panel transform to obtain its logical pixels, then bend all geometry,
+            // including Font's glyph vertices, onto the same cylindrical surface.
+            var inverse=new org.joml.Matrix4f(pose.last().pose()).invert();
+            var original=buffers;
+            buffers=type -> new CurvedVertices(original.getBuffer(type),panel,inverse,worldMatrix,context.camera().getPosition());
+        }
+    }
+    public PanelCanvas(WorldRenderContext context, Vec3 position, Quaternionf rotation,
+                       float scaleX, float scaleY, int width, int height) {
+        pose = context.matrixStack();
+        worldMatrix=new org.joml.Matrix4f(pose.last().pose());
+        buffers = context.consumers();
+        Vec3 relative = position.subtract(context.camera().getPosition());
+        pose.pushPose();
+        pose.translate(relative.x, relative.y, relative.z);
+        pose.mulPose(rotation);
+        pose.scale(scaleX, -scaleY, scaleX);
+        pose.translate(-width / 2f, -height / 2f, 0);
+    }
+    public void rect(float x, float y, float width, float height, float z, int color) {
+        var vertices = buffers.getBuffer(RenderType.debugQuads());
+        var matrix = pose.last().pose();
+        int segments=curved?Math.max(1,(int)Math.ceil(width/12)):1;
+        for(int i=0;i<segments;i++) {
+            float left=x+width*i/segments,right=x+width*(i+1)/segments;
+            vertices.addVertex(matrix, left, y, z).setColor(color);
+            vertices.addVertex(matrix, left, y + height, z).setColor(color);
+            vertices.addVertex(matrix, right, y + height, z).setColor(color);
+            vertices.addVertex(matrix, right, y, z).setColor(color);
+        }
+    }
+    public void text(String text, int x, int y, int color) {
+        text(text, x, y, color, 1);
+    }
+    public void text(String text, int x, int y, int color, float scale) {
+        pose.pushPose();
+        pose.translate(x, y, 0.6f);
+        pose.scale(scale, scale, 1);
+        Minecraft.getInstance().font.drawInBatch(Component.literal(text), 0, 0, color, false,
+                pose.last().pose(), buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
+        pose.popPose();
+    }
+    public void texture(ResourceLocation texture, int width, int height) {
+        texture(texture, 0, 0, width, height, 0.2f);
+    }
+    /** Cyan compass mark for the Browser app, independent of any website's branding. */
+    public void browserIcon(int x, int y, int size) {
+        browserIcon(x,y,size,false);
+    }
+    public void browserIcon(int x, int y, int size, boolean purple) {
+        float unit = size / 24f;
+        rect(x, y, size, size, 0.4f, purple?0xFF8450BD:0xFF16778D);
+        rect(x + 3 * unit, y + 3 * unit, 18 * unit, 18 * unit, 0.42f, purple?0xFF302047:0xFF102E45);
+        for (int i = 0; i < 12; i++) {
+            float width = (i < 6 ? i + 1 : 12 - i) * unit;
+            rect(x + (12 * unit) - width / 2, y + (6 + i) * unit, width, unit, 0.44f,
+                    i < 6 ? (purple?0xFFD4ACFF:0xFF72ECF1) : 0xFFFFFFFF);
+        }
+    }
+    public void texture(ResourceLocation texture, int x, int y, int width, int height, float z) {
+        var vertices = buffers.getBuffer(RenderType.text(texture));
+        var matrix = pose.last().pose();
+        int segments=curved?Math.max(1,(int)Math.ceil(width/12f)):1;
+        for(int i=0;i<segments;i++) {
+            float u=i/(float)segments,v=(i+1)/(float)segments,left=x+width*u,right=x+width*v;
+            vertices.addVertex(matrix, left, y, z).setColor(-1).setUv(u, 0).setLight(LightTexture.FULL_BRIGHT);
+            vertices.addVertex(matrix, left, y + height, z).setColor(-1).setUv(u, 1).setLight(LightTexture.FULL_BRIGHT);
+            vertices.addVertex(matrix, right, y + height, z).setColor(-1).setUv(v, 1).setLight(LightTexture.FULL_BRIGHT);
+            vertices.addVertex(matrix, right, y, z).setColor(-1).setUv(v, 0).setLight(LightTexture.FULL_BRIGHT);
+        }
+    }
+    @Override public void close() { pose.popPose(); }
+}

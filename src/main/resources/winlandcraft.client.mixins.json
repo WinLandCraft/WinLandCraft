@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "package": "dev.winlandcraft.mixin",
+  "refmap": "client-winlandcraft-refmap.json",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["MouseHandlerMixin", "KeyboardHandlerMixin", "GuiMixin", "MinecraftMixin"],
+  "injectors": {"defaultRequire": 1}
+}

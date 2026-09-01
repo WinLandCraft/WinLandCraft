@@ -1,0 +1,16 @@
+{
+  "item.winlandcraft.tasks": "Tasks",
+  "item.winlandcraft.window_drag": "Window Drag",
+  "key.categories.winlandcraft": "WinLandCraft",
+  "key.winlandcraft.give_tasks": "Get controls",
+  "panel.winlandcraft.no_apps": "No active apps",
+  "message.winlandcraft.already_have_controls": "You already have all window controls.",
+  "message.winlandcraft.inventory_full": "Make room and press Get controls again to receive the missing controls.",
+  "message.winlandcraft.controls_given": "Controls added. Point at panels to click/scroll. Drag a corner to resize. G to type; Esc to return.",
+  "message.winlandcraft.tasks_opened": "Tasks brought to your view. Sneak + right-click with Tasks to close.",
+  "message.winlandcraft.point_at_window": "Point at a window, then hold right-click to drag it.",
+  "message.winlandcraft.unsupported_server": "Tasks requires a world running WinLandCraft. Try singleplayer.",
+  "item.winlandcraft.interact": "Interact",
+  "item.winlandcraft.apps": "Apps",
+  "key.winlandcraft.typing": "Type in focused window"
+}

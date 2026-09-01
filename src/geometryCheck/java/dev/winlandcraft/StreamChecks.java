@@ -1,0 +1,84 @@
+package dev.winlandcraft;
+
+import java.util.*;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+
+public final class StreamChecks {
+    private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
+    public static void main(String[] args) throws Exception {
+        packets();media();placement();
+        System.out.println("Streaming: bounded packet codecs, ownership/dimension validation, replay/partial frame rejection, VP9/Opus envelope and keyframe queue limits, read-only controls, scaled and curved replica geometry passed.");
+    }
+    private static StreamProtocol.State state(UUID owner) {
+        return new StreamProtocol.State(owner,SESSION,ResourceLocation.withDefaultNamespace("overworld"),1,2,3,0,0,0,1,3.2f,1.88f,1280,752,0,1);
+    }
+    private static void packets() {
+        var s=state(OWNER);
+        check(StreamRelay.owns(OWNER,s,s.dimension()),"owner accepted");
+        check(!StreamRelay.owns(UUID.randomUUID(),s,s.dimension()),"other player cannot move stream");
+        check(!StreamRelay.owns(OWNER,s,ResourceLocation.withDefaultNamespace("the_nether")),"dimension spoof rejected");
+        var invalid=new StreamProtocol.State(OWNER,SESSION,s.dimension(),Double.NaN,0,0,0,0,0,1,3,2,1280,752,0,1);
+        check(!invalid.valid(),"NaN rejected");
+        var buffer=new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(),net.minecraft.core.RegistryAccess.EMPTY);
+        try {
+            StreamProtocol.State.CODEC.encode(buffer,s);check(s.equals(StreamProtocol.State.CODEC.decode(buffer)),"state codec round trip");
+            var stop=new StreamProtocol.Stop(OWNER,SESSION);StreamProtocol.Stop.CODEC.encode(buffer,stop);
+            check(stop.equals(StreamProtocol.Stop.CODEC.decode(buffer)),"stop codec round trip");
+        } finally {buffer.release();}
+        byte[] bytes=new byte[StreamProtocol.MAX_FRAME_BYTES];new Random(1).nextBytes(bytes);
+        var parts=StreamProtocol.split(OWNER,SESSION,1,bytes);check(parts.size()==StreamProtocol.MAX_PARTS,"bounded chunk count");
+        var assembly=new StreamProtocol.Assembly();byte[] complete=null;
+        for(var part:parts) {
+            var b=new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(),net.minecraft.core.RegistryAccess.EMPTY);
+            try {
+                StreamProtocol.Frame.CODEC.encode(b,part);check(b.readableBytes()<32767,"C2S packet below Minecraft limit");
+                complete=assembly.accept(StreamProtocol.Frame.CODEC.decode(b),1000);
+            } finally {b.release();}
+        }
+        check(Arrays.equals(bytes,complete),"frame reassembly");
+        for(var part:parts)check(assembly.accept(part,1100)==null,"replay rejected");
+        parts=StreamProtocol.split(OWNER,SESSION,2,bytes);
+        check(assembly.accept(parts.get(0),1200)==null,"incomplete frame waits");
+        check(assembly.accept(parts.get(2),1200)==null,"out of order rejected");
+        check(assembly.accept(parts.get(3),1200)==null,"partial frame not displayed");
+        parts=StreamProtocol.split(OWNER,SESSION,3,bytes);assembly.accept(parts.get(0),1300);
+        for(int i=1;i<parts.size();i++)check(assembly.accept(parts.get(i),5000)==null,"expired frame rejected");
+        check(!new StreamProtocol.Frame(OWNER,SESSION,4,0,StreamProtocol.MAX_PARTS+1,new byte[24000]).valid(),"too many parts rejected");
+        var tiny=StreamProtocol.split(OWNER,SESSION,4,new byte[]{1,2});check(Arrays.equals(new byte[]{1,2},assembly.accept(tiny.getFirst(),6000)),"assembly recovers");
+    }
+    private static void media() {
+        var key=new StreamMedia(StreamMedia.VIDEO,true,123456,1280,720,new byte[]{1,2,3});
+        var parsed=StreamMedia.read(key.pack());
+        check(parsed!=null&&parsed.key()&&parsed.timeUs()==123456&&parsed.width()==1280,"video envelope");
+        var audio=new StreamMedia(StreamMedia.AUDIO,true,123457,0,0,new byte[]{4,5});
+        check(StreamMedia.read(audio.pack()).kind()==StreamMedia.AUDIO,"audio envelope");
+        check(StreamMedia.read(new byte[]{0,1,2})==null,"invalid envelope");
+        check(StreamMedia.read(new StreamMedia(StreamMedia.VIDEO,true,0,4096,720,new byte[]{1}).pack())==null,"oversized video rejected");
+        var queue=new MediaBridge.Queue();
+        check(!queue.offer(new StreamMedia(StreamMedia.VIDEO,false,123450,1280,720,new byte[]{1}).pack()),"late viewer waits for keyframe");
+        check(queue.offer(key.pack()),"keyframe starts playback");
+        check(queue.offer(audio.pack()),"audio follows video clock");
+        check(StreamMedia.read(queue.poll()).kind()==StreamMedia.VIDEO,"ordered video");
+        check(StreamMedia.read(queue.poll()).kind()==StreamMedia.AUDIO,"ordered audio");
+        queue.clear();check(!queue.offer(audio.pack()),"reset waits for a new video clock");
+    }
+    private static void placement() {
+        for(float curvature:new float[]{0,.6f,1}) {
+            var host=new StreamBrowserPanel();host.position=new Vec3(20000000,80,20000000);host.orientation=new Quaternionf().rotateXYZ(.2f,.7f,.1f);
+            host.scaleTo(4,2.25f);GroupCurve.get(host).apply(curvature);
+            var s=StreamClient.snapshot(host,OWNER,SESSION);var viewer=new RemoteStreamPanel(s);viewer.place(s);
+            check(!viewer.canInteract()&&!viewer.canResize()&&!viewer.canGroup(),"viewer cannot manipulate stream");
+            check(!host.canGroup(),"shared/private grouping disabled");
+            for(float x:new float[]{-host.worldWidth()/2,0,host.worldWidth()/2})for(float y:new float[]{-host.worldHeight()/2,0,WindowGroups.top(host)}) {
+                Vec3 original=host.curve.panelPoint(host,x,y,0);
+                float shifted=y-host.titlebarHeight()*host.worldHeight()/host.pixelHeight()/2;
+                Vec3 replica=viewer.curve==null?WindowGroups.world(viewer.position,viewer.orientation,x,shifted):viewer.curve.panelPoint(viewer,x,shifted,0);
+                if(original.distanceTo(replica)>.00001)throw new AssertionError("stream geometry mismatch: "+original.distanceTo(replica));
+            }
+            check(viewer.pixelWidth()==1280&&viewer.pixelHeight()==752,"capture includes titlebar and sidebar layout");
+        }
+    }
+    private static void check(boolean valid,String message){if(!valid)throw new AssertionError(message);}
+}
