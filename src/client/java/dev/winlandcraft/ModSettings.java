@@ -13,7 +13,7 @@ final class ModSettings {
     static boolean extendInteractionRange = false;
     static double interactionRange = 16;
     static int streamFps=30,streamKbps=2000,streamHeight=720,streamAudioKbps=96;
-    static boolean streamAudio=true;
+    static boolean streamAudio=true,streamRemoteControl=false;
     static boolean validInteractionRange(double value) { return Double.isFinite(value) && value > 0 && value <= 4096; }
     static double interactionRange(double normalRange) { return extendInteractionRange ? interactionRange : normalRange; }
     private static Path path() { return FabricLoader.getInstance().getConfigDir().resolve("winlandcraft.json"); }
@@ -22,6 +22,7 @@ final class ModSettings {
         removeSizingLimitations = false;
         extendInteractionRange = false;
         interactionRange = 16;
+        streamRemoteControl = false;
         try {
             if (Files.exists(path())) {
                 var json = JsonParser.parseString(Files.readString(path())).getAsJsonObject();
@@ -30,6 +31,7 @@ final class ModSettings {
                 if(json.has("streamHeight"))streamHeight=StreamQuality.nearest(json.get("streamHeight").getAsInt(),StreamQuality.HEIGHTS);
                 if(json.has("streamAudioKbps"))streamAudioKbps=StreamQuality.nearest(json.get("streamAudioKbps").getAsInt(),StreamQuality.AUDIO);
                 if(json.has("streamAudio"))streamAudio=json.get("streamAudio").getAsBoolean();
+                if(json.has("streamRemoteControl"))streamRemoteControl=json.get("streamRemoteControl").getAsBoolean();
                 if (json.has("freePanelRotation")) freePanelRotation = json.get("freePanelRotation").getAsBoolean();
                 if (json.has("removeSizingLimitations")) removeSizingLimitations = json.get("removeSizingLimitations").getAsBoolean();
                 if (json.has("extendInteractionRange")) extendInteractionRange = json.get("extendInteractionRange").getAsBoolean();
@@ -48,6 +50,7 @@ final class ModSettings {
             json.addProperty("interactionRange", interactionRange);
             json.addProperty("streamFps",streamFps);json.addProperty("streamKbps",streamKbps);json.addProperty("streamHeight",streamHeight);
             json.addProperty("streamAudio",streamAudio);json.addProperty("streamAudioKbps",streamAudioKbps);
+            json.addProperty("streamRemoteControl",streamRemoteControl);
             Files.createDirectories(path().getParent());
             Files.writeString(path(), new GsonBuilder().setPrettyPrinting().create().toJson(json));
             return true;

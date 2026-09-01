@@ -30,6 +30,7 @@ public abstract class WorldPanel {
     public void scroll(int x, int y, double amount) { }
     public boolean acceptsKeyboard() { return false; }
     public boolean wantsKeyboard() { return false; }
+    public void keyboardStarted() { }
     public void keyboardStopped() { }
     public void key(int key, int scan, int action, int modifiers) { }
     public void character(char character, int modifiers) { }
@@ -56,6 +57,7 @@ public abstract class WorldPanel {
     protected float minimumWidth() { return 0.6f; }
     protected float minimumHeight() { return 0.15f; }
     public boolean canResize() { return true; }
+    public boolean canMove() { return true; }
     public boolean canInteract() { return true; }
     public boolean canGroup() { return true; }
     float resizeMinimumWidth(){return ModSettings.removeSizingLimitations?.0001f:minimumWidth();}
@@ -74,12 +76,16 @@ public abstract class WorldPanel {
         halfWidth = width / 2;
         halfHeight = height / 2;
     }
-    private float handleSize() { return Math.min(0.045f, halfHeight * 0.3f); }
+    float resizeHandleSize(Vec3 observer) {
+        float size=observer==null?0.045f:(float)(observer.distanceTo(position)*0.006);
+        return Math.min(Math.clamp(size,0.045f,0.45f),Math.max(0.045f,Math.min(worldWidth(),halfHeight+topEdge())*.3f));
+    }
     /** Exterior corner handles leave all content pixels available to the app. */
-    public int resizeCorner(Vec3 point) {
+    public int resizeCorner(Vec3 point) { return resizeCorner(point,null); }
+    int resizeCorner(Vec3 point,Vec3 observer) {
         if (!canResize() || !isOpen()) return 0;
         Vector3f local = WindowGroups.local(this,point);
-        float x = Math.abs(local.x), edge = local.y < 0 ? halfHeight : topEdge(), y = Math.abs(local.y), margin = handleSize();
+        float x = Math.abs(local.x), edge = local.y < 0 ? halfHeight : topEdge(), y = Math.abs(local.y), margin = resizeHandleSize(observer);
         if (x < halfWidth && y < edge) return 0;
         if (Math.abs(x - halfWidth) > margin || Math.abs(y - edge) > margin) return 0;
         return (local.x < 0 ? 1 : 2) | (local.y < 0 ? 4 : 8);
@@ -88,20 +94,21 @@ public abstract class WorldPanel {
         double hit = intersect(origin, direction);
         if (Double.isFinite(hit)) return hit;
         double plane = planeDistance(origin, direction);
-        return Double.isFinite(plane) && resizeCorner(origin.add(direction.scale(plane))) != 0 ? plane : Double.POSITIVE_INFINITY;
+        return Double.isFinite(plane) && resizeCorner(origin.add(direction.scale(plane)),origin) != 0 ? plane : Double.POSITIVE_INFINITY;
     }
-    public void renderResizeHandles(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+    public void renderResizeHandles(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context,boolean scaling) {
         if (!canResize()) return;
         try (var canvas = canvas(context)) {
             if (canvas == null) return;
-            float hx = handleSize() * pixelWidth() / worldWidth(), hy = handleSize() * pixelHeight() / worldHeight();
+            float size=resizeHandleSize(context.camera().getPosition());
+            float hx = size * pixelWidth() / worldWidth(), hy = size * pixelHeight() / worldHeight();
             for (int sx : new int[]{-1, 1}) for (int sy : new int[]{-1, 1}) {
                 if(curve!=null) {
                     var cornerPoint=curve.panelPoint(this,sx*(worldWidth()/2+.001f),sy<0?-worldHeight()/2-.001f:WindowGroups.top(this)+.001f,0);
-                    if(curve.corner(this,cornerPoint)==0) continue;
+                    if(curve.corner(this,cornerPoint,context.camera().getPosition())==0) continue;
                 }
                 float x = sx < 0 ? -hx : pixelWidth(), y = sy < 0 ? -titlebarHeight() - hy : pixelHeight();
-                canvas.rect(x, y, hx, hy, 0.7f, 0xFF51CFDF);
+                canvas.rect(x, y, hx, hy, 0.7f, scaling?0xFFFFC857:0xFF51CFDF);
             }
         }
     }

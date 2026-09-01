@@ -58,8 +58,8 @@ public final class WindowControls {
         if (resizing != null && (!resizing.panel.isOpen() || resizing.panel.level != c.level)) resizing = null;
         if (dragging != null && (!dragging.isOpen() || dragging.level != c.level
                 || dragHand != null && !c.player.getItemInHand(dragHand).is(WinLandCraft.WINDOW_DRAG))) dragging = null;
-        if (pointer != null && (!pointer.isOpen() || pointer.level != c.level)) releasePointer();
-        if (focused != null && (!focused.isOpen() || focused.level != c.level)) stopTyping();
+        if (pointer != null && (!pointer.isOpen() || pointer.level != c.level || !pointer.canInteract())) releasePointer();
+        if (focused != null && (!focused.isOpen() || focused.level != c.level || !focused.acceptsKeyboard())) stopTyping();
     }
     public void cancel() {
         dragging = null;
@@ -98,6 +98,7 @@ public final class WindowControls {
         if (!item.is(WinLandCraft.WINDOW_DRAG)) return;
         Hit hit = pick(c,MOVE_RANGE);
         if (hit == null) { message("Point at a window to drag it."); return; }
+        if (!hit.panel.canMove()) { message("This shared window is positioned by its owner."); return; }
         beginMove(hit, c.gameRenderer.getMainCamera(), hand);
     }
     private void beginMove(Hit hit, Camera camera, InteractionHand hand) {
@@ -150,7 +151,7 @@ public final class WindowControls {
             }
             return true;
         }
-        if (pointer == null && hit != null && WindowGroups.corner(hit.panel,hit.point) != 0 && button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (pointer == null && hit != null && corner(hit.panel,hit.point) != 0 && button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
             buttons.add(button); return true;
         }
         if (pointer == null && hit != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
@@ -158,13 +159,10 @@ public final class WindowControls {
             if (suggestion != null && suggestion.a()==hit.panel && suggestion.contains(at[0],at[1])) {
                 WindowGroups.join(suggestion.a(),suggestion.b(),suggestion.edge()); suggestion=null; buttons.add(button); return true;
             }
-            int corner = WindowGroups.corner(hit.panel,hit.point);
+            int corner = corner(hit.panel,hit.point);
             if (corner != 0) {
                 stopTyping();
-                long window = c.getWindow().getWindow();
-                boolean scaling = GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
-                        || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
-                resizing = new PanelResize(hit.panel, corner, hit.point, scaling);
+                resizing = new PanelResize(hit.panel,corner,hit.point,scalingHeld());
                 buttons.add(button);
                 return true;
             }
@@ -190,7 +188,7 @@ public final class WindowControls {
             }
             if (pointer.wantsKeyboard() && !typing) {
                 focused = pointer;
-                KeyMapping.releaseAll(); typing = true;
+                KeyMapping.releaseAll(); typing = true;focused.keyboardStarted();
                 message("Typing in window — Esc returns to Minecraft.");
             }
             return true;
@@ -208,7 +206,7 @@ public final class WindowControls {
         Hit hit = pick(c);
         if (hit != null) {
             if(hit.panel==curveUi) return true;
-            if (WindowGroups.corner(hit.panel,hit.point) != 0) return true;
+            if (corner(hit.panel,hit.point) != 0) return true;
             int[] pixel = hit.panel.pixelAt(hit.point);
             hit.panel.scroll(pixel[0], pixel[1], amount);
             return true;
@@ -228,7 +226,7 @@ public final class WindowControls {
                 Hit hit = pick(c);
                 if (hit != null && hit.panel.acceptsKeyboard()) focused = hit.panel;
                 if (focused != null && focused.isOpen() && focused.acceptsKeyboard()) {
-                    KeyMapping.releaseAll(); typing = true; activationKey = key;
+                    KeyMapping.releaseAll(); typing = true; activationKey = key;focused.keyboardStarted();
                     message("Typing in window — Esc returns to Minecraft.");
                 } else message("Click a browser window before enabling typing.");
                 return true;
@@ -258,7 +256,10 @@ public final class WindowControls {
         var client = Minecraft.getInstance();
         if (!active(client) || client.options.hideGui) return 0;
         int corner = resizing != null ? resizing.corner : hoveredCorner;
-        if (corner != 0) return ((corner & 1) != 0) == ((corner & 4) != 0) ? 3 : 2;
+        if (corner != 0) {
+            int diagonal=((corner&1)!=0)==((corner&4)!=0)?3:2;
+            return (resizing!=null?resizing.scaling():scalingHeld())?diagonal+2:diagonal;
+        }
         return hovered != null || pointer != null || dragging != null || curving ? 1 : 0;
     }
     public void renderResizeHint(net.minecraft.client.gui.GuiGraphics graphics) {
@@ -289,8 +290,9 @@ public final class WindowControls {
         }
         var panel = resizing != null ? resizing.panel : hovered;
         if(panel!=null && panel!=curveUi) {
-            if(panel.curve!=null) for(var member:WindowGroups.members(panel)) member.renderResizeHandles(context);
-            else (panel.grouped()?WindowGroups.frame(panel):panel).renderResizeHandles(context);
+            boolean scaling=resizing!=null?resizing.scaling():scalingHeld();
+            if(panel.curve!=null) for(var member:WindowGroups.members(panel)) member.renderResizeHandles(context,scaling);
+            else (panel.grouped()?WindowGroups.frame(panel):panel).renderResizeHandles(context,scaling);
         }
         if(curveUi!=null && curveOwner!=null && curveOwner.curve!=null) try(var canvas=curveUi.canvas(context)) {
             if(canvas!=null) {
@@ -363,7 +365,7 @@ public final class WindowControls {
                     }
                 }
                 nextHover = hit.panel;
-                hoveredCorner = WindowGroups.corner(hit.panel,hit.point);
+                hoveredCorner = corner(hit.panel,hit.point);
                 if (dragging==null) {
                     int[] at=hit.panel.pixelAt(hit.point);
                     if (suggestion==null || suggestion.a()!=hit.panel || !suggestion.contains(at[0],at[1]))
@@ -398,12 +400,12 @@ public final class WindowControls {
                 hit=window.intersect(origin,ray);
                 var frame=WindowGroups.frame(window);
                 double t=frame.planeDistance(origin,ray);
-                if(Double.isFinite(t) && frame.resizeCorner(origin.add(ray.scale(t)))!=0) hit=Math.min(hit,t);
+                if(Double.isFinite(t) && frame.resizeCorner(origin.add(ray.scale(t)),origin)!=0) hit=Math.min(hit,t);
             }
             if(window.curve!=null) {
                 hit=window.intersect(origin,ray);
                 double t=window.planeDistance(origin,ray);
-                if(t<nearest && WindowGroups.corner(window,origin.add(ray.scale(t)))!=0) hit=Math.min(hit,t);
+                if(t<nearest && WindowGroups.corner(window,origin.add(ray.scale(t)),origin)!=0) hit=Math.min(hit,t);
             }
             // Aiming through a narrow seam must still reveal the nearby Group button.
             if(!Double.isFinite(hit) && window.isOpen() && (curveUi==null || target!=curveUi)) {
@@ -422,6 +424,14 @@ public final class WindowControls {
         if (c.hitResult != null && c.hitResult.getType() == HitResult.Type.ENTITY
                 && origin.distanceTo(c.hitResult.getLocation()) < nearest) return null;
         return new Hit(target, point, nearest);
+    }
+    private int corner(WorldPanel panel,Vec3 point) {
+        return WindowGroups.corner(panel,point,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
+    }
+    private boolean scalingHeld() {
+        long window=Minecraft.getInstance().getWindow().getWindow();
+        return GLFW.glfwGetKey(window,GLFW.GLFW_KEY_LEFT_CONTROL)==GLFW.GLFW_PRESS
+                ||GLFW.glfwGetKey(window,GLFW.GLFW_KEY_RIGHT_CONTROL)==GLFW.GLFW_PRESS;
     }
     private void setCurve(Vec3 point) {
         if(curveUi==null || curveOwner==null || curveOwner.curve==null) return;

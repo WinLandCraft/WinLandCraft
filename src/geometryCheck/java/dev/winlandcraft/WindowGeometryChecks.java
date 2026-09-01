@@ -85,6 +85,9 @@ public final class WindowGeometryChecks {
     }
 
     private static void resizing() {
+        var distancePanel=new BrowserPanel();distancePanel.position=new Vec3(0,0,0);distancePanel.orientation=new Quaternionf();
+        float nearHandle=distancePanel.resizeHandleSize(new Vec3(0,0,3)),farHandle=distancePanel.resizeHandleSize(new Vec3(0,0,50));
+        if(farHandle<=nearHandle||farHandle>.45f)throw new AssertionError("resize handle distance scaling");
         for (int sx : new int[]{-1, 1}) for (int sy : new int[]{-1, 1}) {
             TestPanel panel = new TestPanel();
             panel.position = new Vec3(20000000, 80, 20000000);

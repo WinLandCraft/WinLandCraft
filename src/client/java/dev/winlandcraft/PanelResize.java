@@ -26,6 +26,7 @@ final class PanelResize {
         group = panel.grouped() || scaling ? WindowGroups.members(panel).stream().map(p -> new State(p,p.position,p.worldWidth(),p.worldHeight(),p.worldHeight()+p.titlebarHeight()*p.worldHeight()/p.pixelHeight())).toList() : java.util.List.of();
         GroupCurve.restore(panel,curve);
     }
+    boolean scaling(){return scaling;}
     void move(Vec3 hit) {
         GroupCurve.flatten(panel);
         Vec3 delta = hit.subtract(initialHit);

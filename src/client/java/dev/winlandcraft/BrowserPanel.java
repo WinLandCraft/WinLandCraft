@@ -17,8 +17,10 @@ public class BrowserPanel extends WorldPanel {
     private final boolean standalone;
     private final List<Tab> tabs = new ArrayList<>();
 
-    private final Map<Integer, Tab> pressed = new HashMap<>();
-    private final Map<Integer, Tab> pressedKeys = new HashMap<>();
+    private static final Object LOCAL_INPUT = new Object();
+    private record Input(Object source, int code) { }
+    private final Map<Input, Tab> pressed = new HashMap<>();
+    private final Map<Input, Tab> pressedKeys = new HashMap<>();
     private Tab active;
     private static int nextId;
     private int firstTab;
@@ -127,10 +129,21 @@ public class BrowserPanel extends WorldPanel {
         firstTab = Math.clamp(firstTab, 0, Math.max(0, tabs.size() - visibleRows()));
     }
     private void releaseInputs() {
-        pressed.forEach((button, tab) -> tab.browser.sendMouseRelease(-1, -1, button));
+        pressed.forEach((input, tab) -> tab.browser.sendMouseRelease(-1, -1, input.code()));
         pressed.clear();
-        pressedKeys.forEach((key, tab) -> tab.browser.sendKeyRelease(key, 0, 0));
+        pressedKeys.forEach((input, tab) -> tab.browser.sendKeyRelease(input.code(), 0, 0));
         pressedKeys.clear();
+    }
+    protected final void releaseInputSource(Object source) {
+        var mouse=pressed.entrySet().stream().filter(entry->entry.getKey().source().equals(source)).toList();
+        var keys=pressedKeys.entrySet().stream().filter(entry->entry.getKey().source().equals(source)).toList();
+        mouse.forEach(entry->pressed.remove(entry.getKey()));keys.forEach(entry->pressedKeys.remove(entry.getKey()));
+        mouse.forEach(entry->{if(!held(pressed,entry.getValue(),entry.getKey().code()))entry.getValue().browser.sendMouseRelease(-1,-1,entry.getKey().code());});
+        keys.forEach(entry->{if(!held(pressedKeys,entry.getValue(),entry.getKey().code()))entry.getValue().browser.sendKeyRelease(entry.getKey().code(),0,0);});
+    }
+    private static boolean held(Map<Input,Tab> inputs,Tab tab,int code) {
+        for(var entry:inputs.entrySet())if(entry.getValue()==tab&&entry.getKey().code()==code)return true;
+        return false;
     }
     @Override public void close() {
         // MCEFBrowser.close deletes GL textures synchronously; never run it on Netty/CEF threads.
@@ -148,10 +161,12 @@ public class BrowserPanel extends WorldPanel {
         releaseInputs(); active.browser.setFocus(false);
         address = active.url; caret = address.length(); selectAll = true; editing = true;
     }
-    @Override public void key(int key, int scan, int action, int modifiers) {
+    @Override public void key(int key, int scan, int action, int modifiers) { key(LOCAL_INPUT,key,scan,action,modifiers); }
+    protected final void key(Object source,int key,int scan,int action,int modifiers) {
+        var input=new Input(source,key);
         if (action == GLFW.GLFW_RELEASE) {
-            Tab tab = pressedKeys.remove(key);
-            if (tab != null) tab.browser.sendKeyRelease(key, scan, modifiers);
+            Tab tab = pressedKeys.remove(input);
+            if (tab != null&&!held(pressedKeys,tab,key)) tab.browser.sendKeyRelease(key, scan, modifiers);
             return;
         }
         if (active == null) return;
@@ -160,8 +175,8 @@ public class BrowserPanel extends WorldPanel {
         if (ctrl && key == GLFW.GLFW_KEY_T) { newTab(homeUrl); editAddress(); return; }
         if (ctrl && key == GLFW.GLFW_KEY_W) { closeTab(active); return; }
         if (!editing) {
-            active.browser.setFocus(true); pressedKeys.put(key, active);
-            active.browser.sendKeyPress(key, scan, modifiers); return;
+            active.browser.setFocus(true);boolean first=!held(pressedKeys,active,key);pressedKeys.put(input,active);
+            if(first||action==GLFW.GLFW_REPEAT)active.browser.sendKeyPress(key,scan,modifiers);return;
         }
         if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
             String url = BrowserAddress.destination(address);
@@ -192,7 +207,8 @@ public class BrowserPanel extends WorldPanel {
         if (editing) { if ((modifiers & GLFW.GLFW_MOD_CONTROL) == 0 && !Character.isISOControl(character)) insert(String.valueOf(character)); }
         else if (active != null) active.browser.sendKeyTyped(character, modifiers);
     }
-    @Override public void mouseDown(int x, int y, int button) {
+    @Override public void mouseDown(int x, int y, int button) { mouseDown(LOCAL_INPUT,x,y,button); }
+    protected final void mouseDown(Object source,int x,int y,int button) {
         if (y < 0) return;
         if(x<SIDE&&sidebarExtraClick(x,y,button))return;
         if (active == null) return;
@@ -226,16 +242,20 @@ public class BrowserPanel extends WorldPanel {
         }
         editing = false;
         active.browser.setFocus(true); active.browser.sendMouseMove(x - SIDE, y);
-        active.browser.sendMousePress(x - SIDE, y, button); pressed.put(button, active);
+        if(!held(pressed,active,button))active.browser.sendMousePress(x-SIDE,y,button);
+        pressed.put(new Input(source,button),active);
     }
     private static boolean webLink(String url) { return url != null && (url.startsWith("https://") || url.startsWith("http://")); }
-    @Override public void mouseUp(int x, int y, int button) {
-        Tab tab = pressed.remove(button);
-        if (tab != null) tab.browser.sendMouseRelease(x - SIDE, y, button);
+    @Override public void mouseUp(int x, int y, int button) { mouseUp(LOCAL_INPUT,x,y,button); }
+    protected final void mouseUp(Object source,int x,int y,int button) {
+        Tab tab = pressed.remove(new Input(source,button));
+        if (tab != null&&!held(pressed,tab,button)) tab.browser.sendMouseRelease(x - SIDE, y, button);
     }
-    @Override public void hover(int x, int y) {
+    @Override public void hover(int x, int y) { hover(LOCAL_INPUT,x,y); }
+    protected final void hover(Object source,int x,int y) {
         if (active != null && menu == null) {
-            boolean captured = !pressed.isEmpty();
+            boolean captured = false;
+            for (var input : pressed.keySet()) if (input.source().equals(source)) { captured = true; break; }
             active.browser.sendMouseMove(x >= SIDE || captured ? x - SIDE : -1, x >= SIDE || captured ? y : -1);
         }
     }

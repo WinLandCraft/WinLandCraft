@@ -11,12 +11,12 @@ Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-ancho
 - Build: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 build`
 - Separate development client: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 runClient`
 - The helper scripts discover JDK 21 and store Gradle caches locally. An IDE can import build.gradle with JDK 21.
-- Replace the old Prism mod JAR with `build/libs/winlandcraft-0.1.38-dev.jar`. Keep only one WinLandCraft version installed, alongside Fabric API and MCEF.
+- Replace the old Prism mod JAR with `build/libs/winlandcraft-0.1.39-dev.jar`. Keep only one WinLandCraft version installed, alongside Fabric API and MCEF.
 - MCEF downloads native browser files on its first launch. Online websites need an internet connection.
 
 ## Browser(streamable): video and audio
 
-Open **Apps > Browser(streamable)** (purple compass). The creator runs the website locally and broadcasts its complete browser surface, including sidebar, tabs, titlebar, and quality controls. Other modded players in the same dimension see a read-only video panel in the same world position. Only the creator can navigate, move, resize, scale, curve, close, or change stream settings. Shared/private grouping remains disabled.
+Open **Apps > Browser(streamable)** (purple compass). The creator runs the website locally and broadcasts its complete browser surface, including sidebar, tabs, titlebar, and quality controls. Other modded players in the same dimension see a video panel in the same world position. It is read-only by default; the creator can check **Allow remote control** to let those players point, click, scroll, and type in the shared browser. Only the creator can move, resize, scale, curve, close, or change stream settings. Shared/private grouping remains disabled.
 
 The sidebar's **Stream quality** section sits above the tabs. Use its minus/plus buttons to change:
 
@@ -25,8 +25,9 @@ The sidebar's **Stream quality** section sits above the tabs. Use its minus/plus
 - Maximum resolution: 360p, 480p, 720p (default), or 1080p. The full panel fits inside the selected 16:9 bounds without changing its aspect ratio or upscaling its internal resolution.
 - Broadcast audio: ON (default) or OFF.
 - Opus audio bitrate: 64, 96 (default), 128, or 192 kbps.
+- Allow remote control: OFF by default. When checked, other players in the same dimension can operate the shared browser until it is unchecked or the stream ends.
 
-Settings apply live and persist in `config/winlandcraft.json`. Video selection tries hardware-preferred Annex-B H.264 first, hardware-preferred VP9 second, and software VP9 as the compatibility fallback; the receiver independently prefers hardware decoding for the selected codec. One-second keyframes support late joins and recovery. Audio is stereo 48 kHz Opus. The selected streamable-browser tab supplies audio through CEF's browser-scoped audio handler. Desktop audio, microphone input, private browsers, and inactive tabs are not broadcast. Because CEF capture replaces native audio output, a bounded Java Sound playback queue keeps the creator's selected tab audible even when broadcast audio is off.
+Settings apply live and persist in `config/winlandcraft.json`. Remote input is relayed only while the checkbox is enabled, is bound to the active stream and dimension, and cannot reposition or close the replica. Controller identity, packet bounds, and rate are validated by the server; held keys/buttons are released on timeout, disconnect, or permission changes. System-modifier shortcuts are not forwarded, so a remote player cannot invoke the creator's clipboard shortcuts. Video selection tries hardware-preferred Annex-B H.264 first, hardware-preferred VP9 second, and software VP9 as the compatibility fallback; the receiver independently prefers hardware decoding for the selected codec. One-second keyframes support late joins and recovery. Audio is stereo 48 kHz Opus. The selected streamable-browser tab supplies audio through CEF's browser-scoped audio handler. Desktop audio, microphone input, private browsers, and inactive tabs are not broadcast. Because CEF capture replaces native audio output, a bounded Java Sound playback queue keeps the creator's selected tab audible even when broadcast audio is off.
 
 Encoding and playback use [Chromium's WebCodecs APIs](https://www.w3.org/TR/webcodecs/) through small internal MCEF views. A private loopback HTTP bridge transfers binary buffers between Java and these trusted codec pages; it binds only to 127.0.0.1, uses unguessable endpoint tokens, rejects foreign origins/hosts, and exposes no filesystem access. It is not an externally hosted service. Receiving players decode the stream in a local canvas/Web Audio view; they never load the source website. No FFmpeg installation, codec download, microphone permission, or new externally reachable port is needed. Unsupported codec or device errors appear in the app/log instead of falling back silently to JPEG.
 
@@ -36,15 +37,15 @@ Audio capture follows [CEF's audio-handler API](https://cef-builds.spotifycdn.co
 
 Decoded video is painted directly from WebCodecs output callbacks. It does not use short JavaScript intervals, because Chromium throttles timers in hidden off-screen browser views. The loopback media endpoints use bounded long-polling so idle streams do not spin on empty HTTP requests and active frames wake the codec worker immediately. Capture FPS is not passed as a WebCodecs capability constraint: cadence is already enforced before encoding, and this keeps an available hardware encoder selected across live FPS changes.
 
-Install this same build on **all clients and the world host/server**: stream protocol v4 adds per-frame H.264/VP9 codec markers and intentionally does not interoperate with older builds. Clients require Fabric API and MCEF; dedicated servers require only Fabric API and WinLandCraft. Essential/LAN still use the integrated server's existing Minecraft connection. The server validates ownership and media envelopes, then forwards compressed bytes; it never runs Chromium or encodes/decodes media. This remains a TCP Minecraft relay, not WebRTC. Bitrate increases also increase the world's host/relay bandwidth usage for every viewer.
+Install this same build on **all clients and the world host/server**: stream protocol v5 adds opt-in remote-control packets and intentionally does not interoperate with older builds. Clients require Fabric API and MCEF; dedicated servers require only Fabric API and WinLandCraft. Essential/LAN still use the integrated server's existing Minecraft connection. The server validates ownership, media envelopes, and controller permission, then forwards bounded data; it never runs Chromium or encodes/decodes media. This remains a TCP Minecraft relay, not WebRTC. Bitrate increases also increase the world's host/relay bandwidth usage for every viewer.
 
 The audio handler retains the sample rate from `getAudioParameters`, because MCEF 2.1.6's native adapter passes null parameters to `onAudioStreamStarted`. Unknown parameters disable capture instead of guessing a sample rate. Raw PCM crosses the loopback bridge in timestamp-preserving batches, avoiding dozens of sequential HTTP round trips per second; Opus backpressure is drained rather than converted into audible holes. Receiver audio uses a recoverable clock: a timestamp discontinuity or late packet re-anchors playback instead of leaving all later Opus packets permanently outside the scheduling window.
 
 Streaming writes rate-limited health summaries to `logs/latest.log` on both clients and the server. Every ten seconds these identify raw capture, selected H.264/VP9 acceleration preference, Opus encode/decode, relay packet and budget drops, keyframe waits, queue resets, rendered frames, and the Web Audio state. Linux capture also records the OpenGL vendor/renderer and sampled RGB range; a solid-color source frame is called out explicitly. Search the log for `Stream capture`, `Stream audio`, `Stream codec`, or `Stream relay` when reporting a failure.
 
-The relay allows one stream per player, up to 16 simultaneously, and physical window dimensions up to 4,096 blocks. Media units are limited to 768,000 bytes and split into at most 32 payloads of 24,000 bytes. A server-side per-stream byte/packet budget bounds relay traffic. Late joiners receive window state and wait for the next keyframe. Closing the app, owner death, dimension changes, and disconnect stop the stream; missing heartbeats expire after 10 seconds. Sessions and window placement are not persisted.
+The relay allows one stream per player, up to 16 simultaneously, and physical window dimensions up to 4,096 blocks. Media units are limited to 768,000 bytes and split into at most 32 payloads of 24,000 bytes. Server-side media and per-controller token buckets bound relay traffic. Late joiners receive window state and wait for the next keyframe. Closing the app, owner death, dimension changes, and disconnect stop the stream; missing heartbeats expire after 10 seconds. Sessions and window placement are not persisted.
 
-The build runs automated media-envelope, batching, queue-bound, relay, geometry, and packaging checks. Native CEF codec selection, GPU acceleration, cross-platform audio, and the Linux OpenGL capture path still require an in-game test on the target drivers.
+The build runs automated media/control-envelope, permission, batching, queue-bound, relay, geometry, and packaging checks. Native CEF codec selection, GPU acceleration, cross-platform audio, remote input, and the Linux OpenGL capture path still require an in-game test on the target drivers.
 ## Controls
 
 **Options > WinLandCraft...** opens the mod settings page. **Free panel rotation** defaults to OFF: panels stay upright with horizontal top/bottom edges while still turning horizontally during dragging. Enable it to restore unrestricted tilt. Changes apply immediately to open panels and save in `config/winlandcraft.json`. Opening/recalling panels respects this preference; the attached start menu inherits the taskbar's orientation.
@@ -101,7 +102,7 @@ Point at a window to interact automatically: the crosshair becomes a white point
 
 Browser and webapps have a titlebar above their content, showing the current page title and app name, with an X to close the whole window. Hold **left mouse on the titlebar** and look/walk to move it; release to leave it in place. While holding either the titlebar or the Window Drag item, **scroll up moves farther away; scroll down moves closer**. Both movement methods respect the rotation setting.
 
-When hovering Browser or a webapp, cyan handles appear just outside its corners. Aim at one for a diagonal resize cursor, hold **left mouse**, and look to resize; release to finish. The opposite corner stays fixed, including on rotated panels. Browser/webapp viewports reflow at the new dimensions, up to 2560x1440. Tasks and the Apps launcher are fixed-size, have no added titlebars, and remain movable with Window Drag. Resizing preserves the rotation lock setting.
+When hovering Browser or a webapp, cyan handles appear just outside its corners and grow with viewing distance so they remain targetable. Aim at one for a cyan diagonal **R** cursor, hold **left mouse**, and look to resize the viewport/resolution; release to finish. Hold **Ctrl** before grabbing a handle to switch both the handle and **S** cursor to yellow and scale the physical panel (or group) without changing its pixel resolution or aspect ratio. The opposite corner stays fixed in either mode, including on rotated panels. Browser/webapp viewports reflow after normal resizing, up to 2560x1440. Tasks and the Apps launcher are fixed-size, have no added titlebars, and remain movable with Window Drag. Both modes preserve the rotation lock setting.
 
 Assign **Get controls** under Options > Controls > Key Binds > WinLandCraft. It starts unbound; previous assignments are preserved. Pressing it supplies only missing items, without requiring cheats:
 
@@ -155,11 +156,3 @@ Disconnect cleanup is dispatched to the client/render thread because MCEF delete
 - [WaylandCraft resizing](https://github.com/EVV1E/waylandcraft/blob/main/src/main/java/dev/evvie/waylandcraft/grabs/ResizeGrab.java)
 
 Input behavior follows WaylandCraft's hover routing, press/release capture, separate keyboard capture, and separate window grabs, adapted to Minecraft 1.21.4 and CEF. No Wayland protocol/native code or WaylandCraft source blocks were copied. MCEF remains a separate dependency.
-
-
-
-
-
-
-
-Hold CTRL before dragging a corner handle to scale the whole app (or group) uniformly, preserving its internal pixel resolution and aspect ratio. Without CTRL, dragging resizes normally. Hover over a handle for two seconds to see the scaling hint.

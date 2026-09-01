@@ -127,5 +127,8 @@ final class WindowGroups {
         frame.orientation=new Quaternionf(root.orientation); frame.level=root.level;
         return frame;
     }
-    static int corner(WorldPanel p, Vec3 point) { return p.curve!=null?p.curve.corner(p,point):p.glued.isEmpty()?p.resizeCorner(point):frame(p).resizeCorner(point); }
+    static int corner(WorldPanel p, Vec3 point) { return corner(p,point,null); }
+    static int corner(WorldPanel p,Vec3 point,Vec3 observer) {
+        return p.curve!=null?p.curve.corner(p,point,observer):p.glued.isEmpty()?p.resizeCorner(point,observer):frame(p).resizeCorner(point,observer);
+    }
 }

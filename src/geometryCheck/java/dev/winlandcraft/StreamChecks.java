@@ -10,23 +10,41 @@ public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
         packets();media();placement();
-        System.out.println("Streaming: bounded packet codecs, ownership/dimension validation, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, read-only controls, scaled and curved replica geometry passed.");
+        System.out.println("Streaming: bounded media/control codecs, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, immutable replicas, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {
-        return new StreamProtocol.State(owner,SESSION,ResourceLocation.withDefaultNamespace("overworld"),1,2,3,0,0,0,1,3.2f,1.88f,1280,752,0,1);
+        return state(owner,false);
+    }
+    private static StreamProtocol.State state(UUID owner,boolean remoteControl) {
+        return new StreamProtocol.State(owner,SESSION,ResourceLocation.withDefaultNamespace("overworld"),1,2,3,0,0,0,1,3.2f,1.88f,1280,752,32,0,1,remoteControl);
     }
     private static void packets() {
         var s=state(OWNER);
         check(StreamRelay.owns(OWNER,s,s.dimension()),"owner accepted");
         check(!StreamRelay.owns(UUID.randomUUID(),s,s.dimension()),"other player cannot move stream");
         check(!StreamRelay.owns(OWNER,s,ResourceLocation.withDefaultNamespace("the_nether")),"dimension spoof rejected");
-        var invalid=new StreamProtocol.State(OWNER,SESSION,s.dimension(),Double.NaN,0,0,0,0,0,1,3,2,1280,752,0,1);
+        var invalid=new StreamProtocol.State(OWNER,SESSION,s.dimension(),Double.NaN,0,0,0,0,0,1,3,2,1280,752,32,0,1,false);
         check(!invalid.valid(),"NaN rejected");
         var buffer=new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(),net.minecraft.core.RegistryAccess.EMPTY);
         try {
             StreamProtocol.State.CODEC.encode(buffer,s);check(s.equals(StreamProtocol.State.CODEC.decode(buffer)),"state codec round trip");
             var stop=new StreamProtocol.Stop(OWNER,SESSION);StreamProtocol.Stop.CODEC.encode(buffer,stop);
             check(stop.equals(StreamProtocol.Stop.CODEC.decode(buffer)),"stop codec round trip");
+            var controller=UUID.randomUUID();var controlled=state(OWNER,true);
+            var control=StreamProtocol.Control.pointer(OWNER,SESSION,controller,StreamProtocol.Control.MOUSE_DOWN,640,300,0);
+            StreamProtocol.Control.CODEC.encode(buffer,control);
+            check(control.equals(StreamProtocol.Control.CODEC.decode(buffer)),"control codec round trip");
+            check(StreamRelay.mayControl(controller,control,controlled,controlled.dimension()),"enabled same-dimension controller accepted");
+            check(!StreamRelay.mayControl(controller,control,s,s.dimension()),"disabled remote control rejected");
+            check(!StreamRelay.mayControl(UUID.randomUUID(),control,controlled,controlled.dimension()),"controller spoof rejected");
+            check(!StreamRelay.mayControl(controller,control,controlled,ResourceLocation.withDefaultNamespace("the_nether")),"remote dimension spoof rejected");
+            check(StreamRelay.mayControl(controller,StreamProtocol.Control.cancel(OWNER,SESSION,controller),s,s.dimension()),"release accepted after permission is disabled");
+            check(StreamProtocol.Control.keepalive(OWNER,SESSION,controller).valid(controlled),"controller keepalive is bounded");
+            check(!StreamProtocol.Control.key(OWNER,SESSION,controller,67,46,1,2).valid(controlled),"remote control modifier rejected");
+            check(!StreamProtocol.Control.key(OWNER,SESSION,controller,341,29,1,0).valid(controlled),"remote system modifier key rejected");
+            var budget=new StreamRelay.ControlBudget(1_000);
+            for(int i=0;i<240;i++)check(budget.allow(1_000),"initial control burst bounded");
+            check(!budget.allow(1_000)&&budget.allow(2_000),"control budget refills over time");
         } finally {buffer.release();}
         byte[] bytes=new byte[StreamProtocol.MAX_FRAME_BYTES];new Random(1).nextBytes(bytes);
         var parts=StreamProtocol.split(OWNER,SESSION,1,bytes);check(parts.size()==StreamProtocol.MAX_PARTS,"bounded chunk count");
@@ -81,7 +99,11 @@ public final class StreamChecks {
             var host=new StreamBrowserPanel();host.position=new Vec3(20000000,80,20000000);host.orientation=new Quaternionf().rotateXYZ(.2f,.7f,.1f);
             host.scaleTo(4,2.25f);GroupCurve.get(host).apply(curvature);
             var s=StreamClient.snapshot(host,OWNER,SESSION);var viewer=new RemoteStreamPanel(s);viewer.place(s);
-            check(!viewer.canInteract()&&!viewer.canResize()&&!viewer.canGroup(),"viewer cannot manipulate stream");
+            check(!viewer.canInteract()&&!viewer.canResize()&&!viewer.canMove()&&!viewer.canGroup(),"read-only viewer cannot manipulate stream");
+            var controlled=state(OWNER,true);var controllerView=new RemoteStreamPanel(controlled);
+            check(controllerView.canInteract()&&controllerView.acceptsKeyboard(),"enabled viewer can control browser content");
+            check(!controllerView.canResize()&&!controllerView.canMove()&&!controllerView.canGroup(),"controller cannot manipulate replica placement");
+            check(controllerView.controlY(32)==0&&controllerView.controlY(0)==-32,"capture titlebar is excluded from browser input coordinates");
             check(!host.canGroup(),"shared/private grouping disabled");
             for(float x:new float[]{-host.worldWidth()/2,0,host.worldWidth()/2})for(float y:new float[]{-host.worldHeight()/2,0,WindowGroups.top(host)}) {
                 Vec3 original=host.curve.panelPoint(host,x,y,0);

@@ -11,21 +11,23 @@ public final class StreamProtocol {
     public static final int PART_BYTES = 24_000, MAX_FRAME_BYTES = 768_000, MAX_PARTS = 32;
     public static final int MAX_STREAMS = 16, MAX_IMAGE_WIDTH = 1920, MAX_IMAGE_HEIGHT = 1080;
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> type(String name) {
-        return new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("winlandcraft", name+"_v4"));
+        return new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("winlandcraft", name+"_v5"));
     }
     public record State(UUID owner, UUID session, ResourceLocation dimension,
                         double x, double y, double z, float qx, float qy, float qz, float qw,
-                        float width, float height, int pixelsWide, int pixelsHigh, float curve, int facing) implements CustomPacketPayload {
+                        float width, float height, int pixelsWide, int pixelsHigh, int titlebarPixels, float curve, int facing,
+                        boolean remoteControl) implements CustomPacketPayload {
         public static final Type<State> TYPE = StreamProtocol.type("stream_state");
         public static final StreamCodec<RegistryFriendlyByteBuf, State> CODEC = new StreamCodec<>() {
             public State decode(RegistryFriendlyByteBuf b) {
                 return new State(b.readUUID(),b.readUUID(),b.readResourceLocation(),b.readDouble(),b.readDouble(),b.readDouble(),
-                        b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readVarInt(),b.readVarInt(),b.readFloat(),b.readByte());
+                        b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readVarInt(),b.readVarInt(),b.readVarInt(),b.readFloat(),b.readByte(),b.readBoolean());
             }
             public void encode(RegistryFriendlyByteBuf b, State p) {
                 b.writeUUID(p.owner);b.writeUUID(p.session);b.writeResourceLocation(p.dimension);
                 b.writeDouble(p.x);b.writeDouble(p.y);b.writeDouble(p.z);b.writeFloat(p.qx);b.writeFloat(p.qy);b.writeFloat(p.qz);b.writeFloat(p.qw);
-                b.writeFloat(p.width);b.writeFloat(p.height);b.writeVarInt(p.pixelsWide);b.writeVarInt(p.pixelsHigh);b.writeFloat(p.curve);b.writeByte(p.facing);
+                b.writeFloat(p.width);b.writeFloat(p.height);b.writeVarInt(p.pixelsWide);b.writeVarInt(p.pixelsHigh);b.writeVarInt(p.titlebarPixels);
+                b.writeFloat(p.curve);b.writeByte(p.facing);b.writeBoolean(p.remoteControl);
             }
         };
         public boolean valid() {
@@ -34,6 +36,7 @@ public final class StreamProtocol {
                     &&Double.isFinite(length)&&Math.abs(length-1)<.01 && Float.isFinite(width)&&Float.isFinite(height)
                     &&width>=.0001f&&height>=.0001f&&width<=4096&&height<=4096
                     &&pixelsWide>0&&pixelsWide<=1_000_000&&pixelsHigh>0&&pixelsHigh<=1_000_000
+                    &&titlebarPixels>=0&&titlebarPixels<=Math.min(256,pixelsHigh)
                     &&Float.isFinite(curve)&&curve>=0&&curve<=1&&(facing==1||facing==-1);
         }
         @Override public Type<State> type(){return TYPE;}
@@ -54,6 +57,37 @@ public final class StreamProtocol {
             public void encode(RegistryFriendlyByteBuf b,Stop p){b.writeUUID(p.owner);b.writeUUID(p.session);}
         };
         @Override public Type<Stop> type(){return TYPE;}
+    }
+    public record Control(UUID owner,UUID session,UUID controller,int event,int x,int y,int value,int scan,int action,int modifiers,double amount) implements CustomPacketPayload {
+        public static final int MOVE=0,MOUSE_DOWN=1,MOUSE_UP=2,SCROLL=3,KEY=4,CHARACTER=5,CANCEL=6,KEEPALIVE=7;
+        private static final int SAFE_MODIFIERS=0x31; // Shift, Caps Lock and Num Lock only.
+        public static final Type<Control> TYPE=StreamProtocol.type("stream_control");
+        public static final StreamCodec<RegistryFriendlyByteBuf,Control> CODEC=new StreamCodec<>() {
+            public Control decode(RegistryFriendlyByteBuf b){return new Control(b.readUUID(),b.readUUID(),b.readUUID(),b.readUnsignedByte(),b.readInt(),b.readInt(),b.readInt(),b.readInt(),b.readUnsignedByte(),b.readUnsignedByte(),b.readDouble());}
+            public void encode(RegistryFriendlyByteBuf b,Control p){b.writeUUID(p.owner);b.writeUUID(p.session);b.writeUUID(p.controller);b.writeByte(p.event);b.writeInt(p.x);b.writeInt(p.y);b.writeInt(p.value);b.writeInt(p.scan);b.writeByte(p.action);b.writeByte(p.modifiers);b.writeDouble(p.amount);}
+        };
+        public static Control pointer(UUID owner,UUID session,UUID controller,int event,int x,int y,int button){return new Control(owner,session,controller,event,x,y,button,0,0,0,0);}
+        public static Control scroll(UUID owner,UUID session,UUID controller,int x,int y,double amount){return new Control(owner,session,controller,SCROLL,x,y,0,0,0,0,amount);}
+        public static Control key(UUID owner,UUID session,UUID controller,int key,int scan,int action,int modifiers){return new Control(owner,session,controller,KEY,0,0,key,scan,action,modifiers,0);}
+        public static Control character(UUID owner,UUID session,UUID controller,char character,int modifiers){return new Control(owner,session,controller,CHARACTER,0,0,character,0,0,modifiers,0);}
+        public static Control cancel(UUID owner,UUID session,UUID controller){return new Control(owner,session,controller,CANCEL,0,0,0,0,0,0,0);}
+        public static Control keepalive(UUID owner,UUID session,UUID controller){return new Control(owner,session,controller,KEEPALIVE,0,0,0,0,0,0,0);}
+        public boolean valid(State state) {
+            if(!owner.equals(state.owner)||!session.equals(state.session)||(modifiers&~SAFE_MODIFIERS)!=0)return false;
+            boolean coordinates=x>=-4096&&x<=state.pixelsWide+4096&&y>=-4096&&y<=state.pixelsHigh+4096;
+            return switch(event) {
+                case MOVE -> coordinates&&value==0&&scan==0&&action==0&&modifiers==0&&amount==0;
+                case MOUSE_DOWN,MOUSE_UP -> coordinates&&value>=0&&value<=7&&scan==0&&action==0&&modifiers==0&&amount==0;
+                case SCROLL -> coordinates&&value==0&&scan==0&&action==0&&modifiers==0&&Double.isFinite(amount)&&Math.abs(amount)<=100;
+                case KEY -> x==0&&y==0&&value>=-1&&value<=512&&!systemModifierKey(value)
+                        &&scan>=-1&&scan<=65535&&action>=0&&action<=2&&amount==0;
+                case CHARACTER -> x==0&&y==0&&value>=0&&value<=Character.MAX_VALUE&&scan==0&&action==0&&amount==0;
+                case CANCEL,KEEPALIVE -> x==0&&y==0&&value==0&&scan==0&&action==0&&modifiers==0&&amount==0;
+                default -> false;
+            };
+        }
+        private static boolean systemModifierKey(int key){return key>=341&&key<=347&&key!=344;}
+        @Override public Type<Control> type(){return TYPE;}
     }
     public static java.util.List<Frame> split(UUID owner,UUID session,long sequence,byte[] bytes) {
         if(bytes.length==0||bytes.length>MAX_FRAME_BYTES)throw new IllegalArgumentException("Frame size");

@@ -104,8 +104,9 @@ final class GroupCurve {
         var v=new org.joml.Vector3f((float)d.x,(float)d.y,(float)d.z).rotate(turn);
         origin=newPosition.add(v.x,v.y,v.z); rotation=new Quaternionf(turn).mul(rotation);
     }
-    int corner(WorldPanel p,Vec3 point) {
-        int corner=p.resizeCorner(point);
+    int corner(WorldPanel p,Vec3 point) { return corner(p,point,null); }
+    int corner(WorldPanel p,Vec3 point,Vec3 observer) {
+        int corner=p.resizeCorner(point,observer);
         if(corner==0) return 0;
         var l=layout.get(p);
         float x=l.x+((corner&1)!=0?-l.width/2:l.width/2);

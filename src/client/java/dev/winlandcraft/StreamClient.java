@@ -37,6 +37,12 @@ final class StreamClient {
             var panel=remote.get(p.owner());
             if(panel!=null&&panel.session.equals(p.session()))remove(panel);
         });
+        ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Control.TYPE,(p,c)->{
+            var client=Minecraft.getInstance();var panel=apps.streamBrowser;
+            if(client.player==null||!p.owner().equals(client.player.getUUID())||published==null
+                    ||!published.session().equals(p.session())||!p.valid(published))return;
+            if(p.event()==StreamProtocol.Control.CANCEL||ModSettings.streamRemoteControl&&published.remoteControl())panel.remoteControl(p);
+        });
     }
     private void receive(StreamProtocol.State state) {
         var client=Minecraft.getInstance();
@@ -100,7 +106,7 @@ final class StreamClient {
         var up=new Vector3f(0,title/2,0).rotate(rotation);center=center.add(up.x,up.y,up.z);
         return new StreamProtocol.State(owner,session,panel.level==null?net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"):panel.level.dimension().location(),
                 center.x,center.y,center.z,rotation.x,rotation.y,rotation.z,rotation.w,panel.worldWidth(),panel.worldHeight()+title,
-                panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),amount,facing);
+                panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),panel.titlebarHeight(),amount,facing,ModSettings.streamRemoteControl);
     }
     void renderCapture() {
         var client=Minecraft.getInstance();var panel=apps.streamBrowser;

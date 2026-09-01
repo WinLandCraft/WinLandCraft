@@ -1,5 +1,6 @@
 package dev.winlandcraft;
 
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -12,23 +13,32 @@ final class RemoteStreamPanel extends WorldPanel {
     final StreamProtocol.Assembly assembly=new StreamProtocol.Assembly();
     private final ResourceLocation texture;
     MediaBridge.Endpoint decoder;
-    private int pixelsWide=1280,pixelsHigh=752;
+    private int pixelsWide=1280,pixelsHigh=752,controlTop;
+    private boolean remoteControl,controlSent;
+    private int lastHoverX=Integer.MIN_VALUE,lastHoverY=Integer.MIN_VALUE;
+    private final java.util.Set<Integer> pressedButtons=new java.util.HashSet<>();
+    private boolean keyboardCaptured,hoverDirty;
+    private long lastControlSend;
+    private long nextHoverSend;
     long lastState;
     long lastSequence=-1;
     long sequenceGaps,mediaPackets,videoPackets,audioPackets,mediaBytes,lastVideoFrame,nextHealth;
     RemoteStreamPanel(StreamProtocol.State state) {
-        super(3.2f,1.88f);owner=state.owner();session=state.session();
+        super(3.2f,1.88f);owner=state.owner();session=state.session();remoteControl=state.remoteControl();controlTop=state.titlebarPixels();
         texture=ResourceLocation.fromNamespaceAndPath("winlandcraft","stream/"+owner+"/"+session);
     }
-    @Override public boolean canInteract(){return false;}
+    @Override public boolean canInteract(){return remoteControl;}
     @Override public boolean canResize(){return false;}
+    @Override public boolean canMove(){return false;}
     @Override public boolean canGroup(){return false;}
+    @Override public boolean acceptsKeyboard(){return remoteControl;}
     @Override public int pixelWidth(){return pixelsWide;}
     @Override public int pixelHeight(){return pixelsHigh;}
     @Override public void resize(float width,float height){scaleTo(width,height);}
     void apply(StreamProtocol.State state) {
         level=Minecraft.getInstance().level;
-        place(state);lastState=System.currentTimeMillis();
+        if(remoteControl&&!state.remoteControl())cancelControl();
+        remoteControl=state.remoteControl();controlTop=state.titlebarPixels();place(state);lastState=System.currentTimeMillis();
     }
     void place(StreamProtocol.State state) {
         curve=null;
@@ -52,10 +62,42 @@ final class RemoteStreamPanel extends WorldPanel {
             if(media.kind()==StreamMedia.VIDEO){videoPackets++;lastVideoFrame=System.currentTimeMillis();}else audioPackets++;
         }
     }
+    private void send(java.util.function.Function<java.util.UUID,StreamProtocol.Control> event) {
+        var client=Minecraft.getInstance();
+        if(!remoteControl||client.player==null||!ClientPlayNetworking.canSend(StreamProtocol.Control.TYPE))return;
+        ClientPlayNetworking.send(event.apply(client.player.getUUID()));controlSent=true;lastControlSend=System.currentTimeMillis();
+    }
+    private void cancelControl() {
+        var client=Minecraft.getInstance();
+        if(controlSent&&client.player!=null&&ClientPlayNetworking.canSend(StreamProtocol.Control.TYPE))
+            ClientPlayNetworking.send(StreamProtocol.Control.cancel(owner,session,client.player.getUUID()));
+        controlSent=keyboardCaptured=hoverDirty=false;pressedButtons.clear();lastHoverX=lastHoverY=Integer.MIN_VALUE;lastControlSend=nextHoverSend=0;
+    }
+    int controlY(int y){return y-controlTop;}
+    @Override public void hover(int x,int y){
+        if(x==lastHoverX&&y==lastHoverY)return;
+        lastHoverX=x;lastHoverY=y;hoverDirty=true;flushHover();
+    }
+    private void flushHover(){
+        long now=System.nanoTime();
+        if(!hoverDirty||now<nextHoverSend)return;
+        hoverDirty=false;nextHoverSend=now+16_666_667L;
+        send(controller->StreamProtocol.Control.pointer(owner,session,controller,StreamProtocol.Control.MOVE,lastHoverX,controlY(lastHoverY),0));
+    }
+    @Override public void mouseDown(int x,int y,int button){lastHoverX=x;lastHoverY=y;hoverDirty=false;pressedButtons.add(button);send(controller->StreamProtocol.Control.pointer(owner,session,controller,StreamProtocol.Control.MOUSE_DOWN,x,controlY(y),button));}
+    @Override public void mouseUp(int x,int y,int button){lastHoverX=x;lastHoverY=y;hoverDirty=false;send(controller->StreamProtocol.Control.pointer(owner,session,controller,StreamProtocol.Control.MOUSE_UP,x,controlY(y),button));pressedButtons.remove(button);}
+    @Override public void scroll(int x,int y,double amount){send(controller->StreamProtocol.Control.scroll(owner,session,controller,x,controlY(y),amount));}
+    @Override public void key(int key,int scan,int action,int modifiers){send(controller->StreamProtocol.Control.key(owner,session,controller,key,scan,action,modifiers));}
+    @Override public void character(char character,int modifiers){send(controller->StreamProtocol.Control.character(owner,session,controller,character,modifiers));}
+    @Override public void keyboardStarted(){keyboardCaptured=true;}
+    @Override public void keyboardStopped(){keyboardCaptured=false;cancelControl();}
     @Override public void tick(Minecraft client) {
         super.tick(client);
         if(isOpen()&&decoder!=null){
             decoder.tick();long now=System.currentTimeMillis();
+            flushHover();
+            if(remoteControl&&(keyboardCaptured||!pressedButtons.isEmpty())&&now-lastControlSend>=1_000)
+                send(controller->StreamProtocol.Control.keepalive(owner,session,controller));
             if(now>=nextHealth){nextHealth=now+10_000;WinLandCraftClient.LOGGER.info("Stream receiver network health for {}: {}",StreamClient.shortId(owner),health());}
         }
     }
@@ -87,6 +129,7 @@ final class RemoteStreamPanel extends WorldPanel {
         }
     }
     @Override public void close() {
+        cancelControl();
         super.close();
         if(decoder!=null){Minecraft.getInstance().getTextureManager().release(texture);decoder.close();decoder=null;}
     }
