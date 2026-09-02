@@ -47,6 +47,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
                 InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, "key.categories.winlandcraft"));
         var apps = new AppWindows();
         apps.plugins.load();
+        apps.plugins.loadV2();
         ScreenLighting.install(apps);
         var streams = new StreamClient(apps);
         streams.register();

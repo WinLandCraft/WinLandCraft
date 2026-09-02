@@ -1,5 +1,7 @@
 # Building WinLandCraft plugin mods
 
+This is the unchanged **v1** native/Chromium API guide. For external renderers, desktop capture, submitted video frames, and PCM audio, use [API v2](PLUGINS-V2.md). Both versions coexist; existing v1 plugins need no migration.
+
 API **v1**, available in **WinLandCraft 0.1.82-dev and later**, lets another Fabric mod add apps without forking WinLandCraft. The public package is `dev.winlandcraft.api.v1`. It contains only Java types: no Minecraft mappings, internal panel classes, OpenGL, MCEF, or JCEF types appear in its signatures.
 
 ## What the host provides

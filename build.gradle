@@ -305,7 +305,7 @@ check.dependsOn verifyMixinPackaging
 tasks.register('pluginApiJar', Jar) {
     dependsOn compileClientJava
     archiveClassifier = 'plugin-api'
-    from(sourceSets.client.output) { include 'dev/winlandcraft/api/v1/**' }
+    from(sourceSets.client.output) { include 'dev/winlandcraft/api/v1/**', 'dev/winlandcraft/api/v2/**' }
 }
 sourceSets {
     pluginCheck {
@@ -322,3 +322,11 @@ tasks.register('verifyPluginApi', JavaExec) {
 }
 check.dependsOn verifyPluginApi
 build.dependsOn pluginApiJar
+
+tasks.register('verifyPluginMedia', JavaExec) {
+    dependsOn geometryCheckClasses, pluginCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath + sourceSets.pluginCheck.output
+    mainClass = 'dev.winlandcraft.PluginMediaChecks'
+    args file('docs/plugin-api-v2.txt').absolutePath
+}
+check.dependsOn verifyPluginMedia

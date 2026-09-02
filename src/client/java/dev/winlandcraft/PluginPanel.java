@@ -11,6 +11,7 @@ import net.minecraft.resources.ResourceLocation;
 final class PluginPanel extends BrowserPanel {
     final AppDefinition definition;
     private App app;
+    private PluginFrames frames;private PluginAudio audio;
     private Context context;
     private String title,error="",url="about:blank",lastAddress="",lastTitle="";
     private boolean keyboard,nativeFocus=true,fullBrowser=true;
@@ -29,7 +30,9 @@ final class PluginPanel extends BrowserPanel {
     private int browserX(){return fullBrowser?0:Math.min(bx,pixelWidth()-1);}
     private int browserY(){return fullBrowser?0:Math.min(by,pixelHeight()-1);}
     private boolean inBrowser(int x,int y){return browserEnabled()&&x>=browserX()&&y>=browserY()&&x<browserX()+browserWidth()&&y<browserY()+browserHeight();}
-    private void fail(Throwable failure){error="Plugin failed: "+definition.name()+". See latest.log.";keyboard=false;WinLandCraftClient.LOGGER.error("Plugin app {} failed",definition.id(),failure);closeViews();}
+    private void closeMedia(){if(frames!=null){frames.close();frames=null;}if(audio!=null){audio.close();audio=null;}}
+    @Override protected void tabSelected(com.cinemamod.mcef.MCEFBrowser browser){super.tabSelected(audio==null?browser:null);}
+    private void fail(Throwable failure){error="Plugin failed: "+definition.name()+". See latest.log.";keyboard=false;WinLandCraftClient.LOGGER.error("Plugin app {} failed",definition.id(),failure);closeMedia();closeViews();}
     private void call(Runnable action){if(!error.isEmpty())return;try{action.run();}catch(RuntimeException|LinkageError|AssertionError failure){fail(failure);}}
     private void initialize(){if(app!=null||!error.isEmpty()||!isOpen())return;call(()->{app=definition.create();context=new Context();app.onOpen(context);if(app!=null)app.onResize(pixelWidth(),pixelHeight());});}
     @Override public void open(Minecraft client){super.open(client);initialize();}
@@ -44,6 +47,7 @@ final class PluginPanel extends BrowserPanel {
     @Override public void close(){
         if(!com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()){com.mojang.blaze3d.systems.RenderSystem.recordRenderCall(this::close);return;}
         if(context!=null)context.live=false;
+        closeMedia();
         App previous=app;app=null;context=null;
         if(previous!=null)try{previous.onClose();}catch(RuntimeException|LinkageError|AssertionError failure){WinLandCraftClient.LOGGER.error("Plugin close failed: {}",definition.id(),failure);}
         nativeButtons.clear();browserButtons.clear();nativeKeys.clear();keyboard=false;error="";title=definition.name();lastAddress=lastTitle="";url="about:blank";fullBrowser=true;
@@ -86,9 +90,10 @@ final class PluginPanel extends BrowserPanel {
         canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF18212D);
         if(!error.isEmpty()){canvas.text(error,16,24,0xFFFFA5A5,1.5f);return;}
         if(browserEnabled())drawManagedBrowser(canvas,browserX(),browserY(),browserWidth(),browserHeight());
+        if(frames!=null)frames.draw(canvas,pixelWidth(),pixelHeight());
         if(app!=null){var frame=new Drawing(canvas);try{call(()->app.render(frame));}finally{frame.live=false;}}
     }
-    private final class Drawing implements Canvas {
+    private final class Drawing implements Canvas,dev.winlandcraft.api.v2.Canvas {
         private final PanelCanvas canvas;private boolean live=true;private int draws;
         Drawing(PanelCanvas canvas){this.canvas=canvas;}
         private float layer(){if(!live)throw new IllegalStateException("Canvas expired");if(++draws>8192)throw new IllegalStateException("Too many draw calls");return .3f+draws*.0001f;}
@@ -98,9 +103,9 @@ final class PluginPanel extends BrowserPanel {
         public void text(String text,int x,int y,int color,float scale){canvas.text(text,x,y,color,scale,layer());}
         public void image(String resource,int x,int y,int w,int h,int color){canvas.texture(ResourceLocation.parse(resource),x,y,w,h,layer(),color,0,0,1,1);}
     }
-    private final class Context implements WindowContext {
+    private final class Context implements WindowContext,dev.winlandcraft.api.v2.WindowContext {
         private volatile boolean live=true;private final AtomicInteger pending=new AtomicInteger();
-        private final BrowserView browser=new View(this);
+        private final View browser=new View(this);
         private void check(){if(!live||context!=this)throw new IllegalStateException("Window session closed");if(!Minecraft.getInstance().isSameThread())throw new IllegalStateException("Use window.execute from worker threads");}
         public int width(){check();return pixelWidth();}public int height(){check();return pixelHeight();}
         public void title(String value){check();title=Objects.requireNonNull(value);if(title.length()>512)title=title.substring(0,512);}
@@ -110,9 +115,11 @@ final class PluginPanel extends BrowserPanel {
         public Path dataDirectory(){return net.fabricmc.loader.api.FabricLoader.getInstance().getConfigDir().resolve("winlandcraft/plugins").resolve(definition.id().replace(':','/'));}
         public String clipboard(){check();return Minecraft.getInstance().keyboardHandler.getClipboard();}
         public void clipboard(String text){check();Minecraft.getInstance().keyboardHandler.setClipboard(Objects.requireNonNull(text));}
-        public BrowserView browser(){check();if(definition.kind()==AppKind.NATIVE)throw new IllegalStateException("Native apps do not own a browser view");return browser;}
+        public dev.winlandcraft.api.v2.FrameSurface frames(){check();if(frames==null)frames=new PluginFrames();return frames;}
+        public dev.winlandcraft.api.v2.AudioOutput audio(){check();if(audio==null){audio=new PluginAudio(PluginPanel.this);audioTab=null;}return audio;}
+        public View browser(){check();if(definition.kind()==AppKind.NATIVE)throw new IllegalStateException("Native apps do not own a browser view");return browser;}
     }
-    private final class View implements BrowserView {
+    private final class View implements BrowserView,dev.winlandcraft.api.v2.BrowserView {
         private final Context owner;View(Context owner){this.owner=owner;}
         public void navigate(String value){owner.check();Objects.requireNonNull(value);if(value.length()>2_000_000)throw new IllegalArgumentException("URL too large");url=value;if(managedBrowser()!=null)managedBrowser().loadURL(url);}
         public String address(){owner.check();return managedAddress();}public String title(){owner.check();return managedTitle();}

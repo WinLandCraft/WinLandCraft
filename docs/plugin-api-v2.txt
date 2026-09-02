@@ -1,0 +1,91 @@
+class dev.winlandcraft.api.v2.App
+class dev.winlandcraft.api.v2.AppDefinition
+class dev.winlandcraft.api.v2.AppDefinition$Builder
+class dev.winlandcraft.api.v2.AppKind
+class dev.winlandcraft.api.v2.AudioOutput
+class dev.winlandcraft.api.v2.BrowserView
+class dev.winlandcraft.api.v2.Canvas
+class dev.winlandcraft.api.v2.FrameSurface
+class dev.winlandcraft.api.v2.PixelFormat
+class dev.winlandcraft.api.v2.PluginRegistry
+class dev.winlandcraft.api.v2.WinLandCraftPlugin
+class dev.winlandcraft.api.v2.WindowContext
+public abstract boolean dev.winlandcraft.api.v2.AudioOutput.submit(float[])
+public abstract boolean dev.winlandcraft.api.v2.BrowserView.executeJavaScript(java.lang.String)
+public abstract boolean dev.winlandcraft.api.v2.BrowserView.ready()
+public abstract boolean dev.winlandcraft.api.v2.FrameSurface.submit(java.nio.ByteBuffer,int,int,int,dev.winlandcraft.api.v2.PixelFormat)
+public abstract dev.winlandcraft.api.v2.AudioOutput dev.winlandcraft.api.v2.WindowContext.audio()
+public abstract dev.winlandcraft.api.v2.BrowserView dev.winlandcraft.api.v2.WindowContext.browser()
+public abstract dev.winlandcraft.api.v2.FrameSurface dev.winlandcraft.api.v2.WindowContext.frames()
+public abstract int dev.winlandcraft.api.v2.Canvas.height()
+public abstract int dev.winlandcraft.api.v2.Canvas.textWidth(java.lang.String)
+public abstract int dev.winlandcraft.api.v2.Canvas.width()
+public abstract int dev.winlandcraft.api.v2.WindowContext.height()
+public abstract int dev.winlandcraft.api.v2.WindowContext.width()
+public abstract java.lang.String dev.winlandcraft.api.v2.BrowserView.address()
+public abstract java.lang.String dev.winlandcraft.api.v2.BrowserView.title()
+public abstract java.lang.String dev.winlandcraft.api.v2.WindowContext.clipboard()
+public abstract java.nio.file.Path dev.winlandcraft.api.v2.WindowContext.dataDirectory()
+public abstract void dev.winlandcraft.api.v2.AudioOutput.clear()
+public abstract void dev.winlandcraft.api.v2.AudioOutput.localPlayback(boolean)
+public abstract void dev.winlandcraft.api.v2.BrowserView.back()
+public abstract void dev.winlandcraft.api.v2.BrowserView.bounds(int,int,int,int)
+public abstract void dev.winlandcraft.api.v2.BrowserView.fillWindow()
+public abstract void dev.winlandcraft.api.v2.BrowserView.forward()
+public abstract void dev.winlandcraft.api.v2.BrowserView.navigate(java.lang.String)
+public abstract void dev.winlandcraft.api.v2.BrowserView.reload()
+public abstract void dev.winlandcraft.api.v2.Canvas.image(java.lang.String,int,int,int,int,int)
+public abstract void dev.winlandcraft.api.v2.Canvas.rectangle(float,float,float,float,int)
+public abstract void dev.winlandcraft.api.v2.Canvas.text(java.lang.String,int,int,int,float)
+public abstract void dev.winlandcraft.api.v2.FrameSurface.clear()
+public abstract void dev.winlandcraft.api.v2.PluginRegistry.register(dev.winlandcraft.api.v2.AppDefinition)
+public abstract void dev.winlandcraft.api.v2.WinLandCraftPlugin.register(dev.winlandcraft.api.v2.PluginRegistry)
+public abstract void dev.winlandcraft.api.v2.WindowContext.clipboard(java.lang.String)
+public abstract void dev.winlandcraft.api.v2.WindowContext.close()
+public abstract void dev.winlandcraft.api.v2.WindowContext.execute(java.lang.Runnable)
+public abstract void dev.winlandcraft.api.v2.WindowContext.requestKeyboard(boolean)
+public abstract void dev.winlandcraft.api.v2.WindowContext.title(java.lang.String)
+public boolean dev.winlandcraft.api.v2.AppDefinition.accepts(java.nio.file.Path)
+public default java.nio.file.Path dev.winlandcraft.api.v2.App.dragFileAt(int,int)
+public default void dev.winlandcraft.api.v2.App.onBrowserAddressChanged(java.lang.String)
+public default void dev.winlandcraft.api.v2.App.onBrowserLoaded()
+public default void dev.winlandcraft.api.v2.App.onBrowserTitleChanged(java.lang.String)
+public default void dev.winlandcraft.api.v2.App.onCharacter(char,int)
+public default void dev.winlandcraft.api.v2.App.onClose()
+public default void dev.winlandcraft.api.v2.App.onFocusChanged(boolean)
+public default void dev.winlandcraft.api.v2.App.onKey(int,int,int,int)
+public default void dev.winlandcraft.api.v2.App.onOpen(dev.winlandcraft.api.v2.WindowContext)
+public default void dev.winlandcraft.api.v2.App.onPointerDown(int,int,int)
+public default void dev.winlandcraft.api.v2.App.onPointerMove(int,int)
+public default void dev.winlandcraft.api.v2.App.onPointerUp(int,int,int)
+public default void dev.winlandcraft.api.v2.App.onResize(int,int)
+public default void dev.winlandcraft.api.v2.App.onScroll(int,int,double)
+public default void dev.winlandcraft.api.v2.App.onTick()
+public default void dev.winlandcraft.api.v2.App.openFile(java.nio.file.Path)
+public default void dev.winlandcraft.api.v2.App.render(dev.winlandcraft.api.v2.Canvas)
+public dev.winlandcraft.api.v2.App dev.winlandcraft.api.v2.AppDefinition.create()
+public dev.winlandcraft.api.v2.AppDefinition dev.winlandcraft.api.v2.AppDefinition$Builder.build()
+public dev.winlandcraft.api.v2.AppDefinition$Builder dev.winlandcraft.api.v2.AppDefinition$Builder.extensions(java.lang.String...)
+public dev.winlandcraft.api.v2.AppDefinition$Builder dev.winlandcraft.api.v2.AppDefinition$Builder.fileNames(java.lang.String...)
+public dev.winlandcraft.api.v2.AppDefinition$Builder dev.winlandcraft.api.v2.AppDefinition$Builder.icon(java.lang.String)
+public dev.winlandcraft.api.v2.AppDefinition$Builder dev.winlandcraft.api.v2.AppDefinition$Builder.size(int,int)
+public dev.winlandcraft.api.v2.AppKind dev.winlandcraft.api.v2.AppDefinition.kind()
+public int dev.winlandcraft.api.v2.AppDefinition.height()
+public int dev.winlandcraft.api.v2.AppDefinition.width()
+public java.lang.String dev.winlandcraft.api.v2.AppDefinition.icon()
+public java.lang.String dev.winlandcraft.api.v2.AppDefinition.id()
+public java.lang.String dev.winlandcraft.api.v2.AppDefinition.name()
+public java.util.Set<java.lang.String> dev.winlandcraft.api.v2.AppDefinition.extensions()
+public java.util.Set<java.lang.String> dev.winlandcraft.api.v2.AppDefinition.fileNames()
+public static dev.winlandcraft.api.v2.AppDefinition$Builder dev.winlandcraft.api.v2.AppDefinition.builder(java.lang.String,java.lang.String,dev.winlandcraft.api.v2.AppKind,java.util.function.Supplier<? extends dev.winlandcraft.api.v2.App>)
+public static dev.winlandcraft.api.v2.AppKind dev.winlandcraft.api.v2.AppKind.valueOf(java.lang.String)
+public static dev.winlandcraft.api.v2.AppKind[] dev.winlandcraft.api.v2.AppKind.values()
+public static dev.winlandcraft.api.v2.PixelFormat dev.winlandcraft.api.v2.PixelFormat.valueOf(java.lang.String)
+public static dev.winlandcraft.api.v2.PixelFormat[] dev.winlandcraft.api.v2.PixelFormat.values()
+public static final dev.winlandcraft.api.v2.AppKind dev.winlandcraft.api.v2.AppKind.CHROMIUM
+public static final dev.winlandcraft.api.v2.AppKind dev.winlandcraft.api.v2.AppKind.HYBRID
+public static final dev.winlandcraft.api.v2.AppKind dev.winlandcraft.api.v2.AppKind.NATIVE
+public static final dev.winlandcraft.api.v2.AppKind dev.winlandcraft.api.v2.AppKind.SURFACE
+public static final dev.winlandcraft.api.v2.PixelFormat dev.winlandcraft.api.v2.PixelFormat.BGRA8
+public static final dev.winlandcraft.api.v2.PixelFormat dev.winlandcraft.api.v2.PixelFormat.RGBA8
+public static final int dev.winlandcraft.api.v2.PluginRegistry.API_VERSION

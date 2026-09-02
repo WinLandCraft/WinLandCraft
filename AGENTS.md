@@ -56,6 +56,11 @@ Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR pai
 
 ## Plugin API compatibility
 
+- v1 public sources and its frozen baseline remain unchanged when extending v2. `dev.winlandcraft.api.v2` starts in 0.1.83-dev with the separate `winlandcraft:plugins_v2` entrypoint; preserve its baseline in `docs/plugin-api-v2.txt` too.
+- V2 frame/audio submissions may originate on native/worker threads. Copy before returning, retain only the newest pending frame, bound audio buffering and pacing, and reject stale session handles. Only the render thread may allocate/upload/delete textures. Preserve GL texture and pixel-unpack state around uploads.
+- Keep `PLUGINS-V2.md`, API-only fixtures, and `verifyPluginMedia` synchronized. Platform-specific capture/engine integration belongs in plugin mods, not the portable host API.
+
+
 - `dev.winlandcraft.api.v1` is a supported public ABI, first shipped in 0.1.82-dev. Avoid changing it; prefer fixes and features in internal adapters.
 - Preserve existing public classes, methods, descriptors, enum values, entrypoint name, defaults, and documented semantics. Add only optional builder settings or default interface methods. Never add a mandatory callback to a v1 interface.
 - If incompatible changes are unavoidable, introduce another API version alongside v1 and retain its host adapter. Older plugin binaries must continue working on supported Minecraft/Fabric versions.

@@ -18,6 +18,13 @@ final class PluginHost {
             catch(RuntimeException|LinkageError|AssertionError failure){WinLandCraftClient.LOGGER.error("Could not load WinLandCraft plugin {}",provider,failure);}
         }
     }
+    void loadV2(){
+        for(var entry:FabricLoader.getInstance().getEntrypointContainers("winlandcraft:plugins_v2",dev.winlandcraft.api.v2.WinLandCraftPlugin.class)) {
+            String provider=entry.getProvider().getMetadata().getId();
+            try{register(provider,registry->entry.getEntrypoint().register(definition->registry.register(PluginV2.adapt(definition))));}
+            catch(RuntimeException|LinkageError|AssertionError failure){WinLandCraftClient.LOGGER.error("Could not load v2 plugin {}",provider,failure);}
+        }
+    }
     void register(String provider,WinLandCraftPlugin plugin){
         var staged=new LinkedHashMap<String,AppDefinition>();
         boolean[] open={true};

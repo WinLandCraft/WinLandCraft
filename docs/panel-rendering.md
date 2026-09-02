@@ -37,3 +37,7 @@ When a panel disappears only with shaders, inspect the final world draw rather t
 When a panel becomes jagged after resizing, inspect the final texture sampler. A valid surface has all expected mip levels, a mipmapped linear minification filter, and anisotropy above 1 when the driver exposes it. Seeing the same numeric texture ID before and after resize does not prove the allocation survived.
 
 These checks intentionally cover different stages: a correct private texture can still disappear during the world draw, and a visible world draw can still sample that texture poorly.
+
+## API v2 submitted surfaces
+
+PluginFrameMailbox copies top-down RGBA8/BGRA8 rows from a producer's ByteBuffer into one replaceable pending frame, with a 4096x4096 limit. PluginFrames drains it only while composing the panel on the render thread. Raw GL texture upload saves/restores the bound texture, unpack PBO, row length, skips, and alignment. Allocation and sampler configuration occur together, including same-byte-count shape changes. The owned texture is fitted into logical content dimensions with aspect-preserving letterboxing, then combined with native UI in the normal PanelSurface. Final world submission and stream capture are unchanged. Context teardown closes the mailbox before deleting GL resources, so late producers cannot revive a texture.

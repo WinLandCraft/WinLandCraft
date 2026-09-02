@@ -37,8 +37,9 @@ final class StreamAudio {
         private final byte[] data;
         private final AtomicInteger owners=new AtomicInteger(2);
         private Packet(Source source,byte[] data){this.source=source;this.data=data;}
+        static Packet owned(byte[] pcm){return new Packet(null,pcm);}
         byte[] data(){return data;}
-        void release(){if(owners.decrementAndGet()==0)source.recycle(data);}
+        void release(){if(owners.decrementAndGet()==0&&source!=null)source.recycle(data);}
     }
     private static int id(CefBrowser browser){return browser==null?-1:browser.getIdentifier();}
     private static Source source(CefBrowser browser){
