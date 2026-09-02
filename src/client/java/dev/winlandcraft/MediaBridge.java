@@ -221,18 +221,18 @@ final class MediaBridge implements AutoCloseable {
     Endpoint create(boolean encode,String label){var endpoint=new Endpoint(encode,label);endpoint.open();return endpoint;}
     private void handle(HttpExchange exchange) {
         try(exchange) {
-            if(!exchange.getRemoteAddress().getAddress().isLoopbackAddress()) {reply(exchange,403,null);return;}
-            String host=exchange.getRequestHeaders().getFirst("Host"),from=exchange.getRequestHeaders().getFirst("Origin");
-            if(!origin.substring(7).equals(host)||from!=null&&!origin.equals(from)){reply(exchange,403,null);return;}
+            if(!exchange.getRemoteAddress().getAddress().isLoopbackAddress()){reply(exchange,403,null);return;}
             String path=exchange.getRequestURI().getPath();int separator=path.indexOf('/',1);
             var endpoint=separator>1&&path.indexOf('/',separator+1)<0?endpoints.get(path.substring(1,separator)):null;
             if(endpoint==null||endpoint.closed){reply(exchange,404,null);return;}
+            String route=path.substring(separator+1),method=exchange.getRequestMethod();
+            String host=exchange.getRequestHeaders().getFirst("Host"),from=exchange.getRequestHeaders().getFirst("Origin");
+            if(!origin.substring(7).equals(host)||!acceptsOrigin(origin,from,method,route)){reply(exchange,403,null);return;}
             exchange.getResponseHeaders().set("Cache-Control","no-store");
             exchange.getResponseHeaders().set("Referrer-Policy","no-referrer");
             exchange.getResponseHeaders().set("X-Content-Type-Options","nosniff");
-            String route=path.substring(separator+1);
             endpoint.lastRequest=System.currentTimeMillis();
-            if(exchange.getRequestMethod().equals("GET"))switch(route) {
+            if(method.equals("GET"))switch(route) {
                 case "index" -> {
                     endpoint.indexRequests.incrementAndGet();
                     exchange.getResponseHeaders().set("Content-Type","text/html; charset=utf-8");
@@ -275,7 +275,7 @@ final class MediaBridge implements AutoCloseable {
                 }
                 default -> reply(exchange,404,null);
             }
-            else if(exchange.getRequestMethod().equals("POST")) {
+            else if(method.equals("POST")) {
                 int limit=route.equals("packet")?StreamProtocol.MAX_FRAME_BYTES:2048;
                 byte[] body=exchange.getRequestBody().readNBytes(limit+1);
                 if(body.length>limit){reply(exchange,413,null);return;}
@@ -294,6 +294,13 @@ final class MediaBridge implements AutoCloseable {
             long now=System.currentTimeMillis(),previous=lastFailureLog.get();
             if(now-previous>=10_000&&lastFailureLog.compareAndSet(previous,now))WinLandCraftClient.LOGGER.warn("Codec bridge request failed (further failures are rate-limited)",failure);
         }
+    }
+    static boolean acceptsOrigin(String expected,String provided,String method,String route) {
+        if(provided==null||expected.equals(provided))return true;
+        // Chromium 151 gives MCEF's off-screen page an opaque origin for fetch POSTs.
+        // The exact host, loopback peer and 256-bit endpoint token were validated first.
+        return "null".equals(provided)&&"POST".equals(method)
+                &&("status".equals(route)||"packet".equals(route));
     }
     private static void reply(HttpExchange exchange,int status,byte[] bytes)throws IOException {
         exchange.sendResponseHeaders(status,bytes==null?-1:bytes.length);
