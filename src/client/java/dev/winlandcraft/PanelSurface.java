@@ -141,6 +141,7 @@ final class PanelSurface implements AutoCloseable {
         };
         private boolean registered,closed;
         private boolean samplerDirty;
+        private boolean samplerSmoothing;
         private ScreenColorSampler lightSampler;
 
         Target(ResourceLocation location){this.location=location;}
@@ -164,7 +165,7 @@ final class PanelSurface implements AutoCloseable {
             GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,0);
             RenderSystem.bindTexture(framebuffer.getColorTextureId());
             GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
-            if(samplerDirty)configureSampler();
+            if(samplerDirty||samplerSmoothing!=ModSettings.panelSmoothing)configureSampler();
             if(panel.projectsLight()&&ScreenLighting.samplingEnabled()) {
                 if(lightSampler==null)lightSampler=new ScreenColorSampler();
                 lightSampler.capture(framebuffer.getColorTextureId(),framebuffer.width,framebuffer.height,panel::screenLightColors);
@@ -173,16 +174,18 @@ final class PanelSurface implements AutoCloseable {
 
         private void configureSampler() {
             RenderSystem.bindTexture(framebuffer.getColorTextureId());
-            GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR_MIPMAP_LINEAR);
+            boolean smoothing=ModSettings.panelSmoothing;
+            GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,smoothing?GL11.GL_LINEAR_MIPMAP_LINEAR:GL11.GL_NEAREST);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MAG_FILTER,GL11.GL_NEAREST);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_S,GL12.GL_CLAMP_TO_EDGE);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_T,GL12.GL_CLAMP_TO_EDGE);
             if(GL.getCapabilities().GL_EXT_texture_filter_anisotropic) {
                 if(Float.isNaN(maximumAnisotropy))
                     maximumAnisotropy=Math.min(16,GL11.glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT));
-                GL11.glTexParameterf(GL11.GL_TEXTURE_2D,EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,maximumAnisotropy);
+                GL11.glTexParameterf(GL11.GL_TEXTURE_2D,EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,smoothing?maximumAnisotropy:1);
             }
             samplerDirty=false;
+            samplerSmoothing=smoothing;
         }
 
         @Override public void close() {

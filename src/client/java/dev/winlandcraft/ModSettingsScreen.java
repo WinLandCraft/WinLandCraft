@@ -3,6 +3,7 @@ package dev.winlandcraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -25,6 +26,7 @@ final class ModSettingsScreen extends Screen {
     private Component sizingLabel(){return Component.literal("Remove sizing limitations: "+(ModSettings.removeSizingLimitations?"ON":"OFF"));}
     private Component rangeLabel(){return Component.literal("Extend interaction range: "+(ModSettings.extendInteractionRange?"ON":"OFF"));}
     private Component lightingLabel(){return Component.literal("Lighting "+(ModSettings.screenLighting?"ON":"OFF"));}
+    private Component smoothingLabel(){return Component.literal("Panel smoothing: "+(ModSettings.panelSmoothing?"ON":"OFF"));}
     private Component lightPowerLabel(){return Component.literal(String.format(java.util.Locale.ROOT,"Power %.1fx",ModSettings.screenLightIntensity));}
     private Component lightRangeLabel(){return Component.literal("Range "+Math.round(ModSettings.screenLightRange)+"+");}
     @Override protected void init() {
@@ -59,7 +61,12 @@ final class ModSettingsScreen extends Screen {
         }).bounds(width/2-140,142,220,20).build());
         addRenderableWidget(Button.builder(Component.literal("Manage webapps..."), button ->
                 minecraft.setScreen(new WebAppsScreen(this, changed)))
-                .bounds(width / 2 - 125, 184, 250, 20).build());
+                .bounds(width / 2 - 145, 184, 130, 20).build());
+        addRenderableWidget(Button.builder(smoothingLabel(),button->{
+            ModSettings.panelSmoothing=!ModSettings.panelSmoothing;
+            saveFailed=!ModSettings.save();button.setMessage(smoothingLabel());
+        }).bounds(width/2-10,184,155,20)
+                .tooltip(Tooltip.create(Component.literal("OFF removes distance blur. Pixels stay sharp but may shimmer at a distance. Applies immediately."))).build());
         addRenderableWidget(Button.builder(lightingLabel(),button->{
             ModSettings.screenLighting=!ModSettings.screenLighting;saveFailed=!ModSettings.save();button.setMessage(lightingLabel());
         }).bounds(width/2-125,216,96,20).build());

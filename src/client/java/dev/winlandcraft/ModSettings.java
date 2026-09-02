@@ -23,6 +23,7 @@ final class ModSettings {
     static int streamFps=30,streamKbps=2000,streamHeight=720,streamAudioKbps=96;
     static boolean streamAudio=true,streamRemoteControl=false;
     static boolean screenLighting=true;
+    static boolean panelSmoothing=true;
     static float screenLightIntensity=DEFAULT_SCREEN_LIGHT_INTENSITY,screenLightRange=MIN_SCREEN_LIGHT_RANGE;
     static boolean laserEnabled=true;
     static int laserColor;
@@ -42,6 +43,7 @@ final class ModSettings {
         interactionRange = 16;
         streamRemoteControl = false;
         screenLighting = true;
+        panelSmoothing = true;
         screenLightIntensity = DEFAULT_SCREEN_LIGHT_INTENSITY;
         screenLightRange = MIN_SCREEN_LIGHT_RANGE;
         laserEnabled = true;
@@ -61,6 +63,7 @@ final class ModSettings {
                 if(json.has("streamAudio"))streamAudio=json.get("streamAudio").getAsBoolean();
                 if(json.has("streamRemoteControl"))streamRemoteControl=json.get("streamRemoteControl").getAsBoolean();
                 if(json.has("screenLighting"))screenLighting=json.get("screenLighting").getAsBoolean();
+                if(json.has("panelSmoothing"))panelSmoothing=json.get("panelSmoothing").getAsBoolean();
                 if(json.has("screenLightIntensity"))screenLightIntensity=nearest(json.get("screenLightIntensity").getAsFloat(),SCREEN_LIGHT_INTENSITIES);
                 if(json.has("screenLightRange"))screenLightRange=nearest(json.get("screenLightRange").getAsFloat(),SCREEN_LIGHT_RANGES);
                 if(json.has("laserEnabled"))laserEnabled=json.get("laserEnabled").getAsBoolean();
@@ -117,6 +120,7 @@ final class ModSettings {
             json.addProperty("streamAudio",streamAudio);json.addProperty("streamAudioKbps",streamAudioKbps);
             json.addProperty("streamRemoteControl",streamRemoteControl);
             json.addProperty("screenLighting",screenLighting);
+            json.addProperty("panelSmoothing",panelSmoothing);
             json.addProperty("screenLightIntensity",screenLightIntensity);
             json.addProperty("screenLightRange",screenLightRange);
             json.addProperty("laserEnabled",laserEnabled);

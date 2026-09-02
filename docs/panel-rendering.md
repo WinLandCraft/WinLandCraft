@@ -14,6 +14,8 @@ The private compositor still owns a small immediate buffer because it must finis
 
 The composed texture uses a complete mip chain, trilinear minification, nearest magnification, edge clamping, and up to 16x anisotropic filtering. Near views therefore retain native pixel sharpness while oblique or distant views use the mip chain.
 
+Settings > Panel smoothing (ON by default, persisted as `panelSmoothing`) controls this world-surface filtering. OFF uses nearest minification and magnification with 1x anisotropy, removing distance blur at the cost of aliasing/shimmer. Changes reconfigure each surface's sampler on its next composition, without reopening or resizing it. The full mip chain is still generated in either mode because screen-light sampling relies on it. Allocation/resize invalidation remains independent of the setting.
+
 Sampler validity is tracked with `samplerDirty`, which is set whenever the framebuffer is allocated or resized. Never cache only `framebuffer.getColorTextureId()` to decide whether sampler state is current. OpenGL object names are recyclable: `TextureTarget.resize` can delete and recreate a texture with the same integer name. That exact reuse previously made WinLandCraft skip sampler setup, leaving point minification with no mip filtering and 1x anisotropy even though all mip levels existed.
 
 `AbstractTexture.setFilter` and `setClamp` are intentionally ignored for this registered surface. Vanilla render types otherwise overwrite the owned mip sampler before each draw.
