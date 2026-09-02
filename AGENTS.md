@@ -10,6 +10,7 @@ These instructions apply to the entire repository.
 - `mcefFork` assembles the embedded browser compatibility JAR. It combines MCEF 2.1.6 integration classes with the pinned JCEF classes in `gradle.properties`; do not add a separate MCEF runtime dependency.
 - Chromium/JCEF compatibility decisions are documented in `docs/chromium-compatibility.md`. Update that document whenever the pinned runtime, browser flags, download source, or lifecycle handling changes.
 - `adblockNative` is the pinned Rust/JNI adblock engine. Its request, page-injection, asset, and packaging invariants are documented in `docs/adblocking.md`.
+- Native control icons and hover-state invariants are documented in `docs/ui-icons.md`. Keep the `PixelIcon` order synchronized with its atlas and packaged license.
 
 ## Browser invariants
 

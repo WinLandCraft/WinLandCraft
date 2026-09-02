@@ -28,6 +28,7 @@ public final class StreamRelay {
         final Map<UUID,ControlBudget> controllers=new HashMap<>();
         long lastState,budgetAt,nextReport,receivedUnits,acceptedUnits,acceptedBytes,videoUnits,audioUnits,invalidUnits,budgetDrops;
         long acceptedControls,invalidControls,controlDrops;
+        boolean demand,demandKnown;
         double byteBudget=4_000_000,packetBudget=300;
         Session(StreamProtocol.State state,long now){this.state=state;lastState=budgetAt=now;}
         boolean allow(int bytes,long now) {
@@ -49,6 +50,7 @@ public final class StreamRelay {
     public static void register() {
         PayloadTypeRegistry.playC2S().register(StreamProtocol.State.TYPE,StreamProtocol.State.CODEC);
         PayloadTypeRegistry.playS2C().register(StreamProtocol.State.TYPE,StreamProtocol.State.CODEC);
+        PayloadTypeRegistry.playS2C().register(StreamProtocol.Demand.TYPE,StreamProtocol.Demand.CODEC);
         PayloadTypeRegistry.playC2S().register(StreamProtocol.Frame.TYPE,StreamProtocol.Frame.CODEC);
         PayloadTypeRegistry.playS2C().register(StreamProtocol.Frame.TYPE,StreamProtocol.Frame.CODEC);
         PayloadTypeRegistry.playC2S().register(StreamProtocol.Stop.TYPE,StreamProtocol.Stop.CODEC);
@@ -72,6 +74,7 @@ public final class StreamRelay {
             session.state=p;session.lastState=now;
             if(created)LOGGER.info("Started stream relay for {} ({}, session {}, dimension {})",player.getGameProfile().getName(),shortId(p.owner()),shortId(p.session()),p.dimension());
             for(var viewer:c.server().getPlayerList().getPlayers())if(watches(viewer,p))ServerPlayNetworking.send(viewer,p);
+            updateDemand(c.server(),session);
         });
         ServerPlayNetworking.registerGlobalReceiver(StreamProtocol.Frame.TYPE,(p,c)->{
             var s=streams.get(c.player().getUUID());long now=System.currentTimeMillis();
@@ -123,7 +126,9 @@ public final class StreamRelay {
                             shortId(entry.getKey()),shortId(s.state.session()),s.receivedUnits,s.acceptedUnits,s.videoUnits,s.audioUnits,s.acceptedBytes,
                             s.invalidUnits,s.budgetDrops,s.acceptedControls,s.invalidControls,s.controlDrops,parts.parts(),parts.completed(),parts.replayed(),parts.abandoned());
                 }
-                if(streams.containsKey(entry.getKey()))for(var controller:List.copyOf(s.controllers.entrySet())) {
+                if(!streams.containsKey(entry.getKey()))continue;
+                updateDemand(server,s);
+                for(var controller:List.copyOf(s.controllers.entrySet())) {
                     var viewer=server.getPlayerList().getPlayer(controller.getKey());
                     if(now-controller.getValue().lastSeen>3_000||viewer==null||!viewer.isAlive()||viewer.isSpectator()
                             ||!viewer.serverLevel().dimension().location().equals(s.state.dimension()))
@@ -144,6 +149,16 @@ public final class StreamRelay {
     private static boolean watches(ServerPlayer player,StreamProtocol.State state) {
         return !player.getUUID().equals(state.owner())&&player.serverLevel().dimension().location().equals(state.dimension())
                 &&ServerPlayNetworking.canSend(player,StreamProtocol.State.TYPE)&&ServerPlayNetworking.canSend(player,StreamProtocol.Frame.TYPE);
+    }
+    private static void updateDemand(MinecraftServer server,Session session) {
+        boolean demand=false;
+        for(var player:server.getPlayerList().getPlayers())if(watches(player,session.state)){demand=true;break;}
+        if(session.demandKnown&&session.demand==demand)return;
+        session.demand=demand;session.demandKnown=true;
+        var owner=server.getPlayerList().getPlayer(session.state.owner());
+        if(owner!=null&&ServerPlayNetworking.canSend(owner,StreamProtocol.Demand.TYPE))
+            ServerPlayNetworking.send(owner,new StreamProtocol.Demand(session.state.owner(),session.state.session(),demand));
+        LOGGER.info("Stream relay for {} session {} is now {}",shortId(session.state.owner()),shortId(session.state.session()),demand?"active (viewer present)":"idle (no viewers)");
     }
     private static void stop(MinecraftServer server,UUID owner,String reason) {
         var removed=streams.remove(owner);if(removed==null)return;

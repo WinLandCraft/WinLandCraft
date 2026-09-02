@@ -110,12 +110,6 @@ tasks.register('verifyBrowserAddresses', JavaExec) {
     mainClass = 'dev.winlandcraft.BrowserAddressChecks'
 }
 check.dependsOn verifyBrowserAddresses
-tasks.register('verifyUBlock', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.UBlockChecks'
-}
-check.dependsOn verifyUBlock
 tasks.register('verifyAdBlockNative', JavaExec) {
     dependsOn geometryCheckClasses, adblockBuild
     classpath = sourceSets.geometryCheck.runtimeClasspath
@@ -185,6 +179,27 @@ tasks.register('verifyMixinPackaging') {
             if (nested == null) throw new GradleException('Missing embedded Chromium 151 MCEF runtime')
             if (zip.getEntry('META-INF/ADBLOCK-NOTICE.txt') == null)
                 throw new GradleException('Missing adblock third-party notice')
+            def iconLicense = zip.getEntry('META-INF/PIXELARTICONS-LICENSE.txt')
+            if (iconLicense == null) throw new GradleException('Missing Pixelarticons license')
+            def licenseText = zip.getInputStream(iconLicense).withCloseable { it.getText('UTF-8') }
+            if (!licenseText.contains('8275e0af7c16aa40c54ea2b90b7af83b1fe4eb4c') || !licenseText.contains('MIT License'))
+                throw new GradleException('Pixelarticons provenance or license is incomplete')
+            if (zip.getEntry('dev/winlandcraft/PixelIcon.class') == null)
+                throw new GradleException('Missing PixelIcon runtime class')
+            def iconEntry = zip.getEntry('assets/winlandcraft/textures/gui/pixelarticons.png')
+            if (iconEntry == null) throw new GradleException('Missing Pixelarticons atlas')
+            zip.getInputStream(iconEntry).withCloseable { stream ->
+                def atlas = javax.imageio.ImageIO.read(stream)
+                if (atlas == null || atlas.width != 192 || atlas.height != 72)
+                    throw new GradleException('Pixelarticons atlas must be 192x72')
+                for (int row = 0; row < 3; row++) for (int column = 0; column < 8; column++) {
+                    boolean visible = false
+                    for (int y = row * 24; y < (row + 1) * 24 && !visible; y++)
+                        for (int x = column * 24; x < (column + 1) * 24; x++)
+                            if ((atlas.getRGB(x, y) >>> 24) != 0) { visible = true; break }
+                    if (!visible) throw new GradleException("Pixelarticons atlas cell ${column},${row} is empty")
+                }
+            }
             def expectedNatives = adblockNativeBundleDir.isPresent() ? [
                     'META-INF/natives/linux_amd64/libwinlandcraft_adblock.so',
                     'META-INF/natives/windows_amd64/winlandcraft_adblock.dll',
@@ -194,7 +209,7 @@ tasks.register('verifyMixinPackaging') {
                 if (zip.getEntry(nativePath) == null)
                     throw new GradleException("Missing native adblock engine: ${nativePath}")
             }
-            logger.lifecycle('Packaged input/cursor mixins, Chromium runtime mixins, mappings, embedded MCEF fork, and native adblock engine verified.')
+            logger.lifecycle('Packaged mixins, Chromium runtime, Pixelarticons atlas/license, and native adblock engine verified.')
         }
     }
 }

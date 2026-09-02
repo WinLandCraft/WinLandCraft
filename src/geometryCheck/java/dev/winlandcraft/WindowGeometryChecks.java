@@ -142,6 +142,10 @@ public final class WindowGeometryChecks {
         near(3, panel.pointerDistance(titleHit.add(ray.scale(3)), ray.scale(-1)), "rotated titlebar hit");
         if (panel.titlebarAction(100, -16) != 1 || panel.titlebarAction(1250, -16) != 2)
             throw new AssertionError("title drag and close regions");
+        panel.pointerMoved(1250,-16);
+        if(!panel.hovered(1240,-32,40,32)||panel.hovered(1200,-32,40,32))throw new AssertionError("titlebar hover region");
+        panel.pointerMoved(-1,-1);
+        if(panel.hovered(1240,-32,40,32))throw new AssertionError("hover state did not clear");
         if (panel.titlebarAction(100, 0) != 0 || panel.titlebarAction(100, -33) != 0 || panel.titlebarAction(1280, -16) != 0)
             throw new AssertionError("titlebar bounds");
         if (panel.resizeCorner(localPoint(panel, 1.61f, 0.99f)) != 10)

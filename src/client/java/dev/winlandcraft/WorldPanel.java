@@ -10,12 +10,23 @@ import org.joml.Vector3f;
 public abstract class WorldPanel {
     final java.util.Set<WorldPanel> glued = new java.util.HashSet<>();
     GroupCurve curve;
+    private int hoverX=Integer.MIN_VALUE,hoverY=Integer.MIN_VALUE;
     public boolean grouped() { return !glued.isEmpty(); }
     protected void renderUngroup(PanelCanvas canvas) {
         if (!grouped()) return;
-        canvas.rect(pixelWidth()-140,-titlebarHeight(),100,titlebarHeight(),0.45f,0xFF386776);
-        canvas.text("Ungroup",pixelWidth()-130,-22,0xFFFFFFFF,1.5f);
+        int x=pixelWidth()-140,y=-titlebarHeight();
+        canvas.rect(x,y,100,titlebarHeight(),0.45f,hoverColor(x,y,100,titlebarHeight(),0xFF386776,0xFF4C8493));
+        PixelIcon.UNLINK.draw(canvas,x+6,y+4,24,.55f,-1);
+        canvas.text("Ungroup",x+34,-22,0xFFFFFFFF,1.5f);
     }
+    protected final void renderClose(PanelCanvas canvas) {
+        int x=pixelWidth()-40,y=-titlebarHeight();
+        canvas.rect(x,y,40,titlebarHeight(),.45f,hoverColor(x,y,40,titlebarHeight(),0xFF854551,0xFFB65B69));
+        PixelIcon.CLOSE.draw(canvas,x+8,y+4,24,.55f,-1);
+    }
+    final void pointerMoved(int x,int y){hoverX=x;hoverY=y;hover(x,y);}
+    protected final boolean hovered(int x,int y,int width,int height){return hoverX>=x&&hoverX<x+width&&hoverY>=y&&hoverY<y+height;}
+    protected final int hoverColor(int x,int y,int width,int height,int normal,int hot){return hovered(x,y,width,height)?hot:normal;}
     public void open(net.minecraft.client.Minecraft client) {
         if (client.level != null) bringToView(client.level, client.gameRenderer.getMainCamera(), 0.6f);
     }
@@ -166,6 +177,7 @@ public abstract class WorldPanel {
 
     public void close() {
         WindowGroups.detach(this);
+        hoverX=hoverY=Integer.MIN_VALUE;
         position = null;
         orientation = null;
         level = null;

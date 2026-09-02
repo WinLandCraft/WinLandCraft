@@ -41,13 +41,15 @@ public final class AppsPanel extends WorldPanel {
             if (canvas == null) return;
             canvas.rect(0, 0, 360, 180, 0, 0xFF18212D);
             canvas.rect(0, 0, 360, 36, 0.1f, 0xFF314D63);
-            canvas.text("Apps", 18, 14, 0xFFFFFFFF);
-            canvas.text("X", 332, 14, 0xFFFFFFFF);
+            PixelIcon.APPS.draw(canvas,14,6,24,.2f,0xFF72ECF1);
+            canvas.text("Apps",46,14,0xFFFFFFFF);
+            canvas.rect(320,0,40,36,.2f,hoverColor(320,0,40,36,0xFF854551,0xFFB65B69));
+            PixelIcon.CLOSE.draw(canvas,328,6,24,.3f,-1);
             var entries = apps.appEntries();
             first = Math.clamp(first, 0, Math.max(0, entries.size() - 3));
             for (int row = 0; row < 3 && first + row < entries.size(); row++) {
                 var entry = entries.get(first + row); int y = 42 + row * 32;
-                canvas.rect(18, y, 324, 30, 0.2f, 0xFF294454);
+                canvas.rect(18,y,324,30,.2f,hoverColor(18,y,324,32,0xFF294454,0xFF385A6C));
                 apps.drawIcon(canvas, entry, 24, y + 3, 24);
                 canvas.text(net.minecraft.client.Minecraft.getInstance().font.plainSubstrByWidth(entry.name(), 278), 56, y + 11, 0xFFFFFFFF);
             }

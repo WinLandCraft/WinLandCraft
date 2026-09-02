@@ -10,7 +10,7 @@ public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
         packets();media();placement();
-        System.out.println("Streaming: bounded media/control codecs, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, immutable replicas, scaled and curved replica geometry passed.");
+        System.out.println("Streaming: bounded media/control codecs, viewer demand, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, immutable replicas, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {
         return state(owner,false);
@@ -30,6 +30,9 @@ public final class StreamChecks {
             StreamProtocol.State.CODEC.encode(buffer,s);check(s.equals(StreamProtocol.State.CODEC.decode(buffer)),"state codec round trip");
             var stop=new StreamProtocol.Stop(OWNER,SESSION);StreamProtocol.Stop.CODEC.encode(buffer,stop);
             check(stop.equals(StreamProtocol.Stop.CODEC.decode(buffer)),"stop codec round trip");
+            var demand=new StreamProtocol.Demand(OWNER,SESSION,true);StreamProtocol.Demand.CODEC.encode(buffer,demand);
+            check(demand.equals(StreamProtocol.Demand.CODEC.decode(buffer))&&demand.valid(s),"viewer demand codec round trip");
+            check(!new StreamProtocol.Demand(UUID.randomUUID(),SESSION,true).valid(s),"viewer demand owner spoof rejected");
             var controller=UUID.randomUUID();var controlled=state(OWNER,true);
             var control=StreamProtocol.Control.pointer(OWNER,SESSION,controller,StreamProtocol.Control.MOUSE_DOWN,640,300,0);
             StreamProtocol.Control.CODEC.encode(buffer,control);

@@ -41,6 +41,15 @@ public final class StreamProtocol {
         }
         @Override public Type<State> type(){return TYPE;}
     }
+    public record Demand(UUID owner,UUID session,boolean active) implements CustomPacketPayload {
+        public static final Type<Demand> TYPE=StreamProtocol.type("stream_demand");
+        public static final StreamCodec<RegistryFriendlyByteBuf,Demand> CODEC=new StreamCodec<>() {
+            public Demand decode(RegistryFriendlyByteBuf b){return new Demand(b.readUUID(),b.readUUID(),b.readBoolean());}
+            public void encode(RegistryFriendlyByteBuf b,Demand p){b.writeUUID(p.owner);b.writeUUID(p.session);b.writeBoolean(p.active);}
+        };
+        public boolean valid(State state){return state!=null&&owner.equals(state.owner)&&session.equals(state.session);}
+        @Override public Type<Demand> type(){return TYPE;}
+    }
     public record Frame(UUID owner, UUID session, long sequence, int part, int count, byte[] bytes) implements CustomPacketPayload {
         public static final Type<Frame> TYPE = StreamProtocol.type("stream_frame");
         public static final StreamCodec<RegistryFriendlyByteBuf, Frame> CODEC = new StreamCodec<>() {

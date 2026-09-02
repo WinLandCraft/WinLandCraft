@@ -40,33 +40,31 @@ final class AdBlock {
             String top = browser == null ? "" : browser.getURL();
             String source = frame == null ? top : frame.getURL();
             if (source == null || source.isBlank()) source = top;
-            if (AdBlockNative.isReady()) {
-                String decision;
-                try {
-                    decision = AdBlockNative.check(url, source == null ? "" : source,
-                            resourceName(request.getResourceType()), request.getMethod() == null ? "GET" : request.getMethod());
-                } catch (RuntimeException failure) {
-                    NATIVE_ERRORS.increment();
-                    logNativeError(url, failure);
-                    logHealth();
-                    return false;
-                }
-                if ("B".equals(decision)) {
-                    BLOCKED.increment();
-                    logHealth();
-                    return true;
-                }
-                if (decision != null && decision.length() > 1 && decision.charAt(0) == 'R') {
-                    String target = decision.substring(1);
-                    if (!target.equals(url)) {
-                        request.setURL(target);
-                        REDIRECTED.increment();
-                        logHealth();
-                    }
-                }
+            if (!AdBlockNative.isReady()) return false;
+            String decision;
+            try {
+                decision = AdBlockNative.check(url, source == null ? "" : source,
+                        resourceName(request.getResourceType()), request.getMethod() == null ? "GET" : request.getMethod());
+            } catch (RuntimeException failure) {
+                NATIVE_ERRORS.increment();
+                logNativeError(url, failure);
+                logHealth();
                 return false;
             }
-            return UBlockLite.blocks(url, source, top, request.getResourceType(), request.getMethod());
+            if ("B".equals(decision)) {
+                BLOCKED.increment();
+                logHealth();
+                return true;
+            }
+            if (decision != null && decision.length() > 1 && decision.charAt(0) == 'R') {
+                String target = decision.substring(1);
+                if (!target.equals(url)) {
+                    request.setURL(target);
+                    REDIRECTED.increment();
+                    logHealth();
+                }
+            }
+            return false;
         }
     };
 
@@ -107,8 +105,7 @@ final class AdBlock {
             WinLandCraftClient.LOGGER.info("Brave adblock engine loaded: {} network/cosmetic rules", ruleCount);
         } catch (Exception | LinkageError failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
-            WinLandCraftClient.LOGGER.error("Native Brave adblock could not start; enabling network-only fallback", failure);
-            UBlockLite.enable();
+            WinLandCraftClient.LOGGER.error("Native Brave adblock could not start; browsing will continue unfiltered", failure);
         }
     }
 

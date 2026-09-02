@@ -295,40 +295,44 @@ public class BrowserPanel extends WorldPanel {
             canvas.rect(0, -titlebarHeight(), pixelWidth(), titlebarHeight(), 0.3f, 0xFF314D63);
             canvas.text(fit(windowTitle(), pixelWidth() - (grouped() ? 168 : 68), 1.5f), 12, -22, 0xFFF0F5FC, 1.5f);
             renderUngroup(canvas);
-            canvas.rect(pixelWidth() - 40, -titlebarHeight(), 40, titlebarHeight(), 0.4f, 0xFF854551);
-            canvas.text("X", pixelWidth() - 25, -22, 0xFFFFFFFF, 1.5f);
+            renderClose(canvas);
             // Do not put a nearly coplanar backing quad behind a live browser texture. At
             // distance the depth buffer cannot distinguish the pixel-scaled 0.1 z gap and
             // alternates between both surfaces, producing dark stripes across the page.
             if (!browserReady) canvas.rect(0, 0, pixelWidth(), pixelHeight(), 0.1f, 0xFF18212D);
             if (!standalone) {
                 canvas.rect(0, 0, SIDE, pixelHeight(), 0.2f, 0xFF202C3B);
-                canvas.rect(12, 12, 236, 48, 0.3f, editing ? 0xFF39566F : 0xFF121C29);
+                canvas.rect(12, 12, 236, 48, 0.3f, editing ? 0xFF39566F
+                        : hoverColor(12,12,236,48,0xFF121C29,0xFF1D3042));
                 String shown = editing ? address : active == null ? "Search or enter URL" : active.url;
                 if (editing && !selectAll) {
                     String before = shown.substring(0, caret);
-                    while (Minecraft.getInstance().font.width(before) * 1.5f > 208) before = before.substring(1);
+                    while (Minecraft.getInstance().font.width(before) * 1.5f > 182) before = before.substring(1);
                     shown = before + "|" + shown.substring(caret);
                 }
-                canvas.text(fit(shown, 216, 1.5f), 22, 30, selectAll && editing ? 0xFF71E6EE : 0xFFF0F5FC, 1.5f);
-                String[] navigation = {"<", ">", "Reload"};
+                PixelIcon.SEARCH.draw(canvas,18,24,24,.4f,editing?0xFF71E6EE:0xFF9BB4C8);
+                canvas.text(fit(shown,190,1.5f),50,30,selectAll&&editing?0xFF71E6EE:0xFFF0F5FC,1.5f);
+                PixelIcon[] navigation = {PixelIcon.ARROW_LEFT, PixelIcon.ARROW_RIGHT, PixelIcon.REFRESH};
                 for (int i = 0; i < 3; i++) {
-                    canvas.rect(12 + i * 80, 72, 76, 38, 0.3f, 0xFF31475D);
+                    int x=12+i*80;
                     boolean enabled = active != null && (i == 2 || (i == 0 ? active.browser.canGoBack() : active.browser.canGoForward()));
-                    canvas.text(navigation[i], 22 + i * 80, 85, enabled ? 0xFFFFFFFF : 0xFF758393, 1.5f);
+                    canvas.rect(x,72,76,38,.3f,enabled?hoverColor(x,72,76,38,0xFF31475D,0xFF43617A):0xFF273849);
+                    navigation[i].draw(canvas,x+26,79,24,.45f,enabled?0xFFFFFFFF:0xFF758393);
                 }
-                canvas.rect(12, 126, 236, 38, 0.3f, 0xFF314D63);
-                canvas.text("+ New tab", 24, 138, 0xFFFFFFFF, 1.5f);
+                canvas.rect(12,126,236,38,.3f,hoverColor(12,126,236,38,0xFF314D63,0xFF42637C));
+                PixelIcon.PLUS.draw(canvas,20,133,24,.45f,-1);
+                canvas.text("New tab",52,138,0xFFFFFFFF,1.5f);
                 drawSidebarExtras(canvas);
                 for (int row = 0; row < visibleRows() && firstTab + row < tabs.size(); row++) {
                     Tab tab = tabs.get(firstTab + row); int y = listTop() + row * ROW;
-                    canvas.rect(12, y, 236, ROW - 4, 0.3f, tab == active ? 0xFF3B5870 : 0xFF283849);
+                    int color=tab==active?0xFF3B5870:hoverColor(12,y,236,ROW-4,0xFF283849,0xFF344B5F);
+                    canvas.rect(12,y,236,ROW-4,.3f,color);
                     if (tab == active) canvas.rect(12, y + 8, 3, 24, 0.4f, 0xFF51CFDF);
                     var icon = tab.icon.texture();
                     if (icon != null) canvas.texture(icon, 24, y + 8, 24, 24, 0.4f);
                     else canvas.browserIcon(24, y + 8, 24);
                     canvas.text(fit(tab.title.isBlank() ? tab.url : tab.title, 156, 1.5f), 56, y + 13, 0xFFFFFFFF, 1.5f);
-                    canvas.text("X", 228, y + 13, 0xFFB8CBDE, 1.5f);
+                    PixelIcon.CLOSE.draw(canvas,220,y+8,24,.5f,hovered(220,y,28,ROW-4)?0xFFFFFFFF:0xFFB8CBDE);
                 }
                 canvas.text(tabs.size() + " tabs | Scroll list", 16, pixelHeight() - 41, 0xFF9BAABD, 1.2f);
                 canvas.text(editing ? "Enter: go | Esc: leave" : "Click URL to type | G: page", 16, pixelHeight() - 20, 0xFF9BAABD, 1.2f);
@@ -339,7 +343,13 @@ public class BrowserPanel extends WorldPanel {
             if (menu != null) {
                 canvas.rect(menu.x, menu.y, 240, 180, 0.4f, 0xFF18212D);
                 String[] entries = {"Back", "Forward", "Reload", "Open link here", standalone ? "App home" : "Open in new tab", standalone ? "Close app" : "Close tab"};
-                for (int i = 0; i < entries.length; i++) canvas.text(entries[i], menu.x + 12, menu.y + i * 30 + 6, 0xFFFFFFFF, 2);
+                PixelIcon[] icons={PixelIcon.ARROW_LEFT,PixelIcon.ARROW_RIGHT,PixelIcon.REFRESH,PixelIcon.OPEN,PixelIcon.EXTERNAL_LINK,PixelIcon.CLOSE};
+                for (int i = 0; i < entries.length; i++) {
+                    int y=menu.y+i*30;
+                    if(hovered(menu.x,y,240,30))canvas.rect(menu.x,y,240,30,.45f,0xFF2D4558);
+                    icons[i].draw(canvas,menu.x+6,y+5,20,.5f,0xFFB8D1E3);
+                    canvas.text(entries[i],menu.x+36,y+6,0xFFFFFFFF,2);
+                }
             }
     }
     private record ContextMenu(int x, int y, String link) { }

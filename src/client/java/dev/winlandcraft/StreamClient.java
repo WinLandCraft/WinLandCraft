@@ -16,11 +16,15 @@ final class StreamClient {
     private MediaBridge bridge;
     private MediaBridge.Endpoint encoder;
     private StreamProtocol.State published;
+    private boolean demand;
     private long lastState,nextFrame,sequence;
     private long sentUnits,sentParts,sentBytes,sentVideo,sentAudio,nextSenderHealth;
     StreamClient(AppWindows apps){this.apps=apps;}
     void register() {
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.State.TYPE,(p,c)->receive(p));
+        ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Demand.TYPE,(p,c)->{
+            if(p.valid(published))demand=p.active();
+        });
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Frame.TYPE,(p,c)->{
             var panel=remote.get(p.owner());
             if(panel==null||!panel.isOpen()||panel.decoder==null||!panel.session.equals(p.session()))return;
@@ -66,9 +70,13 @@ final class StreamClient {
         var panel=apps.streamBrowser;
         if(client.player==null||client.level==null||!panel.isOpen()||panel.broadcastSession==null||!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)) {stopPublishing();return;}
         if(published!=null&&!published.session().equals(panel.broadcastSession))stopPublishing();
+        if(!publishState(panel,client,now))return;
+        if(!demand) {
+            stopEncoder();panel.streamStatus="Waiting for viewers...";return;
+        }
         if(encoder==null)try {
             encoder=media().create(true,"sender");panel.encoder=encoder;panel.streamStatus="Starting video + Opus...";
-            sentUnits=sentParts=sentBytes=sentVideo=sentAudio=0;sequence=nextFrame=nextSenderHealth=0;
+            sentUnits=sentParts=sentBytes=sentVideo=sentAudio=0;nextFrame=nextSenderHealth=0;
         }catch(Exception|LinkageError failure){WinLandCraftClient.LOGGER.error("Could not start stream codecs",failure);fail("Could not start browser streaming. See latest.log.");return;}
         encoder.quality=StreamQuality.current();encoder.tick();
         panel.streamStatus=encoder.error.isEmpty()?(encoder.ready?"Live: "+encoder.videoCodec+" ("+encoder.videoAcceleration+") + Opus":"Starting video + Opus..."):encoder.error;
@@ -89,11 +97,14 @@ final class StreamClient {
             WinLandCraftClient.LOGGER.info("Stream sender network health: session={}, media={} (video={}, audio={}), parts={}, payloadBytes={}, sequence={}",
                     shortId(published.session()),sentUnits,sentVideo,sentAudio,sentParts,sentBytes,sequence);
         }
-        if(now-lastState<100)return;
+    }
+    private boolean publishState(StreamBrowserPanel panel,Minecraft client,long now) {
+        if(now-lastState<100)return true;
         var state=snapshot(panel,client.player.getUUID(),panel.broadcastSession);
-        if(!state.valid()) {fail("Shared window exceeds the relay test limits.");return;}
-        if(state.equals(published)&&now-lastState<1000)return;
+        if(!state.valid()) {fail("Shared window exceeds the relay test limits.");return false;}
+        if(state.equals(published)&&now-lastState<1000)return true;
         ClientPlayNetworking.send(state);published=state;lastState=now;
+        return true;
     }
     static StreamProtocol.State snapshot(BrowserPanel panel,UUID owner,UUID session) {
         Vec3 center=panel.position;var rotation=new Quaternionf(panel.orientation);
@@ -123,9 +134,12 @@ final class StreamClient {
         var player=Minecraft.getInstance().player;if(player!=null)player.displayClientMessage(Component.literal(message),false);
     }
     private void stopPublishing() {
-        if(published==null&&encoder==null)return;
+        if(published==null&&encoder==null){demand=false;return;}
         if(published!=null&&ClientPlayNetworking.canSend(StreamProtocol.Stop.TYPE))ClientPlayNetworking.send(new StreamProtocol.Stop(published.owner(),published.session()));
-        published=null;lastState=nextFrame=sequence=0;capture.close();
+        published=null;demand=false;lastState=sequence=0;stopEncoder();
+    }
+    private void stopEncoder() {
+        nextFrame=0;capture.close();
         apps.streamBrowser.encoder=null;
         if(encoder!=null){encoder.close();encoder=null;}
     }

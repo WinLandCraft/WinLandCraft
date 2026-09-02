@@ -1,6 +1,5 @@
 package dev.winlandcraft;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
 /** Small crisp cursor sprites, drawn at GUI scale with a dark outline. */
@@ -30,7 +29,8 @@ public final class WindowCursor {
                     dot(graphics, cx, cy, x, diagonal == 2 ? y - sign * i : -y + sign * i, outline, color);
                 }
             }
-            graphics.drawString(Minecraft.getInstance().font,scaling?"S":"R",cx+9,cy+7,scaling?0xFFFFC857:0xFF71E6EE,true);
+            graphics.fill(cx+8,cy+7,cx+22,cy+21,scaling?0xDD8A5D20:0xDD185B6A);
+            (scaling?PixelIcon.SCALE:PixelIcon.EXPAND).draw(graphics,cx+9,cy+8,12);
         }
     }
     private static void dot(GuiGraphics g, int x, int y, int dx, int dy, int radius, int color) {

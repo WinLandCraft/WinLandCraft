@@ -51,20 +51,13 @@ public final class AppWindows {
         var icon = WebApps.icon(entry.definition);
         if (icon != null) canvas.texture(icon, x, y, size, size, 0.4f);
         else if(entry.panel==streamBrowser) canvas.browserIcon(x,y,size,true);
-        else if(entry.panel==fileManager) FileManagerPanel.folder(canvas,x,y,size);
-        else if(entry.panel==notepad){canvas.rect(x+size*.15f,y,size*.7f,size,.4f,0xFF69D1E9);for(int i=0;i<4;i++)canvas.rect(x+size*.25f,y+size*(.2f+i*.16f),size*.5f,Math.max(1,size*.04f),.45f,0xFF1A5670);}
-        else if (entry.panel == taskManager) {
-            canvas.rect(x, y, size, size, 0.4f, 0xFF173E36);
-            for (int i = 0; i < 3; i++) {
-                int height = size * (i + 2) / 5;
-                canvas.rect(x + size * (i * 2 + 1) / 7, y + size - height - 2, Math.max(2, size / 7), height, 0.45f, 0xFF65E4AE);
-            }
-        }
+        else if(entry.panel==fileManager) PixelIcon.FOLDER.draw(canvas,x,y,size,.45f,0xFFFFCE57);
+        else if(entry.panel==notepad)PixelIcon.FILE_TEXT.draw(canvas,x,y,size,.45f,0xFF69D1E9);
+        else if(entry.panel==taskManager)PixelIcon.CHART.draw(canvas,x,y,size,.45f,0xFF65E4AE);
         else if (entry.definition == null) canvas.browserIcon(x, y, size);
         else {
             canvas.rect(x, y, size, size, 0.4f, 0xFF426E80);
-            String initial = entry.name.substring(0, entry.name.offsetByCodePoints(0, 1));
-            canvas.text(initial, x + size / 3, y + size / 3, 0xFFFFFFFF);
+            PixelIcon.EXTERNAL_LINK.draw(canvas,x,y,size,.45f,-1);
         }
     }
     public void openApps() {

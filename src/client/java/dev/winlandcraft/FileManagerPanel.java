@@ -79,17 +79,18 @@ public final class FileManagerPanel extends WorldPanel {
     }
     private static String fit(String value,int width,float scale){return Minecraft.getInstance().font.plainSubstrByWidth(value,(int)(width/scale));}
     private static String size(long bytes){if(bytes<0)return "-";if(bytes<1024)return bytes+" B";if(bytes<1048576)return String.format(Locale.ROOT,"%.1f KiB",bytes/1024.0);return String.format(Locale.ROOT,"%.1f MiB",bytes/1048576.0);}
-    static void folder(PanelCanvas c,int x,int y,int size){c.rect(x,y,size*.45f,size*.22f,.42f,0xFFE4AB35);c.rect(x,y+size*.18f,size,size*.64f,.45f,0xFFFFCE57);}
+    static void folder(PanelCanvas c,int x,int y,int size){PixelIcon.FOLDER.draw(c,x,y,size,.45f,0xFFFFCE57);}
     @Override public void render(WorldRenderContext context) {
         try(var c=canvas(context)) {
             if(c==null)return;
             c.rect(-3,-35,1286,758,0,0xFF536579);c.rect(0,-32,1280,32,.3f,0xFF314D63);
             c.text(fit("File Manager"+(directory==null?"":" - "+directory),grouped()?1090:1190,1.5f),12,-22,-1,1.5f);renderUngroup(c);
-            c.rect(1240,-32,40,32,.4f,0xFF854551);c.text("X",1255,-22,-1,1.5f);
+            renderClose(c);
             c.rect(0,0,1280,720,.1f,0xFF17212D);c.rect(0,76,232,602,.2f,0xFF202C3B);
-            String[] buttons={"<",">","Up","Reload"};int[] xs={12,70,128,186};
-            for(int i=0;i<4;i++){c.rect(xs[i],14,i==3?60:50,44,.3f,0xFF304457);c.text(buttons[i],xs[i]+8,30,-1,1.2f);}
-            c.rect(260,14,996,44,.3f,editing?0xFF39566F:0xFF101B28);
+            PixelIcon[] buttons={PixelIcon.ARROW_LEFT,PixelIcon.ARROW_RIGHT,PixelIcon.ARROW_UP,PixelIcon.REFRESH};int[] xs={12,70,128,186};
+            boolean[] enabled={historyIndex>0,historyIndex+1<history.size(),directory!=null&&directory.getParent()!=null,directory!=null};
+            for(int i=0;i<4;i++){int width=i==3?60:50;colorButton(c,buttons[i],xs[i],14,width,44,enabled[i]);}
+            c.rect(260,14,996,44,.3f,editing?0xFF39566F:hoverColor(260,14,996,44,0xFF101B28,0xFF1D3042));
             String shown=editing?address+(selectAll?"":"|"):directory==null?"Home":directory.toString();
             c.text(fit(shown,972,1.5f),272,29,selectAll&&editing?0xFF72ECF1:-1,1.5f);
             c.text("Quick locations",16,86,0xFF9BADBF,1.5f);
@@ -98,14 +99,14 @@ public final class FileManagerPanel extends WorldPanel {
             if(r==null){c.text("Reading folder...",260,124,0xFFB8CBDE,1.5f);return;}
             for(int i=0;i<14&&sideFirst+i<r.locations().size();i++) {
                 var loc=r.locations().get(sideFirst+i);int y=112+i*34;
-                if(loc.path().equals(directory))c.rect(8,y,216,32,.3f,0xFF395269);
+                if(loc.path().equals(directory)||hovered(12,y,216,32))c.rect(12,y,216,32,.3f,loc.path().equals(directory)?0xFF395269:0xFF2B4052);
                 folder(c,16,y+8,22);c.text(fit(loc.name(),172,1.5f),46,y+9,-1,1.5f);
             }
             var date=java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
             for(int i=0;i<16&&first+i<r.entries().size();i++) {
                 int index=first+i,y=112+i*34;var entry=r.entries().get(index);
                 if(index==selected||index==hoverRow)c.rect(242,y,1018,32,.3f,index==selected?0xFF39566F:0xFF283B4D);
-                if(entry.directory())folder(c,252,y+7,22);else c.rect(255,y+6,15,22,.4f,0xFFB6C9DC);
+                if(entry.directory())folder(c,252,y+7,22);else PixelIcon.FILE_TEXT.draw(c,252,y+5,24,.45f,0xFFB6C9DC);
                 c.text(fit(entry.name(),480,1.5f),284,y+9,-1,1.5f);
                 c.text(entry.modified()==0?"-":date.format(java.time.Instant.ofEpochMilli(entry.modified())),780,y+10,0xFFB8CBDE,1.25f);
                 c.text(entry.directory()?"Folder":entry.link()?"Link":"File",1020,y+10,0xFFB8CBDE,1.25f);
@@ -117,5 +118,9 @@ public final class FileManagerPanel extends WorldPanel {
             c.text(r.entries().size()+" items"+(r.truncated()?" (first 10,000 shown)":"")+" | Scroll to browse",16,689,0xFF9BADBF,1.25f);
             c.text(fit(notice,790,1.25f),470,689,0xFFB8CBDE,1.25f);
         }
+    }
+    private void colorButton(PanelCanvas c,PixelIcon icon,int x,int y,int width,int height,boolean enabled){
+        int color=enabled?hoverColor(x,y,width,height,0xFF304457,0xFF426079):0xFF263542;
+        c.rect(x,y,width,height,.3f,color);icon.draw(c,x+(width-24)/2f,y+10,24,.45f,enabled?-1:0xFF758393);
     }
 }

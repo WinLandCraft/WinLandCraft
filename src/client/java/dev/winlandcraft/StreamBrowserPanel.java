@@ -29,12 +29,14 @@ final class StreamBrowserPanel extends BrowserPanel {
         String[] labels={"FPS: "+ModSettings.streamFps,"Video: "+ModSettings.streamKbps+" kbps","Size: "+ModSettings.streamHeight+"p","Audio: "+(ModSettings.streamAudio?"ON":"OFF"),"Audio: "+ModSettings.streamAudioKbps+" kbps"};
         for(int i=0;i<labels.length;i++) {
             int y=196+i*24;c.rect(12,y,236,22,.3f,0xFF30263F);c.text(labels[i],18,y+7,-1,1.2f);
-            c.rect(196,y,24,22,.4f,0xFF624389);c.rect(224,y,24,22,.4f,0xFF624389);
-            c.text("-",204,y+7,-1);c.text("+",232,y+7,-1);
+            c.rect(196,y,26,22,.4f,hoverColor(196,y,26,22,0xFF624389,0xFF8059AE));
+            c.rect(222,y,26,22,.4f,hoverColor(222,y,26,22,0xFF624389,0xFF8059AE));
+            PixelIcon.MINUS.draw(c,201,y+3,16,.5f,-1);PixelIcon.PLUS.draw(c,227,y+3,16,.5f,-1);
         }
-        int y=316;c.rect(12,y,236,22,.3f,0xFF30263F);c.text("Allow remote control",18,y+7,-1,1.2f);
-        c.rect(220,y+2,20,18,.4f,ModSettings.streamRemoteControl?0xFF4C8E71:0xFF624389);
-        if(ModSettings.streamRemoteControl)c.text("✓",225,y+6,-1);
+        int y=316;c.rect(12,y,236,22,.3f,hoverColor(196,y,52,22,0xFF30263F,0xFF3D3150));c.text("Allow remote control",18,y+7,-1,1.2f);
+        int box=ModSettings.streamRemoteControl?0xFF4C8E71:hoverColor(220,y+2,20,18,0xFF624389,0xFF8059AE);
+        c.rect(220,y+2,20,18,.4f,box);PixelIcon.CHECKBOX.draw(c,221,y+2,18,.5f,-1);
+        if(ModSettings.streamRemoteControl)PixelIcon.CHECK.draw(c,223,y+4,14,.55f,-1);
         c.text(Minecraft.getInstance().font.plainSubstrByWidth(streamStatus,230),16,348,0xFFD4ACFF);
     }
     @Override protected boolean sidebarExtraClick(int x,int y,int button) {

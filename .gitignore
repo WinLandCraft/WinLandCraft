@@ -6,3 +6,4 @@ run/
 *.iml
 .tools/
 logs/
+adblockNative/target/

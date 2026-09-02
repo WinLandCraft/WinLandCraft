@@ -86,15 +86,20 @@ public final class PanelCanvas implements AutoCloseable {
         }
     }
     public void texture(ResourceLocation texture, int x, int y, int width, int height, float z) {
+        texture(texture,x,y,width,height,z,-1,0,0,1,1);
+    }
+    void texture(ResourceLocation texture, float x, float y, float width, float height, float z, int color,
+                 float u0, float v0, float u1, float v1) {
         var vertices = buffers.getBuffer(RenderType.text(texture));
         var matrix = pose.last().pose();
         int segments=curved?Math.max(1,(int)Math.ceil(width/12f)):1;
         for(int i=0;i<segments;i++) {
-            float u=i/(float)segments,v=(i+1)/(float)segments,left=x+width*u,right=x+width*v;
-            vertices.addVertex(matrix, left, y, z).setColor(-1).setUv(u, 0).setLight(LightTexture.FULL_BRIGHT);
-            vertices.addVertex(matrix, left, y + height, z).setColor(-1).setUv(u, 1).setLight(LightTexture.FULL_BRIGHT);
-            vertices.addVertex(matrix, right, y + height, z).setColor(-1).setUv(v, 1).setLight(LightTexture.FULL_BRIGHT);
-            vertices.addVertex(matrix, right, y, z).setColor(-1).setUv(v, 0).setLight(LightTexture.FULL_BRIGHT);
+            float from=i/(float)segments,to=(i+1)/(float)segments,left=x+width*from,right=x+width*to;
+            float su=u0+(u1-u0)*from,eu=u0+(u1-u0)*to;
+            vertices.addVertex(matrix, left, y, z).setColor(color).setUv(su, v0).setLight(LightTexture.FULL_BRIGHT);
+            vertices.addVertex(matrix, left, y + height, z).setColor(color).setUv(su, v1).setLight(LightTexture.FULL_BRIGHT);
+            vertices.addVertex(matrix, right, y + height, z).setColor(color).setUv(eu, v1).setLight(LightTexture.FULL_BRIGHT);
+            vertices.addVertex(matrix, right, y, z).setColor(color).setUv(eu, v0).setLight(LightTexture.FULL_BRIGHT);
         }
     }
     @Override public void close() { pose.popPose(); }

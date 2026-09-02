@@ -119,16 +119,23 @@ public final class NotepadPanel extends WorldPanel {
     @Override public void hover(int x,int y){if(selecting){active.move(locate(x,y),true);}}
     @Override public void scroll(int x,int y,double amount){if(y<40)firstTab=Math.clamp(firstTab-(int)Math.signum(amount),0,Math.max(0,tabs.size()-6));else if(GLFW.glfwGetKey(Minecraft.getInstance().getWindow().getWindow(),GLFW.GLFW_KEY_LEFT_SHIFT)==GLFW.GLFW_PRESS)active.columnScroll=Math.max(0,active.columnScroll-(int)Math.signum(amount)*10);else active.scroll=Math.clamp(active.scroll-(int)Math.signum(amount)*3,0,Math.max(0,lines().length-24));}
     private static String fit(String text,int width,float scale){return Minecraft.getInstance().font.plainSubstrByWidth(text,(int)(width/scale));}
-    private static void button(PanelCanvas c,String text,int x,int y,int width){c.rect(x,y,width,40,.45f,0xFF344958);c.text(text,x+12,y+13,-1,1.5f);}
+    private void button(PanelCanvas c,PixelIcon icon,String text,int x,int y,int width){c.rect(x,y,width,44,.45f,hoverColor(x,y,width,44,0xFF344958,0xFF496176));icon.draw(c,x+10,y+10,24,.55f,-1);c.text(text,x+42,y+15,-1,1.5f);}
+    private void toolbar(PanelCanvas c,PixelIcon icon,String text,int x,int width,boolean enabled){
+        c.rect(x,40,width,44,.3f,enabled?hoverColor(x,40,width,44,0xFF1C2B36,0xFF30475A):0xFF18242F);
+        icon.draw(c,x+8,50,24,.4f,enabled?-1:0xFF71818E);c.text(text,x+40,56,enabled?-1:0xFF71818E,1.5f);
+    }
     @Override public void render(WorldRenderContext context) {
         try(var c=canvas(context)) {
             if(c==null)return;
             c.rect(-3,-35,1286,758,0,0xFF536579);c.rect(0,-32,1280,32,.3f,0xFF243D4B);
-            c.text(fit(active.name()+(active.dirty()?" *":"")+" - Notepad",grouped()?1080:1190,1.5f),12,-22,-1,1.5f);renderUngroup(c);c.rect(1240,-32,40,32,.4f,0xFF854551);c.text("X",1255,-22,-1,1.5f);
+            c.text(fit(active.name()+(active.dirty()?" *":"")+" - Notepad",grouped()?1080:1190,1.5f),12,-22,-1,1.5f);renderUngroup(c);renderClose(c);
             c.rect(0,0,1280,720,.1f,0xFF242424);c.rect(0,0,1280,40,.2f,0xFF13212C);
-            for(int i=0;i<6&&firstTab+i<tabs.size();i++){var tab=tabs.get(firstTab+i);int x=12+i*190;c.rect(x,4,184,36,.3f,tab==active?0xFF34414C:0xFF1C2B36);c.text(fit(tab.name()+(tab.dirty()?" *":""),143,1.4f),x+8,15,-1,1.4f);c.text("x",x+169,15,0xFFBDD1DF,1.4f);}
-            c.text("+",1200,12,-1,2);c.rect(0,40,1280,44,.2f,0xFF1C2B36);
-            c.text("New",16,56,-1,1.5f);c.text("Save",104,56,-1,1.5f);c.text("Save As",196,56,-1,1.5f);c.text("Undo",310,56,-1,1.5f);c.text("Redo",410,56,-1,1.5f);
+            for(int i=0;i<6&&firstTab+i<tabs.size();i++){var tab=tabs.get(firstTab+i);int x=12+i*190;colorTab(c,tab,x);}
+            c.rect(1180,4,88,36,.3f,hoverColor(1180,4,88,36,0xFF1C2B36,0xFF30475A));PixelIcon.PLUS.draw(c,1212,10,24,.45f,-1);
+            boolean controls=savePath==null&&pendingClose==null;
+            toolbar(c,PixelIcon.PLUS,"New",0,90,controls);toolbar(c,PixelIcon.SAVE,"Save",90,90,controls&&!active.busy);
+            toolbar(c,PixelIcon.COPY,"Save As",180,110,controls&&!active.busy);toolbar(c,PixelIcon.UNDO,"Undo",290,100,controls&&!active.busy);toolbar(c,PixelIcon.REDO,"Redo",390,100,controls&&!active.busy);
+            c.rect(490,40,790,44,.2f,0xFF1C2B36);
             var lines=lines();int offset=0;
             for(int row=0;savePath==null&&pendingClose==null&&row<Math.min(lines.length,active.scroll+24);row++) {
                 String line=lines[row];if(row>=active.scroll){int y=104+(row-active.scroll)*22;int start=Math.min(active.columnScroll,line.length());String visible=fit(display(line.substring(start)),1170,1.5f);
@@ -143,9 +150,14 @@ public final class NotepadPanel extends WorldPanel {
             c.rect(0,680,1280,40,.2f,0xFF1C2B36);c.text("Ln "+(caretLine()+1)+", Col "+(active.caret-active.lineStart()+1)+"  |  "+active.text.length()+" characters",16,694,0xFFB8CBDE,1.25f);
             c.text("Plain text | "+active.charset.name()+" | "+(active.newline.equals("\r\n")?"CRLF":active.newline.equals("\r")?"CR":"LF")+" | Shift+scroll: horizontal",700,694,0xFFB8CBDE,1.1f);
             if(savePath!=null||pendingClose!=null){c.rect(160,214,1000,180,.4f,0xFF12232F);
-                if(savePath!=null){c.text("Save As - enter a new file path",184,238,-1,1.5f);c.rect(184,270,952,44,.5f,0xFF334958);c.text(fit(savePath,930,1.5f),196,284,pathSelected?0xFF72ECF1:-1,1.5f);button(c,"Save",900,330,120);button(c,"Cancel",1040,330,120);}
-                else {c.text("This tab has unsaved changes.",184,258,-1,1.5f);button(c,"Save",600,330,140);button(c,"Discard",760,330,140);button(c,"Cancel",920,330,140);}
+                if(savePath!=null){c.text("Save As - enter a new file path",184,238,-1,1.5f);c.rect(184,270,952,44,.5f,0xFF334958);c.text(fit(savePath,930,1.5f),196,284,pathSelected?0xFF72ECF1:-1,1.5f);button(c,PixelIcon.SAVE,"Save",900,330,120);button(c,PixelIcon.CLOSE,"Cancel",1040,330,120);}
+                else {c.text("This tab has unsaved changes.",184,258,-1,1.5f);button(c,PixelIcon.SAVE,"Save",600,330,140);button(c,PixelIcon.TRASH,"Discard",760,330,140);button(c,PixelIcon.CLOSE,"Cancel",920,330,140);}
             }
         }
+    }
+    private void colorTab(PanelCanvas c,NoteDocument tab,int x){
+        int color=tab==active?0xFF34414C:hoverColor(x,4,184,36,0xFF1C2B36,0xFF2B3E4D);
+        c.rect(x,4,184,36,.3f,color);c.text(fit(tab.name()+(tab.dirty()?" *":""),143,1.4f),x+8,15,-1,1.4f);
+        PixelIcon.CLOSE.draw(c,x+164,12,20,.45f,hovered(x+164,4,20,36)?-1:0xFFBDD1DF);
     }
 }

@@ -66,7 +66,7 @@ public final class WindowControls {
         resizing = null; hoveredCorner = 0;
         releasePointer();
         stopTyping();
-        if (hovered != null && hovered.isOpen()) hovered.hover(-1, -1);
+        if (hovered != null && hovered.isOpen()) hovered.pointerMoved(-1, -1);
         hovered = null;
         suggestion = null;
         clearCurve();
@@ -351,7 +351,7 @@ public final class WindowControls {
             if (Double.isFinite(t)) {
                 int[] pixel = pointer.pixelAt(camera.getPosition().add(direction(camera).scale(t)));
                 pointerX = pixel[0]; pointerY = pixel[1];
-                pointer.hover(pointerX, pointerY);
+                pointer.pointerMoved(pointerX, pointerY);
             }
             nextHover = pointer;
         } else {
@@ -371,11 +371,11 @@ public final class WindowControls {
                     if (suggestion==null || suggestion.a()!=hit.panel || !suggestion.contains(at[0],at[1]))
                         suggestion=WindowGroups.suggest(hit.panel,hit.point,apps.windows);
                 }
-                int[] pixel = hit.panel.pixelAt(hit.point); hit.panel.hover(pixel[0], pixel[1]);
+                int[] pixel = hit.panel.pixelAt(hit.point); hit.panel.pointerMoved(pixel[0], pixel[1]);
             }
             else suggestion=null;
         }
-        if (hovered != null && hovered != nextHover && hovered.isOpen()) hovered.hover(-1, -1);
+        if (hovered != null && hovered != nextHover && hovered.isOpen()) hovered.pointerMoved(-1, -1);
         hovered = nextHover;
     }
     private Hit pick(Minecraft c) {

@@ -38,20 +38,17 @@ public final class TasksPanel extends WorldPanel {
             canvas.rect(1, 1, 398, 46, 0.15f, 0xFF18212D);
             canvas.rect(1, 45, 398, 2, 0.3f, 0xFF51CFDF);
             canvas.text("Tasks", 20, 20, 0xFFF0F5FC);
-            canvas.rect(90, 8, 64, 32, 0.3f, apps.launcher.isAttached() ? 0xFF466B83 : 0xFF314D63);
-            canvas.text("Apps", 110, 20, 0xFFF0F5FC);
+            int appsColor=apps.launcher.isAttached()?0xFF466B83:hoverColor(90,8,64,32,0xFF314D63,0xFF42637C);
+            canvas.rect(90,8,64,32,.3f,appsColor);
+            PixelIcon.APPS.draw(canvas,110,12,24,.4f,0xFFF0F5FC);
             var running = apps.runningApps();
             first = Math.clamp(first, 0, Math.max(0, running.size() - 5));
             for (int slot = 0; slot < 5 && first + slot < running.size(); slot++) {
                 int left = 168 + slot * 44;
-                canvas.rect(left, 4, 40, 40, 0.3f, 0xFF294454);
+                canvas.rect(left,4,40,40,.3f,hoverColor(left,4,40,40,0xFF294454,0xFF385A6C));
                 apps.drawIcon(canvas, running.get(first + slot), left + 8, 12, 24);
-                canvas.rect(left + 28, 4, 12, 12, 0.5f, 0xFF653D48);
-                // Pixel strokes keep the close button legible at this small size.
-                for (int i = 0; i < 6; i++) {
-                    canvas.rect(left + 31 + i, 7 + i, 1, 1, 0.6f, 0xFFFFFFFF);
-                    canvas.rect(left + 36 - i, 7 + i, 1, 1, 0.6f, 0xFFFFFFFF);
-                }
+                canvas.rect(left+28,4,12,12,.5f,hoverColor(left+28,4,12,12,0xFF653D48,0xFF9A4D5B));
+                PixelIcon.CLOSE.draw(canvas,left+28,4,12,.6f,-1);
                 canvas.rect(left + 14, 41, 12, 2, 0.4f, 0xFF51CFDF);
             }
             if (running.isEmpty()) canvas.text("No active apps", 176, 20, 0xFF9BAABD);

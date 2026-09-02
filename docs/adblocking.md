@@ -16,7 +16,7 @@ Page-specific selectors and scriptlets are queried at navigation start and again
 
 The observer deduplicates values, caps retained names, limits message size, and allows only one query in flight per frame. Pure-CSS procedural style rules are compiled into the same stylesheet. Procedural DOM actions that cannot be represented as CSS are counted in health logs but are not executed; adding them requires a reviewed content-script interpreter rather than evaluating filter JSON as code.
 
-If native extraction, loading, asset verification, or engine construction fails, browsing remains available and a smaller uBlock Origin Lite network matcher is enabled. The fallback has no cosmetic/scriptlet support and exists for recovery, not as the normal path.
+If native extraction, loading, asset verification, or engine construction fails, browsing remains available without request filtering. The failure is logged rather than introducing a second filtering engine with different behavior.
 
 ## Native packaging
 

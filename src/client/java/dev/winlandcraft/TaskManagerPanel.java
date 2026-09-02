@@ -56,7 +56,7 @@ public final class TaskManagerPanel extends WorldPanel {
             c.rect(0, -32, 1280, 32, 0.3f, 0xFF285947);
             c.text("Task Manager", 12, -22, -1, 1.5f);
             renderUngroup(c);
-            c.rect(1240, -32, 40, 32, 0.4f, 0xFF854551); c.text("X", 1255, -22, -1, 1.5f);
+            renderClose(c);
             c.rect(0, 0, 1280, 720, 0.1f, 0xFF18212D);
             c.text("Chromium resources", 24, 22, -1, 2);
             var s = snapshot;
