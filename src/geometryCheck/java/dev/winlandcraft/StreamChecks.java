@@ -9,7 +9,7 @@ import org.joml.Quaternionf;
 public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
-        packets();media();placement();
+        packets();media();bridgeOrigins();placement();
         System.out.println("Streaming: bounded media/control codecs, viewer demand, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, immutable replicas, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {
@@ -96,6 +96,16 @@ public final class StreamChecks {
     private static int batchCount(MediaBridge.Queue.Batch batch) {
         int bytes=0;for(var packet:batch.packets()){check(StreamMedia.header(packet)!=null,"valid batched media packet");bytes+=Integer.BYTES+packet.length;}
         check(bytes==batch.bytes(),"complete batch length");return batch.packets().length;
+    }
+    private static void bridgeOrigins() {
+        String origin="http://127.0.0.1:49152";
+        check(MediaBridge.acceptsOrigin(origin,null,"GET","config"),"missing GET origin accepted");
+        check(MediaBridge.acceptsOrigin(origin,origin,"POST","status"),"matching status origin accepted");
+        check(MediaBridge.acceptsOrigin(origin,"null","POST","status"),"CEF opaque status origin accepted");
+        check(MediaBridge.acceptsOrigin(origin,"null","POST","packet"),"CEF opaque media origin accepted");
+        check(!MediaBridge.acceptsOrigin(origin,"null","POST","unknown"),"opaque unknown POST rejected");
+        check(!MediaBridge.acceptsOrigin(origin,"null","GET","config"),"opaque GET origin rejected");
+        check(!MediaBridge.acceptsOrigin(origin,"https://example.com","POST","status"),"foreign origin rejected");
     }
     private static void placement() {
         for(float curvature:new float[]{0,.6f,1}) {

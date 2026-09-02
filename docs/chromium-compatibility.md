@@ -61,14 +61,31 @@ On Linux, `McefChromiumFlagsMixin` additionally:
 
 These are preferences, not guarantees. WebCodecs still probes each H.264/VP9 encoder and decoder configuration and can fall back to software. Log fields report Chromium's requested acceleration preference, not proof that a vendor engine accepted every frame.
 
+## Opaque origin on codec status POSTs
+
+Chromium 151 serializes the `Origin` header of `fetch` POSTs from MCEF's off-screen codec page as the literal value `null` on both Linux and Windows, even though the displayed page and request URLs use the same loopback origin. GET requests from the same page do not carry that header. Rejecting the literal value first prevents worker heartbeats from making the Java endpoint ready; if only heartbeats are exempted, encoded `/packet` uploads are still rejected with HTTP 403 while `videoOut` rises and every frame is dropped.
+
+`MediaBridge` permits this Chromium-specific value only for its two POST routes, `/status` and `/packet`, after checking the loopback peer, exact ephemeral `Host`, and the endpoint's random 256-bit path token. A missing origin remains valid for the bridge's GETs, the exact origin remains valid, and opaque origins on every other route plus all foreign origins remain rejected. Do not broadly allow `Origin: null`: sandboxed documents and local files can also produce it.
+
 ## Runtime downloads and upgrades
 
-`McefRuntimeMixin` redirects native downloads to the release matching `jcef_commit` and verifies the published SHA-256 archive checksum. Never update only `chromium_version`, only the Java classes, or only the native archive.
+Release artifacts embed the native archives under `META-INF/winlandcraft/cef`. They are built from CEF commit `89cd5813e47d84c68e56ced336c2c01b7dc77b8d` with the Chromium version and JCEF Java commit pinned in `gradle.properties`. The codec-critical GN arguments are:
+
+```text
+proprietary_codecs=true
+ffmpeg_branding=Chrome
+```
+
+Those arguments select Chromium's Chrome FFmpeg configuration (including H.264 and AAC decode, MP4 demuxing, and the ordinary MP3/Opus/Vorbis/FLAC paths) and compile OpenH264 software encoding. Chromium's normal platform paths remain enabled for hardware H.264 and HEVC where the OS and driver expose them. A runtime cannot claim support merely because WebCodecs accepts an encoder configuration: sender and receiver capability must both be tested.
+
+`McefRuntimeMixin` copies the current platform archive out of the mod instead of contacting a release server. It verifies the archive before extraction, verifies the extracted `libcef` against `WINLANDCRAFT-CODEC-BUILD.properties`, and writes an installation marker only after both checks succeed. A stock or partially extracted runtime has no marker and is replaced on the next launch. Development builds without an embedded platform archive retain the checksum-verified JCEF/Rinku download fallback.
+
+The native bundle directory is supplied at package time with `-PcefRuntimeBundleDir=<directory>`. Each `<platform>.tar.gz` must have a matching `.sha256` sidecar and embedded codec-build manifest. `stageCefRuntimes` rejects a mismatched CEF/JCEF/Chromium revision, missing `libcef`, invalid checksum, or builds that do not record both codec arguments. Never update only `chromium_version`, only the Java classes, or only the native archive.
 
 For an upgrade:
 
-1. Select a JCEF Java JAR and native release built from the same commit.
-2. Update `jcef_commit` and `chromium_version` together.
+1. Select a JCEF Java JAR and CEF native build from the same API and source revision.
+2. Update `cef_commit`, `jcef_commit`, and `chromium_version` together.
 3. Review upstream CEF changes between the old and new branches for Alloy, OSR, audio, and external-message-pump behavior.
 4. Build with `./dev.sh clean check build` and verify the embedded compatibility JAR is present.
 5. Test with a fresh native runtime directory or confirm the downloader selected the new commit.
@@ -84,6 +101,6 @@ Stream codec health
 Stream audio capture health
 ```
 
-Codec health includes loopback request counts in `index/script/config/status` order. A healthy endpoint reaches all four, posts a `boot` status before probing codecs, and then advances to `encoding` or `decoding`. `index>0` with `script=0` indicates interception or script-load failure; `script>0` with `status=0` indicates a parse or pre-bootstrap execution failure. The startup watchdog intentionally follows status heartbeats rather than generic HTTP traffic so repeated navigation requests cannot disguise a dead codec page.
+Codec health includes loopback request counts in `index/script/config/status` order. A healthy endpoint reaches all four, posts a `boot` status before probing codecs, and then advances to `encoding` or `decoding`. `index>0` with `script=0` indicates interception or script-load failure. `script>0` with `config>0` and `status=0` means JavaScript started but status requests were blocked or rejected; inspect the bridge security boundary before blaming WebCodecs. The startup watchdog intentionally follows status heartbeats rather than generic HTTP traffic so repeated media polling cannot disguise a dead control path.
 
 For a native crash, preserve `hs_err_pid*.log`. The native stack and fault address are more useful than the final lines of `latest.log`.
