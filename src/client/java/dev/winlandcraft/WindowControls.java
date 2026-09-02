@@ -146,7 +146,7 @@ public final class WindowControls {
             if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                 if(fileDragging&&draggedFile!=null&&active(c)) {
                     Hit target=pick(c);
-                    if(target!=null&&target.panel.acceptsFileDrop()) {target.panel.dropFile(draggedFile);message("Opening "+draggedFile.getFileName()+" in Notepad.");}
+                    if(target!=null&&target.panel.acceptsFileDrop()) {target.panel.dropFile(draggedFile);message("Opening "+draggedFile.getFileName()+" in "+target.panel.windowTitle()+".");}
                     else message("File drop canceled. Drop onto an open Notepad panel.");
                 }
                 draggedFile=null;fileDragging=false;

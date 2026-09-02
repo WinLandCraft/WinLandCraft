@@ -330,3 +330,10 @@ tasks.register('verifyPluginMedia', JavaExec) {
     args file('docs/plugin-api-v2.txt').absolutePath
 }
 check.dependsOn verifyPluginMedia
+
+tasks.register('verifyVideoPlayer', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.VideoPlayerChecks'
+}
+check.dependsOn verifyVideoPlayer

@@ -175,3 +175,18 @@ Disconnect cleanup is dispatched to the client/render thread because MCEF delete
 Input behavior follows WaylandCraft's hover routing, press/release capture, separate keyboard capture, and separate window grabs, adapted to Minecraft 1.21.4 and CEF. No Wayland protocol/native code or WaylandCraft source blocks were copied. MCEF's Minecraft integration is included through the embedded compatibility runtime; users should not install a second MCEF JAR.
 
 To group nearby apps, hover their edge pill and click **Group**. Hovering that button previews the joining windows with slowly pulsing green dotted outlines. **Ungroup** remains beside it.
+
+
+### Video Player
+
+Open **Apps > Video Player**, then drag a video from File Manager onto its panel.
+Double-clicking MP4/M4V, WebM, OGV/OGG, MOV or MKV files also offers Video Player
+through the existing placement arrows. File opens create separate players (up to
+16), and dropping another file replaces the current video. A purple play icon
+identifies players in Apps and the taskbar.
+
+The whole 1280x720 starting window uses Chromium's video controls for play/pause,
+seeking and volume, with aspect-preserving video fitting on resize. Codec/container
+support depends on the installed CEF runtime; the listed associations are playback
+attempts, not a guarantee every encoding works. Unsupported/unreadable videos show
+an error in the player. No external player executable is needed.

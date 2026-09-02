@@ -14,18 +14,21 @@ public final class AppWindows {
     public final TasksPanel tasks = new TasksPanel(this);
     public final TaskManagerPanel taskManager = new TaskManagerPanel(this);
     public final FileManagerPanel fileManager = new FileManagerPanel(this);
+    final VideoPlayerPanel videoPlayer=new VideoPlayerPanel();
+    private final List<VideoPlayerPanel> videoPlayers=new ArrayList<>();
     public final NotepadPanel notepad = new NotepadPanel();
     public final LaserCalibrationPanel laserCalibration=new LaserCalibrationPanel();
-    public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, streamBrowser, taskManager, fileManager, notepad, laserCalibration));
+    public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, streamBrowser, taskManager, fileManager, notepad, videoPlayer, laserCalibration));
     private final LinkedHashMap<String, AppEntry> custom = new LinkedHashMap<>();
     private final List<NotepadPanel> fileEditors=new ArrayList<>();
     final PluginHost plugins=new PluginHost(this);
     record FileTarget(String id,String name) { }
     List<FileTarget> fileTargets(java.nio.file.Path path){
         var result=new ArrayList<FileTarget>();if(FileAppPlacement.supported(path))result.add(new FileTarget("winlandcraft:notepad","Notepad"));
+        if(VideoFileServer.supports(path))result.add(new FileTarget("winlandcraft:video_player","Video Player"));
         result.addAll(plugins.handlers(path));return result;
     }
-    boolean openFile(String id,FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side){return id.equals("winlandcraft:notepad")?openFile(source,path,side):plugins.openFile(id,source,path,side);}
+    boolean openFile(String id,FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side){return id.equals("winlandcraft:video_player")?openVideo(source,path,side):id.equals("winlandcraft:notepad")?openFile(source,path,side):plugins.openFile(id,source,path,side);}
     boolean openFile(FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side) {
         if(!FileAppPlacement.supported(path)||!source.isOpen())return false;
         var editor=fileEditors.stream().filter(p->!p.isOpen()).findFirst().orElse(null);
@@ -36,6 +39,12 @@ public final class AppWindows {
         // Closed editors retain their drafts, just like the main Notepad.
         FileAppPlacement.place(source,editor,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
         editor.dropFile(path);return true;
+    }
+    private boolean openVideo(FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side){
+        if(!VideoFileServer.supports(path)||!source.isOpen())return false;
+        var player=videoPlayers.stream().filter(p->!p.isOpen()).findFirst().orElse(null);
+        if(player==null){if(videoPlayers.size()>=16)return false;player=new VideoPlayerPanel();videoPlayers.add(player);windows.add(player);}
+        FileAppPlacement.place(source,player,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());player.dropFile(path);return true;
     }
     public record AppEntry(String name, WorldPanel panel, WebApps.App definition) { }
     public AppWindows() { reconcileWebApps(); }
@@ -62,12 +71,14 @@ public final class AppWindows {
         result.add(new AppEntry("Task Manager", taskManager, null));
         result.add(new AppEntry("File Manager", fileManager, null));
         result.add(new AppEntry("Notepad", notepad, null));
+        result.add(new AppEntry("Video Player",videoPlayer,null));
         result.add(new AppEntry("Laser Calibration",laserCalibration,null));
         result.addAll(custom.values());result.addAll(plugins.entries());return result;
     }
     public List<AppEntry> runningApps() {
         var result=new ArrayList<>(appEntries().stream().filter(e -> e.panel.isOpen()).toList());
         for(var editor:fileEditors)if(editor.isOpen())result.add(new AppEntry(editor.windowTitle(),editor,null));
+        for(var player:videoPlayers)if(player.isOpen())result.add(new AppEntry(player.windowTitle(),player,null));
         result.addAll(plugins.running());return result;
     }
     public void launch(AppEntry entry) {
@@ -83,6 +94,10 @@ public final class AppWindows {
         else if (icon != null) canvas.texture(icon, x, y, size, size, 0.4f);
         else if(entry.panel==streamBrowser) canvas.browserIcon(x,y,size,true);
         else if(entry.panel==fileManager) PixelIcon.FOLDER.draw(canvas,x,y,size,.45f,0xFFFFCE57);
+        else if(entry.panel instanceof VideoPlayerPanel){
+            canvas.rect(x,y,size,size,.4f,0xFF8C4BC1);
+            for(int i=0;i<12;i++)canvas.rect(x+size*.32f+i*size/30f,y+size*.22f+i*size/44f,size/30f,size*.56f-i*size/22f,.45f,-1);
+        }
         else if(entry.panel instanceof NotepadPanel)PixelIcon.FILE_TEXT.draw(canvas,x,y,size,.45f,0xFF69D1E9);
         else if(entry.panel==taskManager)PixelIcon.CHART.draw(canvas,x,y,size,.45f,0xFF65E4AE);
         else if(entry.panel==laserCalibration)PixelIcon.SCALE.draw(canvas,x,y,size,.45f,0xFFFFC857);

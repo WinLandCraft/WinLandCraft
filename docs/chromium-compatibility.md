@@ -118,3 +118,27 @@ In-game checks required on Windows and Linux: start Stream on an already playing
 API v1 Chromium/hybrid apps share BrowserPanel's MCEF runtime, texture registration, BrowserEvents dispatch, resize tick, audio capture, and render-thread cleanup. The internal PluginPanel adapter hosts one standalone view with a configurable pixel rectangle; native plugin apps never create a view. `closeViews` can dispose a failed plugin's browser without deleting its visible error panel. Plugin callbacks receive no JCEF handles or native buffers. Main-frame load callbacks are marshalled through BrowserEvents before reaching plugins. Plugin views have no host-native browser context menu (page DOM context menus still work), and plugin stream replicas are view-only. Final native-plus-browser composition continues through PanelSurface and Fabric world consumers. No codec or runtime flags change.
 
 API v2 SURFACE apps do not create CEF views. Submitted 48 kHz stereo PCM uses the existing bounded local-monitor and encoder packet paths with copied, reference-counted data. Requesting a plugin's custom AudioOutput selects that source for its stream instead of browser audio; Chromium local playback is unaffected. No codec/runtime flags change. Native audio-device output and GL-uploaded surfaces still require platform smoke tests.
+
+
+## Local Video Player (0.1.85-dev)
+
+VideoPlayerPanel is a standalone BrowserPanel using the shared CEF runtime, normal
+StreamAudio capture/local playback and render-thread view cleanup. No codec flags
+change. An HTML video element fills the panel with native controls and object-fit
+contain. Playback errors and autoplay rejection are displayed in the page.
+
+Each open player owns a loopback-only VideoFileServer with an ephemeral port,
+random capability path and per-selection revision. It exposes only index.html and
+the selected media; there is no user-controlled filesystem route. GET/HEAD only,
+exact Host checks, foreign-Origin rejection (CEF null is accepted only behind the
+capability), no CORS headers, no-store and no-referrer prevent accidental reuse.
+A restrictive page CSP permits only local media and the embedded UI script/style.
+Old selection URLs expire immediately. Two workers and eight queued requests per
+player bound file serving; 64 KiB chunks and HTTP byte ranges avoid whole-file
+buffering and support seeking. Closing stops the server and workers after closing
+CEF on the render thread. Video replicas remain view-only.
+
+Smoke-test on each OS: empty launch; File Manager placement and drag/drop; H.264/AAC
+MP4 and VP9/Opus WebM playback/audio; seek, pause, resize and replace; unreadable or
+unsupported file; close/reopen and quit with multiple playing videos; streamed A/V.
+Automated HTTP tests cover ranges and file isolation but cannot validate decoding.
