@@ -13,11 +13,23 @@ public final class AppWindows {
     public final AppsPanel launcher = new AppsPanel(this);
     public final TasksPanel tasks = new TasksPanel(this);
     public final TaskManagerPanel taskManager = new TaskManagerPanel(this);
-    public final FileManagerPanel fileManager = new FileManagerPanel();
+    public final FileManagerPanel fileManager = new FileManagerPanel(this);
     public final NotepadPanel notepad = new NotepadPanel();
     public final LaserCalibrationPanel laserCalibration=new LaserCalibrationPanel();
     public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, streamBrowser, taskManager, fileManager, notepad, laserCalibration));
     private final LinkedHashMap<String, AppEntry> custom = new LinkedHashMap<>();
+    private final List<NotepadPanel> fileEditors=new ArrayList<>();
+    boolean openFile(FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side) {
+        if(!FileAppPlacement.supported(path)||!source.isOpen())return false;
+        var editor=fileEditors.stream().filter(p->!p.isOpen()).findFirst().orElse(null);
+        if(editor==null) {
+            if(fileEditors.size()>=16)return false;
+            editor=new NotepadPanel();fileEditors.add(editor);windows.add(editor);
+        }
+        // Closed editors retain their drafts, just like the main Notepad.
+        FileAppPlacement.place(source,editor,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
+        editor.dropFile(path);return true;
+    }
     public record AppEntry(String name, WorldPanel panel, WebApps.App definition) { }
     public AppWindows() { reconcileWebApps(); }
     public void reconcileWebApps() {
@@ -46,7 +58,11 @@ public final class AppWindows {
         result.add(new AppEntry("Laser Calibration",laserCalibration,null));
         result.addAll(custom.values()); return result;
     }
-    public List<AppEntry> runningApps() { return appEntries().stream().filter(e -> e.panel.isOpen()).toList(); }
+    public List<AppEntry> runningApps() {
+        var result=new ArrayList<>(appEntries().stream().filter(e -> e.panel.isOpen()).toList());
+        for(var editor:fileEditors)if(editor.isOpen())result.add(new AppEntry(editor.windowTitle(),editor,null));
+        return result;
+    }
     public void launch(AppEntry entry) {
         var client = Minecraft.getInstance();
         if (client.level != null) { entry.panel.open(client); launcher.close(); }
@@ -56,7 +72,7 @@ public final class AppWindows {
         if (icon != null) canvas.texture(icon, x, y, size, size, 0.4f);
         else if(entry.panel==streamBrowser) canvas.browserIcon(x,y,size,true);
         else if(entry.panel==fileManager) PixelIcon.FOLDER.draw(canvas,x,y,size,.45f,0xFFFFCE57);
-        else if(entry.panel==notepad)PixelIcon.FILE_TEXT.draw(canvas,x,y,size,.45f,0xFF69D1E9);
+        else if(entry.panel instanceof NotepadPanel)PixelIcon.FILE_TEXT.draw(canvas,x,y,size,.45f,0xFF69D1E9);
         else if(entry.panel==taskManager)PixelIcon.CHART.draw(canvas,x,y,size,.45f,0xFF65E4AE);
         else if(entry.panel==laserCalibration)PixelIcon.SCALE.draw(canvas,x,y,size,.45f,0xFFFFC857);
         else if (entry.definition == null) canvas.browserIcon(x, y, size);

@@ -17,7 +17,34 @@ public final class FileManagerPanel extends NativePanel {
     private Thread worker;
     private boolean editing,selectAll;
     private String address="",notice="";
-    public FileManagerPanel(){super(3.2f,1.8f,1280,720);}
+    private final AppWindows apps;
+    private Path placementFile;
+    private boolean suppressFileDrag;
+    public FileManagerPanel(){this(null);}
+    public FileManagerPanel(AppWindows apps){super(3.2f,1.8f,1280,720);this.apps=apps;}
+    private int[] placementButton(FileAppPlacement.Side side) {
+        int cx=pixelWidth()/2,cy=pixelHeight()/2;
+        return switch(side){case LEFT->new int[]{16,cy-28};case RIGHT->new int[]{pixelWidth()-72,cy-28};case ABOVE->new int[]{cx-28,16};case BELOW->new int[]{cx-28,pixelHeight()-72};};
+    }
+    private void drawPlacement(PanelCanvas c) {
+        c.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF152A28);
+        String title="Where to create the window?";
+        int width=Minecraft.getInstance().font.width(title);
+        float scale=Math.min(2f,Math.max(.5f,(pixelWidth()-160f)/width));
+        c.text(title,(int)((pixelWidth()-width*scale)/2),pixelHeight()/2-44,-1,scale);
+        String name=fit(placementFile.getFileName().toString(),Math.max(1,pixelWidth()-180),1.25f);
+        c.text(name,(int)((pixelWidth()-Minecraft.getInstance().font.width(name)*1.25f)/2),pixelHeight()/2-14,0xFFB6D9CF,1.25f);
+        for(var side:FileAppPlacement.Side.values()) {
+            var b=placementButton(side);int x=b[0],y=b[1];
+            c.rect(x,y,56,56,.2f,hoverColor(x,y,56,56,0xFF25543E,0xFF397E59));
+            int dx=side==FileAppPlacement.Side.LEFT?-1:side==FileAppPlacement.Side.RIGHT?1:0;
+            int dy=side==FileAppPlacement.Side.ABOVE?-1:side==FileAppPlacement.Side.BELOW?1:0;
+            for(int i=-12;i<=12;i++)c.rect(x+26+dx*i,y+26+dy*i,4,4,.4f,0xFF75F5A5);
+            for(int i=0;i<=12;i++)for(int sign:new int[]{-1,1})c.rect(x+26+dx*(12-i)+dy*i*sign,y+26+dy*(12-i)+dx*i*sign,4,4,.4f,0xFF75F5A5);
+        }
+        int x=pixelWidth()/2-50,y=pixelHeight()/2+28;
+        c.rect(x,y,100,34,.2f,hoverColor(x,y,100,34,0xFF30473F,0xFF4A675A));c.text("Cancel",x+20,y+10,-1,1.5f);
+    }
     int visibleRows(){return Math.max(1,(pixelHeight()-176)/34);}
     int listBottom(){return 112+visibleRows()*34;}
     private int modifiedX(){return pixelWidth()-500;}
@@ -38,7 +65,7 @@ public final class FileManagerPanel extends NativePanel {
         long id=++request;if(worker!=null)worker.interrupt();Path target=path;
         worker=Thread.startVirtualThread(()->{var listing=FileDirectory.read(target);if(request==id)result=listing;});
     }
-    @Override public void close(){super.close();request++;if(worker!=null)worker.interrupt();result=null;directory=null;history.clear();historyIndex=-1;editing=false;}
+    @Override public void close(){super.close();request++;if(worker!=null)worker.interrupt();result=null;directory=null;history.clear();historyIndex=-1;editing=false;placementFile=null;}
     @Override public boolean acceptsKeyboard(){return true;}
     @Override public boolean wantsKeyboard(){return editing;}
     @Override public void keyboardStopped(){editing=false;if(directory!=null)address=directory.toString();}
@@ -57,13 +84,23 @@ public final class FileManagerPanel extends NativePanel {
     }
     @Override public void hover(int x,int y){hoverRow=x>=240&&x<pixelWidth()-20&&y>=112&&y<listBottom()?(y-112)/34+first:-1;}
     @Override public Path dragFileAt(int x,int y){
-        var r=result;if(r==null||x<240||x>=pixelWidth()-20||y<112||y>=listBottom())return null;
+        var r=result;if(suppressFileDrag||placementFile!=null||r==null||x<240||x>=pixelWidth()-20||y<112||y>=listBottom())return null;
         int row=(y-112)/34+first;
         return row<r.entries().size()&&!r.entries().get(row).directory()?r.entries().get(row).path():null;
     }
-    @Override public void scroll(int x,int y,double amount){var r=result;if(r==null||y<0)return;if(x<240)sideFirst=Math.clamp(sideFirst-(int)Math.signum(amount),0,Math.max(0,r.locations().size()-visibleRows()));else first=Math.clamp(first-(int)Math.signum(amount)*3,0,Math.max(0,r.entries().size()-visibleRows()));}
+    @Override public void scroll(int x,int y,double amount){var r=result;if(placementFile!=null||r==null||y<0)return;if(x<240)sideFirst=Math.clamp(sideFirst-(int)Math.signum(amount),0,Math.max(0,r.locations().size()-visibleRows()));else first=Math.clamp(first-(int)Math.signum(amount)*3,0,Math.max(0,r.entries().size()-visibleRows()));}
     @Override public void mouseDown(int x,int y,int button) {
+        suppressFileDrag=false;
         if(button!=0||y<0)return;
+        if(placementFile!=null) {
+            suppressFileDrag=true;
+            for(var side:FileAppPlacement.Side.values()) {var b=placementButton(side);if(x>=b[0]&&x<b[0]+56&&y>=b[1]&&y<b[1]+56) {
+                if(apps!=null&&apps.openFile(this,placementFile,side))notice="Opened in Notepad.";else notice="Close a file window first (16 maximum).";
+                placementFile=null;return;
+            }}
+            if(x>=pixelWidth()/2-50&&x<pixelWidth()/2+50&&y>=pixelHeight()/2+28&&y<pixelHeight()/2+62)placementFile=null;
+            return;
+        }
         if(y>=14&&y<58) {
             if(x>=260&&x<pixelWidth()-24){editing=true;selectAll=true;return;}
             if(x>=12&&x<62&&historyIndex>0)navigate(history.get(--historyIndex),false);
@@ -77,7 +114,12 @@ public final class FileManagerPanel extends NativePanel {
         if(x>=240&&x<pixelWidth()-20&&y>=112&&y<listBottom()) {
             int row=(y-112)/34+first;if(row>=r.entries().size())return;
             selected=row;var entry=r.entries().get(row);long now=System.nanoTime();
-            if(row==lastRow&&now-lastClick<450_000_000L&&entry.directory())navigate(entry.path(),true);
+            if(row==lastRow&&now-lastClick<450_000_000L) {
+                lastRow=-1;lastClick=0;
+                if(entry.directory())navigate(entry.path(),true);
+                else if(FileAppPlacement.supported(entry.path())){placementFile=entry.path();editing=false;}
+                else notice="No app supports this file type yet.";
+            }
             else {notice=entry.directory()?"Double-click to enter this folder.":"Hold left mouse and drag this file onto Notepad.";lastRow=row;lastClick=now;}
         }
     }
@@ -91,6 +133,7 @@ public final class FileManagerPanel extends NativePanel {
         }
     }
     @Override void drawSurface(PanelCanvas c) {
+        if(placementFile!=null){drawPlacement(c);return;}
         c.rect(-3,-3,pixelWidth()+6,pixelHeight()+6,0,0xFF536579);
         c.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF17212D);c.rect(0,76,232,Math.max(0,pixelHeight()-118),.2f,0xFF202C3B);
         PixelIcon[] buttons={PixelIcon.ARROW_LEFT,PixelIcon.ARROW_RIGHT,PixelIcon.ARROW_UP,PixelIcon.REFRESH};int[] xs={12,70,128,186};

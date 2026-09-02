@@ -1,5 +1,7 @@
 # Panel icons and hover states
 
+Double-clicking a supported text/code file replaces File Manager's content with a modal placement overlay. Four green arrow buttons select left/right/above/below; Cancel returns to the listing. Drawing and picking share button bounds, and the modal suppresses scrolling and file-drag initiation. The file opens in a separate Notepad beside the chosen edge with a 0.08-block gap and 28-degree fold toward the viewing side. Curved sources use their exact edge point and tangent. The source is not moved or grouped. Up to 16 extra editors are retained, with closed editors reused while preserving draft tabs; open editors appear on the taskbar.
+
 Native world panels use a selected subset of [Pixelarticons](https://github.com/halfmage/pixelarticons), pinned to revision `8275e0af7c16aa40c54ea2b90b7af83b1fe4eb4c`. The source icons are MIT licensed and their notice is packaged as `META-INF/PIXELARTICONS-LICENSE.txt`.
 
 The floating pill's title always begins at its left edge. Its drag/background region fills the header up to the close button, including the extra width exposed during expansion. The close button retains its stable world position. The whole pill uses PanelSurface filtering, so Panel smoothing toggles both text/icon and background sampling together.
