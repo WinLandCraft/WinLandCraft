@@ -156,10 +156,23 @@ public abstract class WorldPanel {
         return t > 0 ? t : Double.POSITIVE_INFINITY;
     }
 
+    final boolean frontFacing(Vec3 observer) {
+        Vector3f normal=new Vector3f(0,0,1).rotate(orientation);
+        Vec3 relative=observer.subtract(position);
+        return relative.x*normal.x+relative.y*normal.y+relative.z*normal.z>=0;
+    }
+
+    private boolean canRender(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+        return position != null && level == context.world() && !net.minecraft.client.Minecraft.getInstance().options.hideGui
+                && context.matrixStack() != null && context.consumers() != null;
+    }
+
     protected PanelCanvas canvas(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        if (position == null || level != context.world() || net.minecraft.client.Minecraft.getInstance().options.hideGui
-                || context.matrixStack() == null || context.consumers() == null) return null;
-        return new PanelCanvas(context,this);
+        return canRender(context)?new PanelCanvas(context,this):null;
+    }
+
+    protected PanelCanvas surfaceCanvas(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+        return canRender(context)?new PanelCanvas(context,this,true):null;
     }
 
     public void bringToView(ClientLevel world, Camera camera) {

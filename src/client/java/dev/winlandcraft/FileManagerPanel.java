@@ -81,8 +81,8 @@ public final class FileManagerPanel extends WorldPanel {
     private static String size(long bytes){if(bytes<0)return "-";if(bytes<1024)return bytes+" B";if(bytes<1048576)return String.format(Locale.ROOT,"%.1f KiB",bytes/1024.0);return String.format(Locale.ROOT,"%.1f MiB",bytes/1048576.0);}
     static void folder(PanelCanvas c,int x,int y,int size){PixelIcon.FOLDER.draw(c,x,y,size,.45f,0xFFFFCE57);}
     @Override public void render(WorldRenderContext context) {
-        try(var c=canvas(context)) {
-            if(c==null)return;
+        try(var c=surfaceCanvas(context)) {
+            if(c==null||!c.frontFacing())return;
             c.rect(-3,-35,1286,758,0,0xFF536579);c.rect(0,-32,1280,32,.3f,0xFF314D63);
             c.text(fit("File Manager"+(directory==null?"":" - "+directory),grouped()?1090:1190,1.5f),12,-22,-1,1.5f);renderUngroup(c);
             renderClose(c);

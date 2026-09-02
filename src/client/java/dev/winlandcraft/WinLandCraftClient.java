@@ -102,7 +102,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
             streams.clear();
             apps.windows.forEach(WorldPanel::close);
         }));
-        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> { WebAppIconProbe.cancelCurrent(); controls.cancel(); streams.shutdown(); apps.windows.forEach(WorldPanel::close); });
+        ClientLifecycleEvents.CLIENT_STOPPING.register(client -> { WebAppIconProbe.cancelCurrent(); controls.cancel(); streams.shutdown(); apps.windows.forEach(WorldPanel::close);PanelCanvas.shutdown(); });
         LOGGER.info("WinLandCraft browser window controls initialized.");
     }
     private static InteractionResult use(Player player, Level level, InteractionHand hand) {

@@ -32,8 +32,8 @@ public final class TasksPanel extends WorldPanel {
         super.close();
     }
     @Override public void render(WorldRenderContext context) {
-        try (var canvas = canvas(context)) {
-            if (canvas == null) return;
+        try (var canvas = surfaceCanvas(context)) {
+            if (canvas == null || !canvas.frontFacing()) return;
             canvas.rect(0, 0, 400, 48, 0, 0xFF536579);
             canvas.rect(1, 1, 398, 46, 0.15f, 0xFF18212D);
             canvas.rect(1, 45, 398, 2, 0.3f, 0xFF51CFDF);

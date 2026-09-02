@@ -50,8 +50,8 @@ public final class TaskManagerPanel extends WorldPanel {
     private static String io(double value) { return Double.isFinite(value) ? memory((long) value) + "/s" : value < 0 ? "Unavailable" : "Sampling..."; }
     private static String fit(String text, int pixels) { return Minecraft.getInstance().font.plainSubstrByWidth(text, pixels / 2); }
     @Override public void render(WorldRenderContext context) {
-        try (var c = canvas(context)) {
-            if (c == null) return;
+        try (var c = surfaceCanvas(context)) {
+            if (c == null || !c.frontFacing()) return;
             c.rect(-3, -35, 1286, 758, 0, 0xFF536579);
             c.rect(0, -32, 1280, 32, 0.3f, 0xFF285947);
             c.text("Task Manager", 12, -22, -1, 1.5f);

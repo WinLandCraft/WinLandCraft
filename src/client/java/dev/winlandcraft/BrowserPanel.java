@@ -280,8 +280,8 @@ public class BrowserPanel extends WorldPanel {
         return font.width(text) * scale <= width ? text : font.plainSubstrByWidth(text, (int) (width / scale) - font.width("...")) + "...";
     }
     @Override public void render(WorldRenderContext context) {
-        try (var canvas = canvas(context)) {
-            if (canvas == null) return;
+        try (var canvas = surfaceCanvas(context)) {
+            if (canvas == null || !canvas.frontFacing()) return;
             drawSurface(canvas);
         }
     }
@@ -296,9 +296,7 @@ public class BrowserPanel extends WorldPanel {
             canvas.text(fit(windowTitle(), pixelWidth() - (grouped() ? 168 : 68), 1.5f), 12, -22, 0xFFF0F5FC, 1.5f);
             renderUngroup(canvas);
             renderClose(canvas);
-            // Do not put a nearly coplanar backing quad behind a live browser texture. At
-            // distance the depth buffer cannot distinguish the pixel-scaled 0.1 z gap and
-            // alternates between both surfaces, producing dark stripes across the page.
+            // The live page is opaque, so avoid a redundant full-size backing draw.
             if (!browserReady) canvas.rect(0, 0, pixelWidth(), pixelHeight(), 0.1f, 0xFF18212D);
             if (!standalone) {
                 canvas.rect(0, 0, SIDE, pixelHeight(), 0.2f, 0xFF202C3B);

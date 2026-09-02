@@ -125,8 +125,8 @@ public final class NotepadPanel extends WorldPanel {
         icon.draw(c,x+8,50,24,.4f,enabled?-1:0xFF71818E);c.text(text,x+40,56,enabled?-1:0xFF71818E,1.5f);
     }
     @Override public void render(WorldRenderContext context) {
-        try(var c=canvas(context)) {
-            if(c==null)return;
+        try(var c=surfaceCanvas(context)) {
+            if(c==null||!c.frontFacing())return;
             c.rect(-3,-35,1286,758,0,0xFF536579);c.rect(0,-32,1280,32,.3f,0xFF243D4B);
             c.text(fit(active.name()+(active.dirty()?" *":"")+" - Notepad",grouped()?1080:1190,1.5f),12,-22,-1,1.5f);renderUngroup(c);renderClose(c);
             c.rect(0,0,1280,720,.1f,0xFF242424);c.rect(0,0,1280,40,.2f,0xFF13212C);

@@ -108,8 +108,8 @@ final class RemoteStreamPanel extends WorldPanel {
                 (queue==null?"":", decoderQueue="+queue.queued()+", accepted="+queue.accepted()+", dropped="+queue.dropped()+", keyWait="+queue.rejectedForKey()+", resets="+queue.resets());
     }
     @Override public void render(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        try(var canvas=canvas(context)) {
-            if(canvas==null)return;
+        try(var canvas=surfaceCanvas(context)) {
+            if(canvas==null||!canvas.frontFacing())return;
             boolean image=decoder!=null&&decoder.browser!=null&&decoder.renderedVideo&&decoder.browser.getRenderer().getTextureID()>0;
             if(image)canvas.texture(texture,pixelWidth(),pixelHeight());
             else {
