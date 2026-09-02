@@ -2,7 +2,7 @@
 
 **Since WinLandCraft 0.1.83-dev; optional GPU textures since 0.1.84-dev.** Public types live in `dev.winlandcraft.api.v2`, and the Fabric entrypoint is **`winlandcraft:plugins_v2`**. V1 remains unchanged in its original package and entrypoint. Choose v2 for capture tools, emulators, external game engines, generated images, or anything else that produces frames/audio; v2 also has native Canvas and managed Chromium/hybrid apps.
 
-A plugin owns its content and optional external process/native engine. WinLandCraft owns panel rendering, host input capture/locking, focus, picking, placement, resizing/scaling, grouping, curves, the pill, and streaming the composed window. A Windows-only WGC plugin can supply captured frames without adding Windows dependencies to the host. WGC capture itself is not included: the plugin must implement capture, OS checks, permissions/UI, native packaging, and graphics-backend interop or CPU readback.
+A plugin owns its content and optional external process/native engine. WinLandCraft owns panel rendering, host input capture/locking, focus, picking, placement, resizing/scaling, grouping, curves, the pill, and streaming the composed window. As an example, Windows-only WGC plugin can supply captured frames without adding Windows dependencies to the host. WGC capture itself is not included: the plugin must implement capture, OS checks, permissions/UI, native packaging, and graphics-backend interop or CPU readback.
 
 ## Packaging and registration
 
@@ -38,7 +38,7 @@ public final class CapturePlugin implements WinLandCraftPlugin {
 }
 ```
 
-App IDs must use your mod ID namespace. The factory creates a fresh instance per window session. Optional `.icon(...)`, `.extensions(...)`, and `.fileNames(...)` integrate with Apps/File Manager exactly as in v1. Initial size is required conceptually, with a 1280x720 default; `.size(...)` accepts 320–4096 wide and 180–4096 high. `AppKind` supports `NATIVE`, `CHROMIUM`, `HYBRID`, and `SURFACE`. SURFACE creates no browser. All kinds may submit frames/audio; request `browser()` only for CHROMIUM/HYBRID.
+App IDs must use your mod ID namespace. The factory creates a fresh instance per window session. Optional `.icon(...)`, `.extensions(...)`, and `.fileNames(...)` integrate with Apps/File Manager exactly as in v1. Initial size is required conceptually, with a 1280x720 default; `.size(...)` accepts 320 4096 wide and 180 4096 high. `AppKind` supports `NATIVE`, `CHROMIUM`, `HYBRID`, and `SURFACE`. SURFACE creates no browser. All kinds may submit frames/audio; request `browser()` only for CHROMIUM/HYBRID.
 
 Registrations across versions share the same ID namespace and window limits. Do not register the same app ID in both entrypoints. One version per app is simplest. Apps appear automatically in the launcher/taskbar, and registered file handlers participate in the placement chooser. External native binaries must handle unsupported operating systems gracefully. Installing the plugin does not grant a separate sandbox: Java mods are trusted local code.
 
@@ -83,7 +83,7 @@ public final class Display implements App {
 - Thread-safe, accepts heap or direct ByteBuffers, and copies before returning. You may reuse/release your buffer after return. Do not mutate it concurrently during the call.
 - Reads from the current buffer position without changing its position/limit. Rows are top-to-bottom; stride is in bytes and must be at least `width * 4`. Padding is discarded. The last row needs only its pixel bytes.
 - `RGBA8` means byte order R,G,B,A; `BGRA8` means B,G,R,A. Each channel is unsigned 8-bit. Use straight alpha; convert premultiplied sources or force alpha 255 for opaque desktop capture.
-- Each dimension is 1–4096. Oversized, malformed, or undersized buffers throw IllegalArgumentException; downscale larger captures before submission. Invalid format/null buffers are programmer errors.
+- Each dimension is 1 4096. Oversized, malformed, or undersized buffers throw IllegalArgumentException; downscale larger captures before submission. Invalid format/null buffers are programmer errors.
 - Retains **one newest pending frame**. New submissions replace pending old ones. `true` means accepted, not necessarily displayed; `false` means the window/session has closed. Capture at a sensible rate rather than using this as a busy-loop signal.
 - `clear()` discards pending content and hides the displayed frame on the next composition. Texture/staging capacity remains owned until window close. Closing rejects producers before releasing GPU resources.
 
@@ -111,7 +111,7 @@ sound.localPlayback(false);
 boolean accepted = sound.submit(interleavedFloatPcm);
 ```
 
-- Input is **48 kHz, interleaved stereo float PCM**, 1–4,800 frames per call (2–9,600 floats). Resample/downmix other formats in the plugin. Small regular blocks around 10–20 ms are recommended.
+- Input is **48 kHz, interleaved stereo float PCM**, 1 4,800 frames per call (2 9,600 floats). Resample/downmix other formats in the plugin. Small regular blocks around 10 20 ms are recommended.
 - The host copies, converts to planar stereo for its encoder, clamps samples to [-1,1], and replaces non-finite samples with silence. Never mutate an array concurrently with submission.
 - Submission, `localPlayback`, and `clear` are thread-safe. A paced producer is required; submitting more than about 200 ms ahead returns false. Closed sessions also return false. Drop stale audio rather than spinning/retrying it forever.
 - Local playback defaults to on, using the host's bounded Java Sound monitor. `localPlayback(false)` affects local monitoring only; window streaming still receives the audio when an encoder is active.
