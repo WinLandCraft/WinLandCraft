@@ -8,12 +8,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 final class ModSettings {
+    static final float DEFAULT_SCREEN_LIGHT_INTENSITY=3.5f,MIN_SCREEN_LIGHT_RANGE=24.0f;
+    private static final float[] SCREEN_LIGHT_INTENSITIES={.5f,1f,1.5f,2f,2.5f,3f,3.5f,4f,5f,6f,8f};
+    private static final float[] SCREEN_LIGHT_RANGES={24f,32f,48f,64f};
     static boolean freePanelRotation = false;
     static boolean removeSizingLimitations = false;
     static boolean extendInteractionRange = false;
     static double interactionRange = 16;
     static int streamFps=30,streamKbps=2000,streamHeight=720,streamAudioKbps=96;
     static boolean streamAudio=true,streamRemoteControl=false;
+    static boolean screenLighting=true;
+    static float screenLightIntensity=DEFAULT_SCREEN_LIGHT_INTENSITY,screenLightRange=MIN_SCREEN_LIGHT_RANGE;
     static boolean validInteractionRange(double value) { return Double.isFinite(value) && value > 0 && value <= 4096; }
     static double interactionRange(double normalRange) { return extendInteractionRange ? interactionRange : normalRange; }
     private static Path path() { return FabricLoader.getInstance().getConfigDir().resolve("winlandcraft.json"); }
@@ -23,6 +28,9 @@ final class ModSettings {
         extendInteractionRange = false;
         interactionRange = 16;
         streamRemoteControl = false;
+        screenLighting = true;
+        screenLightIntensity = DEFAULT_SCREEN_LIGHT_INTENSITY;
+        screenLightRange = MIN_SCREEN_LIGHT_RANGE;
         try {
             if (Files.exists(path())) {
                 var json = JsonParser.parseString(Files.readString(path())).getAsJsonObject();
@@ -32,6 +40,9 @@ final class ModSettings {
                 if(json.has("streamAudioKbps"))streamAudioKbps=StreamQuality.nearest(json.get("streamAudioKbps").getAsInt(),StreamQuality.AUDIO);
                 if(json.has("streamAudio"))streamAudio=json.get("streamAudio").getAsBoolean();
                 if(json.has("streamRemoteControl"))streamRemoteControl=json.get("streamRemoteControl").getAsBoolean();
+                if(json.has("screenLighting"))screenLighting=json.get("screenLighting").getAsBoolean();
+                if(json.has("screenLightIntensity"))screenLightIntensity=nearest(json.get("screenLightIntensity").getAsFloat(),SCREEN_LIGHT_INTENSITIES);
+                if(json.has("screenLightRange"))screenLightRange=nearest(json.get("screenLightRange").getAsFloat(),SCREEN_LIGHT_RANGES);
                 if (json.has("freePanelRotation")) freePanelRotation = json.get("freePanelRotation").getAsBoolean();
                 if (json.has("removeSizingLimitations")) removeSizingLimitations = json.get("removeSizingLimitations").getAsBoolean();
                 if (json.has("extendInteractionRange")) extendInteractionRange = json.get("extendInteractionRange").getAsBoolean();
@@ -42,6 +53,19 @@ final class ModSettings {
             }
         } catch (Exception error) { WinLandCraftClient.LOGGER.warn("Could not read WinLandCraft settings; using defaults", error); }
     }
+    static float nextScreenLightIntensity(float current){return next(current,SCREEN_LIGHT_INTENSITIES);}
+    static float nextScreenLightRange(float current){return next(current,SCREEN_LIGHT_RANGES);}
+    private static float next(float current,float[] values) {
+        if(!Float.isFinite(current))return values[0];
+        for(float value:values)if(value>current+.01f)return value;
+        return values[0];
+    }
+    private static float nearest(float current,float[] values) {
+        if(!Float.isFinite(current))return values[0];
+        float nearest=values[0];
+        for(float value:values)if(Math.abs(value-current)<Math.abs(nearest-current))nearest=value;
+        return nearest;
+    }
     static boolean save() {
         try {
             var json = new JsonObject(); json.addProperty("freePanelRotation", freePanelRotation);
@@ -51,6 +75,9 @@ final class ModSettings {
             json.addProperty("streamFps",streamFps);json.addProperty("streamKbps",streamKbps);json.addProperty("streamHeight",streamHeight);
             json.addProperty("streamAudio",streamAudio);json.addProperty("streamAudioKbps",streamAudioKbps);
             json.addProperty("streamRemoteControl",streamRemoteControl);
+            json.addProperty("screenLighting",screenLighting);
+            json.addProperty("screenLightIntensity",screenLightIntensity);
+            json.addProperty("screenLightRange",screenLightRange);
             Files.createDirectories(path().getParent());
             Files.writeString(path(), new GsonBuilder().setPrettyPrinting().create().toJson(json));
             return true;

@@ -65,6 +65,7 @@ public abstract class WorldPanel {
     private PanelSurface.Target surfaceTarget;
     private float halfWidth;
     private float halfHeight;
+    private float[] screenLightColors;
     public float worldWidth() { return halfWidth * 2; }
     public float worldHeight() { return halfHeight * 2; }
     protected float minimumWidth() { return 0.6f; }
@@ -73,6 +74,9 @@ public abstract class WorldPanel {
     public boolean canMove() { return true; }
     public boolean canInteract() { return true; }
     public boolean canGroup() { return true; }
+    protected boolean projectsLight(){return false;}
+    final float[] screenLightColors(){return screenLightColors;}
+    final void screenLightColors(float[] colors){screenLightColors=ScreenLighting.smooth(screenLightColors,colors);}
     float resizeMinimumWidth(){return ModSettings.removeSizingLimitations?.0001f:minimumWidth();}
     float resizeMinimumHeight(){return ModSettings.removeSizingLimitations?.0001f:minimumHeight();}
     float resizeMaximumWidth(){return ModSettings.removeSizingLimitations?Float.MAX_VALUE:6.4f;}
@@ -196,6 +200,7 @@ public abstract class WorldPanel {
     public void close() {
         WindowGroups.detach(this);
         hoverX=hoverY=Integer.MIN_VALUE;
+        screenLightColors=null;
         if(surfaceTarget!=null){surfaceTarget.close();surfaceTarget=null;}
         position = null;
         orientation = null;

@@ -38,6 +38,7 @@ final class PanelSurface implements AutoCloseable {
     private final boolean front;
     private PanelCanvas canvas;
     private RenderState state;
+    private IrisOffscreenRender.Scope irisScope;
     private boolean modelViewPushed,closed;
 
     PanelSurface(WorldRenderContext context,WorldPanel panel,Target target,boolean front) {
@@ -58,8 +59,9 @@ final class PanelSurface implements AutoCloseable {
         RenderSystem.assertOnRenderThread();
         int width=panel.pixelWidth()+MARGIN*2;
         int height=panel.pixelHeight()+panel.titlebarHeight()+MARGIN*2;
-        state=new RenderState();
+        irisScope=IrisOffscreenRender.enter();
         try {
+            state=new RenderState();
             target.ensure(width,height);
             var modelView=RenderSystem.getModelViewStack();
             modelView.pushMatrix();modelView.identity();modelViewPushed=true;
@@ -84,7 +86,7 @@ final class PanelSurface implements AutoCloseable {
             pose.translate(MARGIN,panel.titlebarHeight()+MARGIN,0);
             canvas=new PanelCanvas(pose,target.redirected);
         } catch (RuntimeException | Error failure) {
-            restoreState();
+            try {restoreState();} finally {restoreIris();}
             throw failure;
         }
     }
@@ -96,9 +98,9 @@ final class PanelSurface implements AutoCloseable {
         try {
             canvas.close();
             target.buffers.endBatch();
-            target.generateMipmaps();
+            target.generateMipmaps(panel);
         } finally {
-            restoreState();
+            try {restoreState();} finally {restoreIris();}
         }
         try(var world=new PanelCanvas(context,panel)) {
             int title=panel.titlebarHeight();
@@ -110,6 +112,11 @@ final class PanelSurface implements AutoCloseable {
     private void restoreState() {
         if(modelViewPushed) {RenderSystem.getModelViewStack().popMatrix();modelViewPushed=false;}
         if(state!=null) {state.restore();state=null;}
+    }
+
+    private void restoreIris() {
+        if(irisScope==null)return;
+        irisScope.close();irisScope=null;
     }
 
     static final class Target implements AutoCloseable {
@@ -133,29 +140,38 @@ final class PanelSurface implements AutoCloseable {
             @Override public void close(){}
         };
         private boolean registered,closed;
-        private int configuredTexture;
+        private boolean samplerDirty;
+        private ScreenColorSampler lightSampler;
 
         Target(ResourceLocation location){this.location=location;}
 
         void ensure(int width,int height) {
-            if(framebuffer==null)framebuffer=new TextureTarget(width,height,true);
-            else if(framebuffer.width!=width||framebuffer.height!=height)framebuffer.resize(width,height);
+            if(framebuffer==null) {
+                framebuffer=new TextureTarget(width,height,true);
+                samplerDirty=true;
+            } else if(framebuffer.width!=width||framebuffer.height!=height) {
+                framebuffer.resize(width,height);
+                samplerDirty=true;
+            }
             if(!registered) {
                 Minecraft.getInstance().getTextureManager().register(location,texture);
                 registered=true;
             }
         }
 
-        void generateMipmaps() {
+        void generateMipmaps(WorldPanel panel) {
             GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,0);
             GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,0);
             RenderSystem.bindTexture(framebuffer.getColorTextureId());
             GL30.glGenerateMipmap(GL11.GL_TEXTURE_2D);
-            if(configuredTexture!=framebuffer.getColorTextureId())configureSampler();
+            if(samplerDirty)configureSampler();
+            if(panel.projectsLight()&&ScreenLighting.samplingEnabled()) {
+                if(lightSampler==null)lightSampler=new ScreenColorSampler();
+                lightSampler.capture(framebuffer.getColorTextureId(),framebuffer.width,framebuffer.height,panel::screenLightColors);
+            }
         }
 
         private void configureSampler() {
-            if(framebuffer==null)return;
             RenderSystem.bindTexture(framebuffer.getColorTextureId());
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR_MIPMAP_LINEAR);
             GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MAG_FILTER,GL11.GL_NEAREST);
@@ -166,7 +182,7 @@ final class PanelSurface implements AutoCloseable {
                     maximumAnisotropy=Math.min(16,GL11.glGetFloat(EXTTextureFilterAnisotropic.GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT));
                 GL11.glTexParameterf(GL11.GL_TEXTURE_2D,EXTTextureFilterAnisotropic.GL_TEXTURE_MAX_ANISOTROPY_EXT,maximumAnisotropy);
             }
-            configuredTexture=framebuffer.getColorTextureId();
+            samplerDirty=false;
         }
 
         @Override public void close() {
@@ -176,8 +192,9 @@ final class PanelSurface implements AutoCloseable {
             buffers.endBatch();
             if(registered)Minecraft.getInstance().getTextureManager().release(location);
             if(framebuffer!=null)framebuffer.destroyBuffers();
+            if(lightSampler!=null)lightSampler.close();
             vertices.close();
-            framebuffer=null;registered=false;redirectedTypes.clear();
+            framebuffer=null;lightSampler=null;registered=false;redirectedTypes.clear();
         }
     }
 

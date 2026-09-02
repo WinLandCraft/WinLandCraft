@@ -22,6 +22,11 @@ These instructions apply to the entire repository.
 - Merge Chromium feature lists instead of replacing existing `--enable-features` or `--disable-features` arguments. Apply startup flags consistently to both `CefApp.startup` and `CefApp.getInstance`.
 - MCEF/JCEF mixins use `remap = false`. Register new mixins in `winlandcraft.client.mixins.json` and extend `verifyMixinPackaging` so missing production classes fail the build.
 - CEF request objects may only be mutated in callbacks that explicitly allow it. Keep the adblock engine immutable after initialization and bound every page-to-Java cosmetic query.
+- Screen-light sampling reuses `PanelSurface`'s mip chain and asynchronous bounded PBO readback. Do not synchronously read a full browser texture or move pixel analysis off the render thread with a live GL buffer.
+- Solas integration is an explicit, non-destructive shader-pack copy. Keep SSBO binding changes, buffer layout, patch anchors, and compatibility limits synchronized with `docs/screen-lighting.md` and its regression check.
+- Screen-light curves must use `GroupCurve`'s cylindrical radius and facing; do not approximate them as a flat rectangle or an unbounded number of point lights. The configured range is a minimum and `ScreenLighting.effectiveRange` owns its bounded size scaling.
+- Private panel composition may bypass Iris, but final world surfaces and UI must be submitted through `WorldRenderContext.consumers()`. The failure analysis and render-state contract are documented in `docs/panel-rendering.md`.
+- OpenGL object names are recyclable. Invalidate surface sampler state on allocation and resize; never infer that an allocation survived because its numeric texture ID did not change.
 
 ## Implementation style
 

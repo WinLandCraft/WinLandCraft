@@ -92,6 +92,12 @@ tasks.register('verifyWindowGeometry', JavaExec) {
     mainClass = 'dev.winlandcraft.WindowGeometryChecks'
 }
 check.dependsOn verifyWindowGeometry
+tasks.register('verifyScreenLighting', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.ScreenLightingChecks'
+}
+check.dependsOn verifyScreenLighting
 tasks.register('verifyStreaming', JavaExec) {
     dependsOn geometryCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath
@@ -152,7 +158,8 @@ tasks.register('verifyMixinPackaging') {
             def expected = [MouseHandlerMixin: ['onPress', 'onScroll'],
                             KeyboardHandlerMixin: ['keyPress', 'charTyped'],
                             GuiMixin: ['renderCrosshair'],
-                            MinecraftMixin: ['startAttack', 'continueAttack', 'startUseItem']]
+                            MinecraftMixin: ['startAttack', 'continueAttack', 'startUseItem'],
+                            GameRendererLightMixin: ['renderLevel']]
             if (!mod.mixins.contains('winlandcraft.client.mixins.json')) {
                 throw new GradleException('Input mixin configuration is not registered')
             }
@@ -186,6 +193,8 @@ tasks.register('verifyMixinPackaging') {
                 throw new GradleException('Pixelarticons provenance or license is incomplete')
             if (zip.getEntry('dev/winlandcraft/PixelIcon.class') == null)
                 throw new GradleException('Missing PixelIcon runtime class')
+            if (zip.getEntry('assets/winlandcraft/shaderpacks/screen_lights.glsl') == null)
+                throw new GradleException('Missing bundled Solas screen-light shader')
             def iconEntry = zip.getEntry('assets/winlandcraft/textures/gui/pixelarticons.png')
             if (iconEntry == null) throw new GradleException('Missing Pixelarticons atlas')
             zip.getInputStream(iconEntry).withCloseable { stream ->

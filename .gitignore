@@ -7,3 +7,5 @@ run/
 .tools/
 logs/
 adblockNative/target/
+# RenderDoc captures are local diagnostics and can be hundreds of megabytes.
+renderdoc-captures/

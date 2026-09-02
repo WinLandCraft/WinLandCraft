@@ -12,6 +12,8 @@ final class ModSettingsScreen extends Screen {
     private boolean saveFailed;
     private boolean invalidRange;
     private boolean rangeChanged;
+    private boolean patching;
+    private String patchStatus="";
     private EditBox rangeField;
     ModSettingsScreen(Screen parent, Runnable changed) {
         super(Component.literal("WinLandCraft Settings"));
@@ -22,6 +24,9 @@ final class ModSettingsScreen extends Screen {
     }
     private Component sizingLabel(){return Component.literal("Remove sizing limitations: "+(ModSettings.removeSizingLimitations?"ON":"OFF"));}
     private Component rangeLabel(){return Component.literal("Extend interaction range: "+(ModSettings.extendInteractionRange?"ON":"OFF"));}
+    private Component lightingLabel(){return Component.literal("Lighting "+(ModSettings.screenLighting?"ON":"OFF"));}
+    private Component lightPowerLabel(){return Component.literal(String.format(java.util.Locale.ROOT,"Power %.1fx",ModSettings.screenLightIntensity));}
+    private Component lightRangeLabel(){return Component.literal("Range "+Math.round(ModSettings.screenLightRange)+"+");}
     @Override protected void init() {
         addRenderableWidget(Button.builder(rotationLabel(), button -> {
             ModSettings.freePanelRotation = !ModSettings.freePanelRotation;
@@ -55,6 +60,19 @@ final class ModSettingsScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Manage webapps..."), button ->
                 minecraft.setScreen(new WebAppsScreen(this, changed)))
                 .bounds(width / 2 - 125, 184, 250, 20).build());
+        addRenderableWidget(Button.builder(lightingLabel(),button->{
+            ModSettings.screenLighting=!ModSettings.screenLighting;saveFailed=!ModSettings.save();button.setMessage(lightingLabel());
+        }).bounds(width/2-125,216,96,20).build());
+        addRenderableWidget(Button.builder(lightPowerLabel(),button->{
+            ModSettings.screenLightIntensity=ModSettings.nextScreenLightIntensity(ModSettings.screenLightIntensity);
+            saveFailed=!ModSettings.save();button.setMessage(lightPowerLabel());
+        }).bounds(width/2-24,216,72,20).build());
+        addRenderableWidget(Button.builder(lightRangeLabel(),button->{
+            ModSettings.screenLightRange=ModSettings.nextScreenLightRange(ModSettings.screenLightRange);
+            saveFailed=!ModSettings.save();button.setMessage(lightRangeLabel());
+        }).bounds(width/2+53,216,72,20).build());
+        addRenderableWidget(Button.builder(Component.literal("Create Solas lighting-compatible copy"),button->patchSolas())
+                .bounds(width/2-125,252,250,20).build());
         addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
                 .bounds(width / 2 - 100, height - 30, 200, 20).build());
     }
@@ -69,6 +87,9 @@ final class ModSettingsScreen extends Screen {
                 ? "Enter a distance above 0, up to 4096 blocks."
                 : "Blocks (max 4096). OFF uses normal Minecraft reach.", width / 2, 168,
                 invalidRange && ModSettings.extendInteractionRange ? 0xFFFF5555 : 0xFF9BAABD);
+        graphics.drawCenteredString(font,"Power is linear; range is a minimum that grows with panel size.",width/2,240,0xFFB8CBDE);
+        if(!patchStatus.isEmpty())graphics.drawCenteredString(font,font.plainSubstrByWidth(patchStatus,width-20),width/2,278,
+                patching?0xFFB8CBDE:patchStatus.startsWith("Created")?0xFF80E6AE:0xFFFF8888);
         if (saveFailed) graphics.drawCenteredString(font, "Could not save settings. See latest.log.", width / 2, 30, 0xFFFF8888);
     }
     @Override public void removed() {
@@ -76,4 +97,12 @@ final class ModSettingsScreen extends Screen {
         super.removed();
     }
     @Override public void onClose() { minecraft.setScreen(parent); }
+    private void patchSolas() {
+        if(patching)return;
+        patching=true;patchStatus="Creating shader-pack copy...";
+        Thread.ofVirtual().name("WinLandCraft Solas patcher").start(()->{
+            var result=SolasShaderPatcher.install();
+            minecraft.execute(()->{patching=false;patchStatus=result.message();});
+        });
+    }
 }

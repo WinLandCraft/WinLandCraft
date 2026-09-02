@@ -41,6 +41,7 @@ public class BrowserPanel extends WorldPanel {
     protected void browserClosed(MCEFBrowser browser){}
     protected void tabSelected(MCEFBrowser browser){}
     @Override public int titlebarHeight() { return 32; }
+    @Override protected boolean projectsLight(){return true;}
     public String windowTitle() {
         return active != null && !active.title.isBlank() ? active.title + " - " + appName : appName;
     }

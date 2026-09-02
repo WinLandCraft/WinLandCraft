@@ -36,7 +36,7 @@ final class GroupCurve {
         var v=new org.joml.Vector3f(x,y,z).rotate(rotation);
         return origin.add(v.x,v.y,v.z);
     }
-    private float radius() { return width/(amount*(float)Math.toRadians(110)); }
+    float radius() { return width/(amount*(float)Math.toRadians(110)); }
     private float curvedX(float x) { return amount<.0001f?x:radius()*(float)Math.sin(x/radius()); }
     private float curvedZ(float x) { return amount<.0001f?0:facing*radius()*(1-(float)Math.cos(x/radius())); }
     void apply(float value) {

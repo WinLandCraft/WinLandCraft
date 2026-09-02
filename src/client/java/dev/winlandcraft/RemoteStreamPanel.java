@@ -28,6 +28,7 @@ final class RemoteStreamPanel extends WorldPanel {
         texture=ResourceLocation.fromNamespaceAndPath("winlandcraft","stream/"+owner+"/"+session);
     }
     @Override public boolean canInteract(){return remoteControl;}
+    @Override protected boolean projectsLight(){return true;}
     @Override public boolean canResize(){return false;}
     @Override public boolean canMove(){return false;}
     @Override public boolean canGroup(){return false;}

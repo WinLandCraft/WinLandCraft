@@ -19,5 +19,6 @@
     "java": ">=21",
     "fabric-api": "*"
   },
+  "suggests": { "iris": "*" },
   "breaks": { "mcef": "*" }
 }

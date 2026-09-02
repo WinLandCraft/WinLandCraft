@@ -18,6 +18,10 @@ Browser requests and page cosmetics are filtered by a pinned build of Brave's `a
 
 Native panel controls use a pinned, MIT-licensed subset of [Pixelarticons](https://github.com/halfmage/pixelarticons), packed into one tintable 24-pixel atlas. Buttons, tabs, menu rows, and titlebar actions provide hover feedback. Asset and interaction invariants are documented in [docs/ui-icons.md](docs/ui-icons.md).
 
+Complete panels are composed off-screen, mipmapped, and submitted through Fabric's world render consumers so the native shell and Chromium surface share one stable, shader-compatible plane. The Iris boundary, render-state requirements, and resized-texture sampler trap are documented in [docs/panel-rendering.md](docs/panel-rendering.md).
+
+Browser, webapp, and remote-stream panels can project their changing colors onto nearby geometry through an experimental Iris/Solas shader bridge. **Options > WinLandCraft...** controls its power and range and can create a non-destructive `+ WinLandCraft` copy of an installed Solas ZIP. Vanilla Minecraft keeps the panels emissive but cannot provide true dynamic RGB world lighting. The bounded asynchronous sampling path, shader-pack workflow, performance limits, and smoke test are documented in [docs/screen-lighting.md](docs/screen-lighting.md).
+
 ## Browser(streamable): video and audio
 
 Open **Apps > Browser(streamable)** (purple compass). The creator runs the website locally and broadcasts its complete browser surface, including sidebar, tabs, titlebar, and quality controls. Other modded players in the same dimension see a video panel in the same world position. It is read-only by default; the creator can check **Allow remote control** to let those players point, click, scroll, and type in the shared browser. Only the creator can move, resize, scale, curve, close, or change stream settings. Shared/private grouping remains disabled.

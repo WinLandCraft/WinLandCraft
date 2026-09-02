@@ -1,7 +1,5 @@
 package dev.winlandcraft;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
@@ -20,20 +18,16 @@ import java.util.IdentityHashMap;
 
 /** Top-left pixel coordinates shared by native panels and CEF textures. */
 public final class PanelCanvas implements AutoCloseable {
-    private static final int BUFFER_SIZE=256*1024;
-    private static ByteBufferBuilder worldVertices;
-    private static MultiBufferSource.BufferSource worldBuffers;
     private static final IdentityHashMap<RenderType,HashMap<Integer,RenderType>> offsetTypes=new IdentityHashMap<>();
-    private static boolean worldBatchOpen;
     private final PoseStack pose;
     private final org.joml.Matrix4f worldMatrix;
-    private final boolean orderedWorldBatch;
+    private final boolean worldSpace;
     private MultiBufferSource buffers;
     private int layerOffset;
     private boolean curved,front=true,closed;
     /** Flat app-only render target, also used to capture the native sidebar and titlebar. */
     PanelCanvas(PoseStack pose, MultiBufferSource buffers) {
-        this.pose=pose;this.buffers=buffers;orderedWorldBatch=false;
+        this.pose=pose;this.buffers=buffers;worldSpace=false;
         worldMatrix=new org.joml.Matrix4f(pose.last().pose());pose.pushPose();
     }
     public PanelCanvas(WorldRenderContext context,WorldPanel panel) {
@@ -58,25 +52,16 @@ public final class PanelCanvas implements AutoCloseable {
                        float scaleX, float scaleY, int width, int height) {
         pose = context.matrixStack();
         worldMatrix=new org.joml.Matrix4f(pose.last().pose());
-        var immediate=beginWorldBatch();
-        buffers = type -> immediate.getBuffer(offsetType(type,layerOffset));
-        orderedWorldBatch=true;
+        MultiBufferSource worldBuffers=context.consumers();
+        if(worldBuffers==null)throw new IllegalStateException("World render consumers are unavailable");
+        buffers = type -> worldBuffers.getBuffer(offsetType(type,layerOffset));
+        worldSpace=true;
         Vec3 relative = position.subtract(context.camera().getPosition());
         pose.pushPose();
         pose.translate(relative.x, relative.y, relative.z);
         pose.mulPose(rotation);
         pose.scale(scaleX, -scaleY, scaleX);
         pose.translate(-width / 2f, -height / 2f, 0);
-    }
-    private static MultiBufferSource.BufferSource beginWorldBatch() {
-        RenderSystem.assertOnRenderThread();
-        if(worldBatchOpen)throw new IllegalStateException("Panel canvases cannot be nested");
-        if(worldVertices==null) {
-            worldVertices=new ByteBufferBuilder(BUFFER_SIZE);
-            worldBuffers=MultiBufferSource.immediate(worldVertices);
-        }
-        worldBatchOpen=true;
-        return worldBuffers;
     }
     private static RenderType offsetType(RenderType original,int offset) {
         if(offset==0)return original;
@@ -100,7 +85,7 @@ public final class PanelCanvas implements AutoCloseable {
     }
     /** World layers stay coplanar; polygon offset separates them in depth-buffer units at any distance. */
     private float depth(float layer){
-        if(!orderedWorldBatch)return layer;
+        if(!worldSpace)return layer;
         layerOffset=Math.clamp(Math.round(layer*256),0,1024);
         return 0;
     }
@@ -166,17 +151,9 @@ public final class PanelCanvas implements AutoCloseable {
     @Override public void close() {
         if(closed)return;
         closed=true;
-        try {
-            if(orderedWorldBatch)worldBuffers.endBatch();
-        } finally {
-            pose.popPose();
-            if(orderedWorldBatch)worldBatchOpen=false;
-        }
+        pose.popPose();
     }
     static void shutdown() {
-        RenderSystem.assertOnRenderThread();
-        if(worldBatchOpen)throw new IllegalStateException("Cannot close panel renderer during a draw");
-        if(worldVertices!=null)worldVertices.close();
-        worldVertices=null;worldBuffers=null;offsetTypes.clear();
+        offsetTypes.clear();
     }
 }
