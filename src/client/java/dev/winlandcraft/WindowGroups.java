@@ -48,13 +48,13 @@ final class WindowGroups {
         boolean contains(int px, int py) { return px >= x && px <= x+88 && py >= y && py <= y+28; }
     }
     static Suggestion suggest(WorldPanel a, Vec3 point, List<WorldPanel> windows) {
-        if (!a.isOpen() || !a.canGroup() || a.titlebarHeight() == 0) return null;
+        if (!a.isOpen() || !a.canGroup() || !a.hasWindowControls()) return null;
         int edge=nearestEdge(a,point);
         Vec3 seam=edgePoint(a,point,edge);
         if (seam.distanceTo(point)>.25) return null;
         WorldPanel closest=null; double best=.4;
         for (var b : windows) {
-            if (b == a || !b.isOpen() || !b.canGroup() || b.level != a.level || b.titlebarHeight()==0 || members(a).contains(b)) continue;
+            if (b == a || !b.isOpen() || !b.canGroup() || b.level != a.level || !b.hasWindowControls() || members(a).contains(b)) continue;
             double distance=edgePoint(b,seam,nearestEdge(b,seam)).distanceTo(seam);
             if(distance<best) { best=distance; closest=b; }
         }
@@ -82,7 +82,7 @@ final class WindowGroups {
         join(a,b,nearestEdge(a,b.position));
     }
     static void join(WorldPanel a, WorldPanel b,int edge) {
-        if (!a.isOpen() || !b.isOpen() || !a.canGroup() || !b.canGroup() || a.titlebarHeight()==0 || b.titlebarHeight()==0 || members(a).contains(b)) return;
+        if (!a.isOpen() || !b.isOpen() || !a.canGroup() || !b.canGroup() || !a.hasWindowControls() || !b.hasWindowControls() || members(a).contains(b)) return;
         var previous=GroupCurve.flatten(a);
         var incoming=GroupCurve.flatten(b);
         if (edge<2) matchHeight(a,b);

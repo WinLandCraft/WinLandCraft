@@ -2,7 +2,11 @@
 
 WinLandCraft renders a panel in two distinct stages. Native UI and Chromium content are first composed into a private framebuffer at the panel's pixel resolution. The completed texture is then submitted as world geometry. Keeping that boundary explicit is required for both Iris compatibility and stable minification.
 
+App surfaces no longer reserve a fixed titlebar strip. `floatingControls()` marks app eligibility independently of `titlebarHeight()`, so grouping and curvature still work with zero-height chrome. EdgeControls uses its own PanelSurface compositor and mip sampler, outside the app framebuffer and stream capture. Its final textured quad uses the foreground world-consumer layer. The panel-smoothing setting therefore applies to the complete pill, including glyphs and icons. Fade opacity is applied once to the composed texture. Discarding a pill closes its surface on the render thread. Its pick plane is tangent to the owner's cylinder at the selected edge; it stays stationary during a curve gesture to avoid moving the slider under the pointer.
+
 ## Iris boundary
+
+Floating EdgeControls uses a foreground render-type wrapper around the normal world-consumer types. After the underlying type (including Iris setup) runs, it maps depth into [0, 0.0001], enables depth testing/writes, and restores the previous range/function/mask/test before normal teardown. Vertex positions and projection remain unchanged. Depth writes keep later window batches from covering the control; the normal polygon offsets still order its own background, text, and icons. This is local foreground UI, so visible controls also draw above world geometry; activation and input continue to respect the world ray's block/entity obstruction checks. Picking gives a visible control priority over neighboring panels, retaining the real ray distance for interaction range and dragging. No private world flush or global depth clear is used.
 
 Only private off-screen composition runs inside `IrisOffscreenRender`. It temporarily enables Iris's immediate-mode bypass and clears its rendering-level flag, then restores both values in a `finally` path before any world geometry is submitted. The finished surface, backside, menus, resize handles, and other native world UI must use `WorldRenderContext.consumers()`.
 

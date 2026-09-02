@@ -19,12 +19,14 @@ import java.util.IdentityHashMap;
 /** Top-left pixel coordinates shared by native panels and CEF textures. */
 public final class PanelCanvas implements AutoCloseable {
     private static final IdentityHashMap<RenderType,HashMap<Integer,RenderType>> offsetTypes=new IdentityHashMap<>();
+    private static final IdentityHashMap<RenderType,RenderType> foregroundTypes=new IdentityHashMap<>();
     private final PoseStack pose;
     private final org.joml.Matrix4f worldMatrix;
     private final boolean worldSpace;
     private MultiBufferSource buffers;
     private int layerOffset;
     private boolean curved,front=true,closed;
+    private boolean foreground;
     /** Flat app-only render target, also used to capture the native sidebar and titlebar. */
     PanelCanvas(PoseStack pose, MultiBufferSource buffers) {
         this.pose=pose;this.buffers=buffers;worldSpace=false;
@@ -54,7 +56,10 @@ public final class PanelCanvas implements AutoCloseable {
         worldMatrix=new org.joml.Matrix4f(pose.last().pose());
         MultiBufferSource worldBuffers=context.consumers();
         if(worldBuffers==null)throw new IllegalStateException("World render consumers are unavailable");
-        buffers = type -> worldBuffers.getBuffer(offsetType(type,layerOffset));
+        buffers = type -> {
+            var layered=offsetType(type,layerOffset);
+            return worldBuffers.getBuffer(foreground?foregroundType(layered):layered);
+        };
         worldSpace=true;
         Vec3 relative = position.subtract(context.camera().getPosition());
         pose.pushPose();
@@ -76,6 +81,27 @@ public final class PanelCanvas implements AutoCloseable {
                     GL11.glPolygonOffset(0,0);
                     original.clearRenderState();
                 }){});
+    }
+    /** Preserve the 3D projection while reserving near depth for local control chrome. */
+    void foreground(){foreground=true;}
+    private static RenderType foregroundType(RenderType original) {
+        return foregroundTypes.computeIfAbsent(original,type->{
+            double[] range=new double[2];
+            boolean[] flags=new boolean[2];int[] function=new int[1];
+            return new RenderType("panel_controls_foreground",type.format(),type.mode(),type.bufferSize(),
+                    type.affectsCrumbling(),type.sortOnUpload(),()->{
+                type.setupRenderState();
+                GL11.glGetDoublev(GL11.GL_DEPTH_RANGE,range);
+                flags[0]=GL11.glIsEnabled(GL11.GL_DEPTH_TEST);flags[1]=GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+                function[0]=GL11.glGetInteger(GL11.GL_DEPTH_FUNC);
+                GL11.glEnable(GL11.GL_DEPTH_TEST);GL11.glDepthFunc(GL11.GL_LEQUAL);GL11.glDepthMask(true);
+                GL11.glDepthRange(0,.0001);
+            },()->{
+                GL11.glDepthRange(range[0],range[1]);GL11.glDepthMask(flags[1]);GL11.glDepthFunc(function[0]);
+                if(flags[0])GL11.glEnable(GL11.GL_DEPTH_TEST);else GL11.glDisable(GL11.GL_DEPTH_TEST);
+                type.clearRenderState();
+            }){};
+        });
     }
     public boolean frontFacing(){return front;}
     private void backside(WorldPanel panel) {
@@ -155,5 +181,6 @@ public final class PanelCanvas implements AutoCloseable {
     }
     static void shutdown() {
         offsetTypes.clear();
+        foregroundTypes.clear();
     }
 }

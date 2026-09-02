@@ -20,7 +20,8 @@ public final class FileManagerPanel extends WorldPanel {
     public FileManagerPanel(){super(3.2f,1.8f);}
     @Override public int pixelWidth(){return 1280;}
     @Override public int pixelHeight(){return 720;}
-    @Override public int titlebarHeight(){return 32;}
+    @Override public boolean floatingControls(){return true;}
+    @Override public String windowTitle(){return "File Manager"+(directory==null?"":" - "+directory);}
     @Override protected float minimumWidth(){return 1.6f;}
     @Override protected float minimumHeight(){return .9f;}
     @Override public void open(Minecraft client){super.open(client);if(directory==null)navigate(FileDirectory.home(),true);}
@@ -84,9 +85,7 @@ public final class FileManagerPanel extends WorldPanel {
         try(var surface=surface(context)) {
             if(surface==null||!surface.frontFacing())return;
             var c=surface.canvas();
-            c.rect(-3,-35,1286,758,0,0xFF536579);c.rect(0,-32,1280,32,.3f,0xFF314D63);
-            c.text(fit("File Manager"+(directory==null?"":" - "+directory),grouped()?1090:1190,1.5f),12,-22,-1,1.5f);renderUngroup(c);
-            renderClose(c);
+            c.rect(-3,-3,1286,726,0,0xFF536579);
             c.rect(0,0,1280,720,.1f,0xFF17212D);c.rect(0,76,232,602,.2f,0xFF202C3B);
             PixelIcon[] buttons={PixelIcon.ARROW_LEFT,PixelIcon.ARROW_RIGHT,PixelIcon.ARROW_UP,PixelIcon.REFRESH};int[] xs={12,70,128,186};
             boolean[] enabled={historyIndex>0,historyIndex+1<history.size(),directory!=null&&directory.getParent()!=null,directory!=null};

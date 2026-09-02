@@ -40,7 +40,7 @@ public class BrowserPanel extends WorldPanel {
     protected void browserCreated(MCEFBrowser browser){}
     protected void browserClosed(MCEFBrowser browser){}
     protected void tabSelected(MCEFBrowser browser){}
-    @Override public int titlebarHeight() { return 32; }
+    @Override public boolean floatingControls(){return true;}
     @Override protected boolean projectsLight(){return true;}
     public String windowTitle() {
         return active != null && !active.title.isBlank() ? active.title + " - " + appName : appName;
@@ -294,10 +294,6 @@ public class BrowserPanel extends WorldPanel {
             canvas.rect(-3, pixelHeight(), pixelWidth() + 6, 3, 0, 0xFF536579);
             canvas.rect(-3, -titlebarHeight(), 3, pixelHeight() + titlebarHeight(), 0, 0xFF536579);
             canvas.rect(pixelWidth(), -titlebarHeight(), 3, pixelHeight() + titlebarHeight(), 0, 0xFF536579);
-            canvas.rect(0, -titlebarHeight(), pixelWidth(), titlebarHeight(), 0.3f, 0xFF314D63);
-            canvas.text(fit(windowTitle(), pixelWidth() - (grouped() ? 168 : 68), 1.5f), 12, -22, 0xFFF0F5FC, 1.5f);
-            renderUngroup(canvas);
-            renderClose(canvas);
             // The live page is opaque, so avoid a redundant full-size backing draw.
             if (!browserReady) canvas.rect(0, 0, pixelWidth(), pixelHeight(), 0.1f, 0xFF18212D);
             if (!standalone) {

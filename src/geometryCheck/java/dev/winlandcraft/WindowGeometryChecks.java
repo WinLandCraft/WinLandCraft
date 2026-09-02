@@ -163,21 +163,11 @@ public final class WindowGeometryChecks {
         var panel = new BrowserPanel("https://example.com"); panel.setAppName("Example app");
         panel.position = new Vec3(20, 80, 30); panel.orientation = new Quaternionf().rotateXYZ(0.2f, 0.8f, 0.1f);
         if (!panel.windowTitle().equals("Example app")) throw new AssertionError("app title fallback");
-        Vec3 titleHit = localPoint(panel, 0, 0.94f);
-        var normal = new org.joml.Vector3f(0, 0, 1).rotate(panel.orientation);
-        Vec3 ray = new Vec3(normal.x, normal.y, normal.z);
-        near(3, panel.pointerDistance(titleHit.add(ray.scale(3)), ray.scale(-1)), "rotated titlebar hit");
-        if (panel.titlebarAction(100, -16) != 1 || panel.titlebarAction(1250, -16) != 2)
-            throw new AssertionError("title drag and close regions");
-        panel.pointerMoved(1250,-16);
-        if(!panel.hovered(1240,-32,40,32)||panel.hovered(1200,-32,40,32))throw new AssertionError("titlebar hover region");
-        panel.pointerMoved(-1,-1);
-        if(panel.hovered(1240,-32,40,32))throw new AssertionError("hover state did not clear");
-        if (panel.titlebarAction(100, 0) != 0 || panel.titlebarAction(100, -33) != 0 || panel.titlebarAction(1280, -16) != 0)
-            throw new AssertionError("titlebar bounds");
-        if (panel.resizeCorner(localPoint(panel, 1.61f, 0.99f)) != 10)
-            throw new AssertionError("resize corner moved above titlebar");
-        if (panel.pixelWidth() != 1280 || panel.pixelHeight() != 720) throw new AssertionError("titlebar preserves content resolution");
+        if(panel.titlebarHeight()!=0||!panel.floatingControls())throw new AssertionError("app content has no fixed titlebar");
+        if(panel.titlebarAction(100,-16)!=0||panel.titlebarAction(1250,-16)!=0)throw new AssertionError("old titlebar hit targets removed");
+        if(panel.resizeCorner(localPoint(panel,1.61f,.91f))!=10)throw new AssertionError("resize corners follow content bounds");
+        if(panel.pixelWidth()!=1280||panel.pixelHeight()!=720)throw new AssertionError("content resolution preserved");
+        EdgeControlsChecks.run();
         near(2.75, WindowControls.moveDistance(2.5, 1), "scroll up moves farther");
         near(2.25, WindowControls.moveDistance(2.5, -1), "scroll down moves closer");
         near(32.25, WindowControls.moveDistance(32, 1), "moving beyond old distance cap");

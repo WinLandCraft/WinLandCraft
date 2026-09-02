@@ -24,7 +24,7 @@ final class GroupCurve {
         }
     }
     static boolean eligible(WorldPanel root) {
-        return root.isOpen() && root.canResize() && root.titlebarHeight()>0;
+        return root.isOpen() && root.canResize() && root.hasWindowControls();
     }
     static GroupCurve get(WorldPanel root) {
         if(root.curve!=null) return root.curve;

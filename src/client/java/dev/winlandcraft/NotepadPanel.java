@@ -17,7 +17,8 @@ public final class NotepadPanel extends WorldPanel {
     public NotepadPanel(){super(3.2f,1.8f);newTab();}
     @Override public int pixelWidth(){return 1280;}
     @Override public int pixelHeight(){return 720;}
-    @Override public int titlebarHeight(){return 32;}
+    @Override public boolean floatingControls(){return true;}
+    @Override public String windowTitle(){return active.name()+(active.dirty()?" *":"")+" - Notepad";}
     @Override protected float minimumWidth(){return 1.6f;}
     @Override protected float minimumHeight(){return .9f;}
     @Override public void close(){super.close();editing=false;selecting=false;savePath=null;pendingClose=null;}
@@ -128,8 +129,7 @@ public final class NotepadPanel extends WorldPanel {
         try(var surface=surface(context)) {
             if(surface==null||!surface.frontFacing())return;
             var c=surface.canvas();
-            c.rect(-3,-35,1286,758,0,0xFF536579);c.rect(0,-32,1280,32,.3f,0xFF243D4B);
-            c.text(fit(active.name()+(active.dirty()?" *":"")+" - Notepad",grouped()?1080:1190,1.5f),12,-22,-1,1.5f);renderUngroup(c);renderClose(c);
+            c.rect(-3,-3,1286,726,0,0xFF536579);
             c.rect(0,0,1280,720,.1f,0xFF242424);c.rect(0,0,1280,40,.2f,0xFF13212C);
             for(int i=0;i<6&&firstTab+i<tabs.size();i++){var tab=tabs.get(firstTab+i);int x=12+i*190;colorTab(c,tab,x);}
             c.rect(1180,4,88,36,.3f,hoverColor(1180,4,88,36,0xFF1C2B36,0xFF30475A));PixelIcon.PLUS.draw(c,1212,10,24,.45f,-1);

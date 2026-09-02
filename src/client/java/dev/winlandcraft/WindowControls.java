@@ -39,6 +39,8 @@ public final class WindowControls {
     private long hintSince;
     private WindowGroups.Suggestion suggestion;
     private WorldPanel curveUi,curveOwner;
+    private EdgeControls edgeUi;
+    private final EdgeControls.Dwell edgeDwell=new EdgeControls.Dwell();
     private boolean curving;
     private long curveUntil;
     private java.nio.file.Path draggedFile;
@@ -56,6 +58,7 @@ public final class WindowControls {
     public void tick(Minecraft c) {
         if (!c.options.keyUse.isDown()) { usedThisPress = false; if (dragHand != null) dragging = null; }
         if (!active(c)) { cancel(); return; }
+        if(edgeUi!=null&&(!edgeUi.owner.isOpen()||edgeUi.owner.level!=c.level||!edgeUi.owner.canMove())){discardEdge();clearCurve();}
         if(curveOwner!=null && (!GroupCurve.eligible(curveOwner) || curveOwner.curve==null)) clearCurve();
         if (resizing != null && (!resizing.panel.isOpen() || resizing.panel.level != c.level)) resizing = null;
         if (dragging != null && (!dragging.isOpen() || dragging.level != c.level
@@ -74,7 +77,10 @@ public final class WindowControls {
         laserToggleDown = false;
         suggestion = null;
         clearCurve();
+        discardEdge();
+        edgeDwell.clear();
     }
+    private void discardEdge(){var old=edgeUi;edgeUi=null;if(old!=null)Minecraft.getInstance().execute(old::close);}
     private void clearCurve(){curveUi=null;curveOwner=null;curving=false;}
     private void releasePointer() {
         if (pointer != null) for (int button : buttons) pointer.mouseUp(pointerX, pointerY, button);
@@ -160,6 +166,22 @@ public final class WindowControls {
             return true;
         }
         if (pointer == null && c.player.isUsingItem()) return false;
+        if(pointer==null&&hit!=null&&hit.panel==edgeUi) {
+            buttons.add(button);
+            if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+                int[] at=edgeUi.pixelAt(hit.point);int actionAt=edgeUi.action(at[0],at[1]);
+                if(actionAt==2){stopTyping();edgeUi.owner.close();discardEdge();}
+                else if(actionAt==3){WindowGroups.detach(edgeUi.owner);edgeUi.touch(System.nanoTime());}
+                else if(actionAt==1)beginMove(hit,c.gameRenderer.getMainCamera(),null);
+                else if(actionAt==4) {
+                    stopTyping();curving=true;curveOwner=edgeUi.owner;curveUi=null;
+                    var curve=GroupCurve.get(curveOwner);
+                    curve.facing=WindowGroups.local(curveOwner,c.gameRenderer.getMainCamera().getPosition()).z>=0?1:-1;
+                    setCurve(hit.point);
+                }
+            }
+            return true;
+        }
         if(pointer==null && hit!=null && hit.panel==curveUi) {
             buttons.add(button);
             if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
@@ -182,6 +204,7 @@ public final class WindowControls {
             if (corner != 0) {
                 stopTyping();
                 resizing = new PanelResize(hit.panel,corner,hit.point,scalingHeld());
+                discardEdge();
                 buttons.add(button);
                 return true;
             }
@@ -224,7 +247,7 @@ public final class WindowControls {
 
         Hit hit = pick(c);
         if (hit != null) {
-            if(hit.panel==curveUi) return true;
+            if(hit.panel==curveUi||hit.panel==edgeUi) return true;
             if (corner(hit.panel,hit.point) != 0) return true;
             int[] pixel = hit.panel.pixelAt(hit.point);
             hit.panel.scroll(pixel[0], pixel[1], amount);
@@ -308,7 +331,8 @@ public final class WindowControls {
             }
             return;
         }
-        var panel = resizing != null ? resizing.panel : hovered;
+        if(edgeUi!=null)edgeUi.render(context);
+        var panel = resizing != null ? resizing.panel : hovered==edgeUi&&edgeUi!=null?edgeUi.owner:hovered;
         if(panel!=null && panel!=curveUi) {
             boolean scaling=resizing!=null?resizing.scaling():scalingHeld();
             if(panel.curve!=null) for(var member:WindowGroups.members(panel)) member.renderResizeHandles(context,scaling);
@@ -338,6 +362,10 @@ public final class WindowControls {
     public void update(Camera camera) {
         var c = Minecraft.getInstance(); tick(c);
         if (!active(c)) return;
+        long edgeNow=System.nanoTime();
+        if(edgeUi!=null)edgeUi.advance(edgeNow,curving||dragging!=null);
+        if(curving||dragging!=null||resizing!=null||pointer!=null)edgeDwell.clear();
+        if(edgeUi!=null&&!curving&&dragging==null&&edgeUi.expired(System.nanoTime()))discardEdge();
         hoveredPoint=null;
         if(draggedFile!=null&&pointer!=null) {
             Hit target=pick(c);
@@ -346,8 +374,9 @@ public final class WindowControls {
             if(fileDragging){suggestion=null;clearCurve();hoveredCorner=0;return;}
         }
         if(!curving && System.nanoTime()>curveUntil) clearCurve();
-        if(curving && curveUi!=null) {
-            double t=curveUi.planeDistance(camera.getPosition(),direction(camera));
+        if(curving && (curveUi!=null||edgeUi!=null)) {
+            WorldPanel control=curveUi!=null?curveUi:edgeUi;
+            double t=control.planeDistance(camera.getPosition(),direction(camera));
             if(Double.isFinite(t) && t<Math.max(64,ModSettings.interactionRange(c.player.blockInteractionRange()))) {
                 hoveredPoint=camera.getPosition().add(direction(camera).scale(t));
                 setCurve(hoveredPoint);
@@ -387,8 +416,22 @@ public final class WindowControls {
         } else {
             Hit hit = pick(c);
             if (hit != null) {
+                if(hit.panel==edgeUi&&edgeUi!=null) {
+                    edgeDwell.clear();
+                    edgeUi.expand(System.nanoTime());
+                    double t=edgeUi.planeDistance(camera.getPosition(),direction(camera));
+                    if(Double.isFinite(t))hit=new Hit(edgeUi,camera.getPosition().add(direction(camera).scale(t)),t);
+                } else if(dragging==null&&hit.panel.floatingControls()&&EdgeControls.near(hit.panel,hit.point,camera.getPosition())) {
+                    var local=WindowGroups.local(hit.panel,hit.point);
+                    int edge=EdgeControls.nearestEdge(local.x,local.y,hit.panel.worldWidth(),hit.panel.worldHeight());
+                    if(edgeUi!=null&&edgeUi.owner==hit.panel&&edgeUi.edge==edge){edgeDwell.clear();edgeUi.follow(hit.point,edgeNow);}
+                    else if(edgeDwell.ready(hit.panel,edge,edgeNow)) {
+                        if(edgeUi!=null)edgeUi.dismiss(edgeNow);
+                        else {edgeUi=new EdgeControls(hit.panel,hit.point,edgeNow);edgeUi.view(camera.getPosition(),false);}
+                    }
+                } else edgeDwell.clear();
                 if(hit.panel==curveUi) curveUntil=System.nanoTime()+1_500_000_000L;
-                else if(dragging==null && GroupCurve.eligible(hit.panel)) {
+                else if(dragging==null && !hit.panel.floatingControls() && GroupCurve.eligible(hit.panel)) {
                     var curve=GroupCurve.get(hit.panel);
                     if(curve.nearBottom(hit.panel,hit.point)) {
                         curveOwner=hit.panel; curveUi=curve.control(); curveUntil=System.nanoTime()+1_500_000_000L;
@@ -404,7 +447,7 @@ public final class WindowControls {
                 }
                 int[] pixel = hit.panel.pixelAt(hit.point); hit.panel.pointerMoved(pixel[0], pixel[1]);
             }
-            else suggestion=null;
+            else {suggestion=null;edgeDwell.clear();}
         }
         if (hovered != null && hovered != nextHover && hovered.isOpen()) hovered.pointerMoved(-1, -1);
         hovered = nextHover;
@@ -419,11 +462,18 @@ public final class WindowControls {
         Vec3 origin = camera.getPosition(), ray = direction(camera);
         double nearest = range;
         WorldPanel target = null;
+        if(edgeUi!=null&&edgeUi.owner.isOpen()&&edgeUi.pickable()) {
+            if(!curving)edgeUi.view(origin,dragging!=null);
+            double hit=edgeUi.intersect(origin,ray);
+            if(hit<nearest){nearest=hit;target=edgeUi;}
+        }
         if(curveUi!=null) {
             double hit=curveUi.intersect(origin,ray);
             if(hit<nearest) {nearest=hit;target=curveUi;}
         }
         for (WorldPanel window : apps.windows) {
+            // Foreground chrome wins over panel depth, matching its rendered layer.
+            if(target==edgeUi&&edgeUi!=null)break;
             if (window.level != c.level || !window.canInteract()) continue;
             double hit = window.pointerDistance(origin, ray);
             if(window.grouped() && window.curve==null) {
@@ -443,7 +493,8 @@ public final class WindowControls {
                 double t=window.planeDistance(origin,ray);
                 if(t<nearest) {
                     Vec3 point=origin.add(ray.scale(t));
-                    if(WindowGroups.suggest(window,point,apps.windows)!=null || GroupCurve.eligible(window) && GroupCurve.get(window).nearBottom(window,point)) hit=t;
+                    if(WindowGroups.suggest(window,point,apps.windows)!=null || EdgeControls.near(window,point,origin)
+                            || !window.floatingControls()&&GroupCurve.eligible(window) && GroupCurve.get(window).nearBottom(window,point)) hit=t;
                 }
             }
             if (hit < nearest) { nearest = hit; target = window; }
@@ -465,6 +516,10 @@ public final class WindowControls {
                 ||GLFW.glfwGetKey(window,GLFW.GLFW_KEY_RIGHT_CONTROL)==GLFW.GLFW_PRESS;
     }
     private void setCurve(Vec3 point) {
+        if(curveUi==null&&edgeUi!=null&&curveOwner!=null&&curveOwner.curve!=null) {
+            curveOwner.curve.apply(edgeUi.curveValue(edgeUi.pixelAt(point)[0]));
+            edgeUi.touch(System.nanoTime());curveUntil=System.nanoTime()+1_500_000_000L;return;
+        }
         if(curveUi==null || curveOwner==null || curveOwner.curve==null) return;
         int[] at=curveUi.pixelAt(point);
         curveOwner.curve.apply((at[0]-100)/210f);

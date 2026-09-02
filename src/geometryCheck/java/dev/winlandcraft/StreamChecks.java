@@ -114,7 +114,7 @@ public final class StreamChecks {
                 Vec3 replica=viewer.curve==null?WindowGroups.world(viewer.position,viewer.orientation,x,shifted):viewer.curve.panelPoint(viewer,x,shifted,0);
                 if(original.distanceTo(replica)>.00001)throw new AssertionError("stream geometry mismatch: "+original.distanceTo(replica));
             }
-            check(viewer.pixelWidth()==1280&&viewer.pixelHeight()==752,"capture includes titlebar and sidebar layout");
+            check(viewer.pixelWidth()==1280&&viewer.pixelHeight()==720,"capture contains content and sidebar; owner controls stay local");
         }
     }
     private static void check(boolean valid,String message){if(!valid)throw new AssertionError(message);}

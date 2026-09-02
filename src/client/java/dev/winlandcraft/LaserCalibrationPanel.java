@@ -14,7 +14,8 @@ public final class LaserCalibrationPanel extends WorldPanel {
     public LaserCalibrationPanel(){super(3.4f,2f);}
     @Override public int pixelWidth(){return 780;}
     @Override public int pixelHeight(){return 460;}
-    @Override public int titlebarHeight(){return 32;}
+    @Override public boolean floatingControls(){return true;}
+    @Override public String windowTitle(){return "Laser Calibration";}
     @Override protected float minimumWidth(){return 1.7f;}
     @Override protected float minimumHeight(){return 1f;}
 
@@ -77,8 +78,7 @@ public final class LaserCalibrationPanel extends WorldPanel {
         try(var surface=surface(context)) {
             if(surface==null||!surface.frontFacing())return;
             var canvas=surface.canvas();
-            canvas.rect(-3,-35,786,498,0,0xFF536579);canvas.rect(0,-32,780,32,.3f,0xFF3A5367);
-            canvas.text("Laser Calibration",12,-22,-1,1.5f);renderUngroup(canvas);renderClose(canvas);
+            canvas.rect(-3,-3,786,466,0,0xFF536579);
             canvas.rect(0,0,780,460,.1f,0xFF18212D);
             canvas.text("Tune the remote while holding it",24,18,-1,1.8f);
             canvas.text(instruction(),24,48,0xFFAAC2D3,1.12f);

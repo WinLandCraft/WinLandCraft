@@ -52,6 +52,9 @@ public abstract class WorldPanel {
     public boolean isOpen() { return position != null; }
     public WorldPanel dragTarget() { return this; }
     public int titlebarHeight() { return 0; }
+    public boolean floatingControls(){return false;}
+    public String windowTitle(){return "App";}
+    final boolean hasWindowControls(){return floatingControls()||titlebarHeight()>0;}
     /** 0 = content/outside, 1 = drag area, 2 = close button, 3 = ungroup. */
     public int titlebarAction(int x, int y) {
         if (titlebarHeight() == 0 || y >= 0 || y < -titlebarHeight() || x < 0 || x >= pixelWidth()) return 0;

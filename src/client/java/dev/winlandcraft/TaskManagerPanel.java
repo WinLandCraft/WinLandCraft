@@ -1,5 +1,4 @@
 package dev.winlandcraft;
-
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 import java.util.List;
@@ -17,7 +16,8 @@ public final class TaskManagerPanel extends WorldPanel {
     public TaskManagerPanel(AppWindows apps) { super(3.2f, 1.8f); this.apps = apps; }
     @Override public int pixelWidth() { return 1280; }
     @Override public int pixelHeight() { return 720; }
-    @Override public int titlebarHeight() { return 32; }
+    @Override public boolean floatingControls(){return true;}
+    @Override public String windowTitle(){return "Task Manager";}
     @Override protected float minimumWidth() { return 1.6f; }
     @Override protected float minimumHeight() { return 0.9f; }
     @Override public void close() {
@@ -53,11 +53,8 @@ public final class TaskManagerPanel extends WorldPanel {
         try (var surface = surface(context)) {
             if (surface == null || !surface.frontFacing()) return;
             var c=surface.canvas();
-            c.rect(-3, -35, 1286, 758, 0, 0xFF536579);
-            c.rect(0, -32, 1280, 32, 0.3f, 0xFF285947);
-            c.text("Task Manager", 12, -22, -1, 1.5f);
-            renderUngroup(c);
-            renderClose(c);
+            c.rect(-3, -3, 1286, 726, 0, 0xFF536579);
+
             c.rect(0, 0, 1280, 720, 0.1f, 0xFF18212D);
             c.text("Chromium resources", 24, 22, -1, 2);
             var s = snapshot;

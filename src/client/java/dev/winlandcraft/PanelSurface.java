@@ -40,6 +40,8 @@ final class PanelSurface implements AutoCloseable {
     private RenderState state;
     private IrisOffscreenRender.Scope irisScope;
     private boolean modelViewPushed,closed;
+    private boolean foreground;
+    private float opacity=1;
 
     PanelSurface(WorldRenderContext context,WorldPanel panel,Target target,boolean front) {
         this.context=context;this.panel=panel;this.target=target;
@@ -53,6 +55,7 @@ final class PanelSurface implements AutoCloseable {
 
     boolean frontFacing(){return front;}
     PanelCanvas canvas(){return canvas;}
+    void foreground(float opacity){foreground=true;this.opacity=Math.clamp(opacity,0,1);}
     static ResourceLocation location(){return ResourceLocation.fromNamespaceAndPath("winlandcraft","panel_surface_"+IDS.incrementAndGet());}
 
     private void openComposite() {
@@ -103,9 +106,10 @@ final class PanelSurface implements AutoCloseable {
             try {restoreState();} finally {restoreIris();}
         }
         try(var world=new PanelCanvas(context,panel)) {
+            if(foreground)world.foreground();
             int title=panel.titlebarHeight();
             world.texture(target.location,-MARGIN,-title-MARGIN,panel.pixelWidth()+MARGIN*2,
-                    panel.pixelHeight()+title+MARGIN*2,.2f,-1,0,1,1,0);
+                    panel.pixelHeight()+title+MARGIN*2,.2f,0xFFFFFF|(Math.round(opacity*255)<<24),0,1,1,0);
         }
     }
 
