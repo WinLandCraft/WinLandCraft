@@ -21,3 +21,5 @@ Apps rows accept right-click to open a bounded Stream/Stop streaming menu; scrol
 Grouping is offered by Group in the expanded edge pill beside Ungroup, replacing the old seam button. Candidate selection uses the pill's owner-edge anchor and the existing proximity rules; moving onto the pill preserves that anchor. The button is disabled without a valid neighbor, and clicking rechecks proximity. Hover alone previews the complete two joining components with green dotted world-space borders, following each panel's cylindrical curve. A 2.4-second cosine pulse fades from transparent to 85% opacity and back. Preview is local, excluded from stream capture, stops off-button/during gestures, and uses bounded dash counts with distance-aware thickness.
 
 Video Player uses a purple square with a procedurally drawn white play triangle in Apps and the taskbar. It does not add or reorder atlas entries.
+
+Image Viewer uses a teal square with a procedural landscape and sun; no atlas entries are changed.

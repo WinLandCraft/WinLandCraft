@@ -192,3 +192,17 @@ attempts, not a guarantee every encoding works. Unsupported/unreadable videos sh
 an error in the player. No external player executable is needed.
 
 To share an already running app, hover its floating titlebar pill and click **Start stream**. The pill then shows the existing quality settings and **Stop streaming** controls. Starting a stream uses the current window without reopening it; existing server requirements and single-stream ownership rules still apply.
+
+
+### Image Viewer
+
+Open **Apps > Image Viewer** and drop an image from File Manager, or double-click
+an image and pick its placement. Each file open gets its own panel (up to 16), and
+a drop onto an existing viewer replaces its image. The teal landscape icon appears
+in Apps and the taskbar. Fit, 100%, and zoom buttons retain the image aspect ratio;
+scrollbars let you explore zoomed images. Transparency uses a checkerboard background.
+
+Associations include PNG/APNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG. Chromium
+handles decoding and animation; damaged/unreadable or unsupported images show an
+error. SVG opens in Image Viewer by default, with Notepad still available via Open
+with. SVG is embedded as an image, never navigated as an executable document.

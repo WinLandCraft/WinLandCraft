@@ -142,3 +142,18 @@ Smoke-test on each OS: empty launch; File Manager placement and drag/drop; H.264
 MP4 and VP9/Opus WebM playback/audio; seek, pause, resize and replace; unreadable or
 unsupported file; close/reopen and quit with multiple playing videos; streamed A/V.
 Automated HTTP tests cover ranges and file isolation but cannot validate decoding.
+
+
+## Local Image Viewer (0.1.87-dev)
+
+ImageViewerPanel uses the same private selected-file server as Video Player in
+image mode, with an HTML img element and matching image MIME types. The shared
+page CSP now allows same-origin images. File bytes are never inserted as HTML;
+SVG is loaded in image context, not as a top-level active document. The image
+viewer uses the same CEF creation, input, render-thread cleanup and endpoint
+lifetime as Video Player. No runtime flags or codecs change.
+
+HTTP regression checks cover the image page, PNG bytes/MIME, selection failure,
+and associations (including SVG preferred over Notepad). Smoke-test PNG/JPEG,
+transparency, animated GIF/WebP, SVG, Fit/100%/zoom/scroll, resize, replacement,
+corrupt image handling and close/reopen in-game on supported OSes.

@@ -8,14 +8,17 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Serves only a user-selected video; URLs never contain filesystem paths. */
+/** Serves only a user-selected video or image; URLs never contain filesystem paths. */
 final class VideoFileServer implements AutoCloseable {
     private final HttpServer server;
+    private final boolean image;
     private final ExecutorService workers=new ThreadPoolExecutor(2,2,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(8),r->{var t=new Thread(r,"WLC video file");t.setDaemon(true);return t;});
     private final String token=UUID.randomUUID().toString()+UUID.randomUUID(),origin;
     private volatile Selection selected=new Selection(null,UUID.randomUUID().toString());
     private record Selection(Path path,String id){}
-    VideoFileServer() throws IOException {
+    VideoFileServer() throws IOException {this(false);}
+    VideoFileServer(boolean image) throws IOException {
+        this.image=image;
         server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),8);
         origin="http://127.0.0.1:"+server.getAddress().getPort();
         server.createContext("/",this::handle);server.setExecutor(workers);server.start();
@@ -37,9 +40,9 @@ final class VideoFileServer implements AutoCloseable {
             exchange.getResponseHeaders().set("X-Content-Type-Options","nosniff");
             exchange.getResponseHeaders().set("Referrer-Policy","no-referrer");
             if(path.equals(base+"index.html")){
-                byte[] html=page(selection.path()!=null).getBytes(StandardCharsets.UTF_8);
+                byte[] html=(image?ImageViewerPage.html(selection.path()!=null):page(selection.path()!=null)).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type","text/html; charset=utf-8");
-                exchange.getResponseHeaders().set("Content-Security-Policy","default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");
+                exchange.getResponseHeaders().set("Content-Security-Policy","default-src 'none'; media-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");
                 exchange.getResponseHeaders().set("Content-Length",Integer.toString(html.length));
                 exchange.sendResponseHeaders(200,head?-1:html.length);if(!head)exchange.getResponseBody().write(html);return;
             }
@@ -50,7 +53,7 @@ final class VideoFileServer implements AutoCloseable {
                 long size=file.size();String range=exchange.getRequestHeaders().getFirst("Range");long[] bounds;
                 try{bounds=range(range,size);}catch(IllegalArgumentException invalid){exchange.getResponseHeaders().set("Content-Range","bytes */"+size);exchange.sendResponseHeaders(416,-1);return;}
                 long length=bounds[1]-bounds[0]+1;
-                exchange.getResponseHeaders().set("Content-Type",mime(selection.path()));exchange.getResponseHeaders().set("Accept-Ranges","bytes");
+                exchange.getResponseHeaders().set("Content-Type",image?ImageViewerPage.mime(selection.path()):mime(selection.path()));exchange.getResponseHeaders().set("Accept-Ranges","bytes");
                 exchange.getResponseHeaders().set("Content-Length",Long.toString(length));
                 if(range!=null)exchange.getResponseHeaders().set("Content-Range","bytes "+bounds[0]+"-"+bounds[1]+"/"+size);
                 exchange.sendResponseHeaders(range==null?200:206,head||length==0?-1:length);
