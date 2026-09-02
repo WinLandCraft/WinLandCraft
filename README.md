@@ -4,14 +4,14 @@ Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-ancho
 
 ## Setup and build
 
-- JDK 21 (Temurin), Fabric Loader 0.16.9+, Fabric API 0.119.4+1.21.4, MCEF 2.1.6-1.21.4 (Fabric).
+- JDK 21 (Temurin), Fabric Loader 0.16.9+, and Fabric API 0.119.4+1.21.4. The ABI-matched MCEF/JCEF runtime is embedded in WinLandCraft.
 - Gradle 8.12 and Loom 1.9.2 are pinned; use the included wrapper.
 - Linux build: `./dev.sh build`; development client: `./dev.sh runClient`. The helper locates JDK 21, keeps Gradle caches inside the checkout, and works even if the wrapper's executable bit was not preserved.
 - macOS or direct wrapper use: `sh gradlew build` with `JAVA_HOME` pointing to JDK 21.
 - Build: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 build`
 - Separate development client: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 runClient`
 - The helper scripts discover JDK 21 and store Gradle caches locally. An IDE can import build.gradle with JDK 21.
-- Replace the old Prism mod JAR with `build/libs/winlandcraft-0.1.39-dev.jar`. Keep only one WinLandCraft version installed, alongside Fabric API and MCEF.
+- Replace the old Prism mod JAR with the new `build/libs/winlandcraft-*.jar`. Keep only one WinLandCraft version installed, alongside Fabric API; remove any separate MCEF JAR.
 - MCEF downloads native browser files on its first launch. Online websites need an internet connection.
 
 ## Browser(streamable): video and audio
@@ -31,7 +31,7 @@ Settings apply live and persist in `config/winlandcraft.json`. Remote input is r
 
 Encoding and playback use [Chromium's WebCodecs APIs](https://www.w3.org/TR/webcodecs/) through small internal MCEF views. A private loopback HTTP bridge transfers binary buffers between Java and these trusted codec pages; it binds only to 127.0.0.1, uses unguessable endpoint tokens, rejects foreign origins/hosts, and exposes no filesystem access. It is not an externally hosted service. Receiving players decode the stream in a local canvas/Web Audio view; they never load the source website. No FFmpeg installation, codec download, microphone permission, or new externally reachable port is needed. Unsupported codec or device errors appear in the app/log instead of falling back silently to JPEG.
 
-On Linux, WinLandCraft enables Chromium 116's `VaapiVideoDecoder` and `VaapiVideoEncoder` features before MCEF initializes, selects Chromium's EGL backend, and applies the GPU-blocklist override. WebCodecs still probes every configuration before use and falls back safely when the driver, platform, or bundled CEF build does not expose a requested codec/acceleration combination.
+On Linux, WinLandCraft enables the bundled Chromium runtime's `VaapiVideoDecoder` and `VaapiVideoEncoder` features before MCEF initializes, selects ANGLE backed by desktop OpenGL, and applies the GPU-blocklist override. WebCodecs still probes every configuration before use and falls back safely when the driver, platform, or bundled CEF build does not expose a requested codec/acceleration combination. Runtime upgrade constraints and known Chromium quirks are documented in [docs/chromium-compatibility.md](docs/chromium-compatibility.md).
 
 Audio capture follows [CEF's audio-handler API](https://cef-builds.spotifycdn.com/docs/116.0/classCefAudioHandler.html). Receiver audio uses a small timestamped buffer, while video is presented immediately for low latency. Periodic keyframes support late joins and recovery. Bounded media queues avoid accumulating unlimited delay. Actual FPS depends on Minecraft rendering, Chromium, CPU/GPU capacity, and the connection.
 
@@ -155,4 +155,4 @@ Disconnect cleanup is dispatched to the client/render thread because MCEF delete
 - [WaylandCraft pointer grabs](https://github.com/EVV1E/waylandcraft/blob/main/src/main/java/dev/evvie/waylandcraft/grabs/PointerGrabMap.java)
 - [WaylandCraft resizing](https://github.com/EVV1E/waylandcraft/blob/main/src/main/java/dev/evvie/waylandcraft/grabs/ResizeGrab.java)
 
-Input behavior follows WaylandCraft's hover routing, press/release capture, separate keyboard capture, and separate window grabs, adapted to Minecraft 1.21.4 and CEF. No Wayland protocol/native code or WaylandCraft source blocks were copied. MCEF remains a separate dependency.
+Input behavior follows WaylandCraft's hover routing, press/release capture, separate keyboard capture, and separate window grabs, adapted to Minecraft 1.21.4 and CEF. No Wayland protocol/native code or WaylandCraft source blocks were copied. MCEF's Minecraft integration is included through the embedded compatibility runtime; users should not install a second MCEF JAR.

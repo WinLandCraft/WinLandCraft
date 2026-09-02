@@ -1,0 +1,61 @@
+plugins {
+    id 'base'
+}
+
+version = rootProject.chromium_version
+group = 'dev.winlandcraft'
+
+repositories {
+    maven {
+        url = 'https://mcef-download.cinemamod.com/repositories/releases'
+        content { includeGroup 'com.cinemamod' }
+    }
+    ivy {
+        name = 'rinkuJcefReleases'
+        url = 'https://github.com/Keksuccino/jcef-rinku/releases/download'
+        patternLayout { artifact 'java-cef-[revision]/[artifact].[ext]' }
+        metadataSources { artifact() }
+        content { includeGroup 'dev.winlandcraft.cef' }
+    }
+}
+
+configurations {
+    legacyMcef {
+        attributes.attribute(
+                org.gradle.api.attributes.Bundling.BUNDLING_ATTRIBUTE,
+                objects.named(org.gradle.api.attributes.Bundling, org.gradle.api.attributes.Bundling.EXTERNAL))
+    }
+    modernJcef
+}
+
+dependencies {
+    legacyMcef "com.cinemamod:mcef-fabric:${rootProject.mcef_version}@jar"
+    modernJcef "dev.winlandcraft.cef:jcef-rinku:${rootProject.jcef_commit}@jar"
+}
+
+def runtimeJar = layout.buildDirectory.file("distributions/winlandcraft-mcef-${rootProject.chromium_version}.jar").get().asFile
+def legacyJar = configurations.legacyMcef.singleFile
+def jcefJar = configurations.modernJcef.singleFile
+def resources = rootProject.file('src/mcefFork/resources')
+def buildRuntime = {
+    runtimeJar.parentFile.mkdirs()
+    ant.jar(destfile: runtimeJar, duplicate: 'preserve', manifest: new File(resources, 'META-INF/MANIFEST.MF')) {
+        zipfileset(src: legacyJar, excludes: 'fabric.mod.json,org/cef/**,META-INF/MANIFEST.MF')
+        zipfileset(src: jcefJar, includes: 'org/cef/**')
+        fileset(dir: resources, excludes: 'META-INF/MANIFEST.MF')
+    }
+}
+
+// Loom hashes mod artifacts during configuration, before producer tasks can run.
+buildRuntime()
+
+def modernMcef = tasks.register('modernMcef') {
+    outputs.file runtimeJar
+    doLast buildRuntime
+}
+
+artifacts {
+    'default' runtimeJar, { builtBy modernMcef }
+}
+
+assemble.dependsOn modernMcef

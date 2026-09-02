@@ -29,9 +29,16 @@ public final class WinLandCraftClient implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("winlandcraft");
     public static WindowControls controls;
     @Override public void onInitializeClient() {
-        if(!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("mcef"))
-            throw new IllegalStateException("WinLandCraft clients require MCEF 2.1.6 for Minecraft 1.21.4. Dedicated servers do not need MCEF.");
+        if (!net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("winlandcraft_mcef")) {
+            throw new IllegalStateException("WinLandCraft's embedded Chromium runtime is missing. Reinstall the complete WinLandCraft JAR.");
+        }
+        try {
+            System.loadLibrary("jawt");
+        } catch (UnsatisfiedLinkError missingJavaDesktop) {
+            throw new IllegalStateException("Chromium 151 requires a Java runtime with Java Desktop/JAWT support.", missingJavaDesktop);
+        }
         ModSettings.load();
+        UBlockLite.install();
         StreamAudio.install();
         WebApps.load();
         var give = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.winlandcraft.give_tasks",

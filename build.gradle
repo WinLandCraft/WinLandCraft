@@ -5,6 +5,12 @@ plugins {
 version = project.mod_version
 group = 'dev.winlandcraft'
 
+evaluationDependsOn(':mcefFork')
+def modernMcef = project(':mcefFork').tasks.named('modernMcef')
+def modernMcefJar = project(':mcefFork').layout.buildDirectory.file(
+        "distributions/winlandcraft-mcef-${project.chromium_version}.jar")
+def modernMcefFiles = files(modernMcefJar).builtBy(modernMcef)
+
 repositories {
     maven { url = 'https://mcef-download.cinemamod.com/repositories/releases' }
 }
@@ -24,14 +30,21 @@ dependencies {
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-    modCompileOnly "com.cinemamod:mcef:${project.mcef_version}"
-    modClientRuntimeOnly "com.cinemamod:mcef-fabric:${project.mcef_version}"
+    modImplementation modernMcefFiles
 }
 
 def modVersion = version.toString()
 processResources {
     inputs.property 'version', modVersion
-    filesMatching('fabric.mod.json') { expand version: modVersion }
+    inputs.property 'chromiumVersion', project.chromium_version
+    filesMatching('fabric.mod.json') {
+        expand version: modVersion, chromiumVersion: project.chromium_version
+    }
+}
+
+jar {
+    dependsOn modernMcef
+    from(modernMcefJar) { into 'META-INF/jars' }
 }
 
 java {
@@ -75,6 +88,12 @@ tasks.register('verifyBrowserAddresses', JavaExec) {
     mainClass = 'dev.winlandcraft.BrowserAddressChecks'
 }
 check.dependsOn verifyBrowserAddresses
+tasks.register('verifyUBlock', JavaExec) {
+    dependsOn geometryCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.UBlockChecks'
+}
+check.dependsOn verifyUBlock
 tasks.register('verifyWebApps', JavaExec) {
     dependsOn geometryCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath
@@ -127,11 +146,14 @@ tasks.register('verifyMixinPackaging') {
                     }
                 }
             }
-            def vaapiMixin = 'McefVaapiMixin'
-            if (!config.client.contains(vaapiMixin)) throw new GradleException("Missing mixin: ${vaapiMixin}")
-            def vaapiClass = config.package.replace('.', '/') + '/' + vaapiMixin
-            if (zip.getEntry(vaapiClass + '.class') == null) throw new GradleException("Missing class: ${vaapiClass}")
-            logger.lifecycle('Packaged input/cursor and MCEF VA-API mixins: configuration, refmap, all 8 mappings, and classes verified.')
+            ['McefRuntimeMixin', 'McefChromiumFlagsMixin', 'McefPaintMixin'].each { mcefMixin ->
+                if (!config.client.contains(mcefMixin)) throw new GradleException("Missing mixin: ${mcefMixin}")
+                def mcefClass = config.package.replace('.', '/') + '/' + mcefMixin
+                if (zip.getEntry(mcefClass + '.class') == null) throw new GradleException("Missing class: ${mcefClass}")
+            }
+            def nested = zip.entries().find { it.name.startsWith('META-INF/jars/winlandcraft-mcef-') && it.name.endsWith('.jar') }
+            if (nested == null) throw new GradleException('Missing embedded Chromium 151 MCEF runtime')
+            logger.lifecycle('Packaged input/cursor mixins, Chromium runtime mixins, mappings, and embedded MCEF fork verified.')
         }
     }
 }
