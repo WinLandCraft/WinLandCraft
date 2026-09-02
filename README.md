@@ -4,7 +4,7 @@ Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-ancho
 
 ## Plugin apps
 
-Other Fabric mods can register native, Chromium, and hybrid apps through the versioned public API. See [PLUGINS.md](PLUGINS.md) for the complete development guide, input contract, file associations, examples, and compatibility policy. [API v2](PLUGINS-V2.md) additionally accepts CPU pixel frames and PCM audio from external engines/capture sources while v1 remains supported unchanged. The installable example is maintained in the separate `WLCP-Example-Plugin` project; this build produces only the host mod, sources, and compile-only API JAR.
+Other Fabric mods can register native, Chromium, and hybrid apps through the versioned public API. See [PLUGINS.md](PLUGINS.md) for the complete development guide, input contract, file associations, examples, and compatibility policy. [API v2](PLUGINS-V2.md) additionally accepts CPU pixel frames, optional GPU textures, and PCM audio from external engines/capture sources while v1 remains supported unchanged. The installable example is maintained in the separate `WLCP-Example-Plugin` project; this build produces only the host mod, sources, and compile-only API JAR.
 
 ## Setup and build
 

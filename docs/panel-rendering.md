@@ -41,3 +41,15 @@ These checks intentionally cover different stages: a correct private texture can
 ## API v2 submitted surfaces
 
 PluginFrameMailbox copies top-down RGBA8/BGRA8 rows from a producer's ByteBuffer into one replaceable pending frame, with a 4096x4096 limit. PluginFrames drains it only while composing the panel on the render thread. Raw GL texture upload saves/restores the bound texture, unpack PBO, row length, skips, and alignment. Allocation and sampler configuration occur together, including same-byte-count shape changes. The owned texture is fitted into logical content dimensions with aspect-preserving letterboxing, then combined with native UI in the normal PanelSurface. Final world submission and stream capture are unchanged. Context teardown closes the mailbox before deleting GL resources, so late producers cannot revive a texture.
+
+
+### Plugin API v2 GPU sources
+
+Since 0.1.84-dev, PluginFrames accepts optional GpuSource producers. Acquire/copy/
+release run on the render thread; GL 4.3 or ARB_copy_image copies RGBA8 level zero
+into a host-owned texture before any buffered canvas draw references it. Producer
+textures are borrowed, never registered/deleted by the host. Restore texture/PBO
+bindings around validation/allocation. Preserve sampler initialization on resize.
+Callbacks restore their own GL state and implement cross-context/API synchronization.
+No CPU pixel transfer is used here; existing PanelSurface composition and final
+WorldRenderContext consumers remain unchanged. CPU fallback remains available.

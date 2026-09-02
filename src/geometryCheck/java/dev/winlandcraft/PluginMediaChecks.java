@@ -15,6 +15,16 @@ public final class PluginMediaChecks {
             for(var c:type.getDeclaredConstructors())if(Modifier.isPublic(c.getModifiers()))signatures.add(c.toGenericString());
         }
         var old=new HashSet<>(Files.readAllLines(Path.of(args[0])));check(signatures.containsAll(old),"v2 ABI changed");check(old.containsAll(required),"mandatory v2 method added");
+        FrameSurface legacy=new FrameSurface(){public boolean submit(ByteBuffer b,int w,int h,int s,PixelFormat f){return true;}public void clear(){}};
+        check(!legacy.supportsGpu(),"legacy default capability");
+        try{legacy.gpuSource(null);throw new AssertionError("legacy GPU unsupported");}catch(UnsupportedOperationException expected){}
+        int[] calls=new int[3];var gpuFrame=new GpuFrame(1,1280,720,false);
+        GpuSource gpu=new GpuSource(){public GpuFrame acquire(){calls[0]++;return gpuFrame;}public void release(GpuFrame f){check(f==gpuFrame,"same borrowed frame released");calls[1]++;}public void close(){}};
+        PluginGpuTransfer.copy(gpu,f->calls[2]++);check(Arrays.equals(calls,new int[]{1,1,1}),"GPU acquire copy release");
+        try{PluginGpuTransfer.copy(gpu,f->{throw new IllegalStateException("copy failed");});throw new AssertionError("copy failure lost");}catch(IllegalStateException expected){}
+        check(calls[1]==2,"release after failed copy");
+        PluginGpuTransfer.copy(new GpuSource(){public GpuFrame acquire(){return null;}public void release(GpuFrame f){throw new AssertionError("null release");}public void close(){}},f->{throw new AssertionError("null copy");});
+        try{new GpuFrame(0,1,1,true);throw new AssertionError("invalid texture accepted");}catch(IllegalArgumentException expected){}
         var mailbox=new PluginFrameMailbox();byte[] raw=new byte[27];for(int i=0;i<raw.length;i++)raw[i]=(byte)i;
         var source=ByteBuffer.wrap(raw);source.position(3);
         check(mailbox.submit(source,2,2,12,PixelFormat.BGRA8),"frame accepted");check(source.position()==3,"input position preserved");

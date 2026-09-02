@@ -1,8 +1,8 @@
 # WinLandCraft plugin API v2: external surfaces and audio
 
-**Since WinLandCraft 0.1.83-dev.** Public types live in `dev.winlandcraft.api.v2`, and the Fabric entrypoint is **`winlandcraft:plugins_v2`**. V1 remains unchanged in its original package and entrypoint. Choose v2 for capture tools, emulators, external game engines, generated images, or anything else that produces frames/audio; v2 also has native Canvas and managed Chromium/hybrid apps.
+**Since WinLandCraft 0.1.83-dev; optional GPU textures since 0.1.84-dev.** Public types live in `dev.winlandcraft.api.v2`, and the Fabric entrypoint is **`winlandcraft:plugins_v2`**. V1 remains unchanged in its original package and entrypoint. Choose v2 for capture tools, emulators, external game engines, generated images, or anything else that produces frames/audio; v2 also has native Canvas and managed Chromium/hybrid apps.
 
-A plugin owns its content and optional external process/native engine. WinLandCraft owns panel rendering, host input capture/locking, focus, picking, placement, resizing/scaling, grouping, curves, the pill, and streaming the composed window. A Windows-only WGC plugin can supply captured frames without adding Windows dependencies to the host. WGC capture itself is not included: the plugin must implement capture, OS checks, permissions/UI, native packaging, and any GPU readback.
+A plugin owns its content and optional external process/native engine. WinLandCraft owns panel rendering, host input capture/locking, focus, picking, placement, resizing/scaling, grouping, curves, the pill, and streaming the composed window. A Windows-only WGC plugin can supply captured frames without adding Windows dependencies to the host. WGC capture itself is not included: the plugin must implement capture, OS checks, permissions/UI, native packaging, and graphics-backend interop or CPU readback.
 
 ## Packaging and registration
 
@@ -89,7 +89,7 @@ public final class Display implements App {
 
 The latest image is fitted inside the whole logical window, preserving its aspect ratio with letterboxing. It is drawn above the normal background/browser and below your native `render(Canvas)` UI. A surface can remain frozen while native controls update. No new frame means no pixel upload. The normal composed surface receives smoothing, curvature, and stream capture.
 
-This is a **CPU pixel API**, not shared GPU handles, zero-copy D3D textures, or a game-engine integration SDK. The plugin performs WGC/D3D readback, JNI or IPC, decoding, and any color conversion. At maximum resolution, pending frames, upload staging, and GPU textures consume substantial memory; keep resolution and producer cadence appropriate. There is no unlimited native buffer/GL access exposed through the API.
+The `submit` path is a **CPU pixel API**. GPU producers can instead use the optional GPU source below. The plugin owns capture, JNI or IPC, decoding, and color conversion. At maximum resolution, pending frames, upload staging, and GPU textures consume substantial memory; keep resolution and producer cadence appropriate. The host does not expose its own render targets to plugins.
 
 ## Resize, scale, and input
 
@@ -128,3 +128,92 @@ V2 duplicates the stable application contract in its own package: `App`, `AppDef
 Stop external processes, capture sessions, and producer threads in `onClose`. Late submissions are rejected. A new window session needs new handles. A plugin callback failure closes managed media and leaves an error panel. Native process crashes or native code loaded into the Minecraft JVM cannot be sandboxed by this API. Use isolated IPC where appropriate, and do not block callbacks on I/O or process startup.
 
 V1 sources, signatures, and entrypoint remain unchanged. V2 has its own frozen baseline, `docs/plugin-api-v2.txt`; future extensions must preserve old signatures and add only optional/default methods. The build checks both versions and compiles an API-only SURFACE fixture. CPU tests cover row stride, copying, bounded latest-frame behavior, invalid inputs, stale handles, audio conversion, and registration. Actual GL upload, audio-device playback, streaming A/V, and native capture need in-game smoke tests on the affected operating systems.
+
+
+## Optional GPU surfaces (since 0.1.84-dev, still API v2)
+
+Existing CPU plugins need no changes. To use `GpuSource`/`GpuFrame`, compile against
+`winlandcraft-0.1.84-dev-plugin-api.jar` or newer and set your Fabric dependency to
+`"winlandcraft": ">=0.1.84-dev"`. Do not package host API classes in your plugin.
+
+`window.frames().supportsGpu()` checks OpenGL 4.3 or ARB_copy_image on the current
+render context. If false, use the existing CPU `submit` path. This capability does
+not promise that your engine's D3D/Vulkan/other-context interop is supported.
+The host's GPU path is platform-neutral; test each supported driver/backend.
+
+Attach a `GpuSource` on the render thread, for example in `onOpen` or via
+`window.execute`. The host polls `acquire()` during panel composition. Return null
+when no fresh frame is ready; the last copied image stays visible. Example:
+
+```java
+FrameSurface surface = window.frames();
+if (surface.supportsGpu() && engine.canExportOpenGlTexture()) {
+    surface.gpuSource(new GpuSource() {
+        public GpuFrame acquire() {
+            // Your engine integration: nonblocking, synchronized, current GL context.
+            // Return null if the producer is still writing or has no new frame.
+            var frame = engine.tryAcquireTexture();
+            if (frame == null) return null;
+            return new GpuFrame(frame.textureId(), frame.width(), frame.height(), false);
+        }
+        public void release(GpuFrame frame) {
+            engine.releaseTextureAfterGlCopy();
+        }
+        public void close() {
+            engine.closeGpuExport();
+        }
+    });
+} else {
+    // Continue producing owned CPU pixels using surface.submit(...).
+}
+```
+
+`engine` above represents your plugin's integration, not a host-provided class.
+A same-context OpenGL renderer can create/render its texture in `acquire()` and
+return it directly. An FBO-rendered image typically uses `topLeftOrigin=false`;
+set true if texture v=0 represents the top row. The host letterboxes the result
+just like CPU frames; existing input coordinate mapping and resize callbacks apply.
+
+Texture requirements:
+
+- A live single-sample `GL_TEXTURE_2D`, visible in Minecraft's current GL context,
+  sized 1..4096 per axis with sized internal format `GL_RGBA8` and straight alpha.
+- Level 0 must match the reported dimensions, base level must be zero, and the
+  minification filter must be `GL_LINEAR` or `GL_NEAREST` (no required mip chain).
+- Keep the texture alive and stable from acquire through release. All callbacks
+  run on the render thread. Restore every GL state you change, including bindings,
+  framebuffers, viewport, pixel-store state, and any engine-specific GL state cache.
+- Never wait indefinitely for a producer, and never attach/detach sources or close
+  the window inside source callbacks. Keep producer queues bounded.
+
+The host enqueues a GPU-to-GPU copy into its own texture before `release(frame)`.
+No frame pixels pass through Java arrays, upload buffers, or CPU readback on this
+path. A GPU copy and normal panel composition still occur. This ownership boundary
+is necessary because Minecraft batches drawing after the producer callback returns.
+The host never deletes the producer's texture.
+
+For every non-null acquired frame, release runs even if validation/copy throws.
+Acquire must undo its own locks if it throws before returning a frame. Release
+means the copy command was issued, **not that the GPU has finished**. Same-context
+commands are ordered; shared-context or cross-API producers must implement fences
+and the appropriate interop unlock/release before reusing the texture. Avoid
+`glFinish` per frame; use nonblocking producer handoff and GPU synchronization.
+For WGC specifically, the plugin must bridge D3D textures into a compatible GL
+texture and acquire/release that interop resource. Passing a D3D pointer as a GL
+texture ID will not work. CPU fallback remains necessary when interop is absent.
+
+A successful attachment transfers source lifecycle ownership to the host. It
+calls `close()` once on replacement, detach, failure, or window close, before the
+app's normal `onClose`. Reattaching the same currently attached object is a no-op;
+never reuse an already closed source. A rejected attachment leaves ownership with
+the plugin. `gpuSource(null)` detaches immediately and enables CPU submissions;
+`clear()` can be called from any thread and detaches/hides on the next composition.
+CPU submissions return false while a GPU source is attached. GPU callback failures
+become the normal plugin error panel; cleanup exceptions are logged and contained.
+GPU support changes no input ownership, audio API, or window controls. Streaming
+still uses the existing composed-window streaming pipeline and its own transfers.
+
+Validation: automated tests cover old v2 signatures/default compatibility,
+API-only GPU producer compilation, and acquire/release on success, no-frame, and
+failure. In-game checks must cover orientation, color/alpha, resize, source switch,
+close/reopen, shader composition, and your native synchronization on each target OS.

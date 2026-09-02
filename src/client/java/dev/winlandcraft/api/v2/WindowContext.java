@@ -14,7 +14,7 @@ public interface WindowContext {
     void clipboard(String text);
     /** One managed view for CHROMIUM/HYBRID; unsupported for NATIVE. */
     BrowserView browser();
-    /** One CPU pixel surface, automatically fitted to the content area. Safe to submit from workers. */
+    /** One pixel/GPU surface, automatically fitted to the content area. CPU submissions are safe from workers. */
     FrameSurface frames();
     /** Stereo 48 kHz PCM output, shared by local playback and window streaming. */
     AudioOutput audio();

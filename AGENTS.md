@@ -57,7 +57,7 @@ Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR pai
 ## Plugin API compatibility
 
 - v1 public sources and its frozen baseline remain unchanged when extending v2. `dev.winlandcraft.api.v2` starts in 0.1.83-dev with the separate `winlandcraft:plugins_v2` entrypoint; preserve its baseline in `docs/plugin-api-v2.txt` too.
-- V2 frame/audio submissions may originate on native/worker threads. Copy before returning, retain only the newest pending frame, bound audio buffering and pacing, and reject stale session handles. Only the render thread may allocate/upload/delete textures. Preserve GL texture and pixel-unpack state around uploads.
+- V2 CPU frame/audio submissions may originate on native/worker threads. Copy before returning, retain only the newest pending frame, bound audio buffering and pacing, and reject stale session handles. Only the render thread may allocate/upload/delete textures. Preserve GL texture and pixel-unpack state around uploads.
 - Keep `PLUGINS-V2.md`, API-only fixtures, and `verifyPluginMedia` synchronized. Platform-specific capture/engine integration belongs in plugin mods, not the portable host API.
 
 
@@ -72,3 +72,4 @@ Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR pai
 # Git
 - Always, ALWAYS check if there is a newer commit on the remote origin first before changing anything. If there is, try to pull it first and see if there is a conflict. If there is, pause and ask.
 - Commit every change you do.
+- V2 optional GPU sources use render-thread acquire/copy/release and host-owned GPU copies before buffered composition. Preserve CPU fallback and old v2 signatures. Producer synchronization and external graphics interop belong to plugins; contain callback failures and close sources exactly once.

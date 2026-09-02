@@ -90,7 +90,7 @@ final class PluginPanel extends BrowserPanel {
         canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF18212D);
         if(!error.isEmpty()){canvas.text(error,16,24,0xFFFFA5A5,1.5f);return;}
         if(browserEnabled())drawManagedBrowser(canvas,browserX(),browserY(),browserWidth(),browserHeight());
-        if(frames!=null)frames.draw(canvas,pixelWidth(),pixelHeight());
+        if(frames!=null)call(()->frames.draw(canvas,pixelWidth(),pixelHeight()));
         if(app!=null){var frame=new Drawing(canvas);try{call(()->app.render(frame));}finally{frame.live=false;}}
     }
     private final class Drawing implements Canvas,dev.winlandcraft.api.v2.Canvas {
