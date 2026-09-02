@@ -61,6 +61,8 @@ public abstract class WorldPanel {
     protected ClientLevel level;
     protected Vec3 position;
     protected Quaternionf orientation;
+    private final net.minecraft.resources.ResourceLocation surfaceLocation=PanelSurface.location();
+    private PanelSurface.Target surfaceTarget;
     private float halfWidth;
     private float halfHeight;
     public float worldWidth() { return halfWidth * 2; }
@@ -171,8 +173,11 @@ public abstract class WorldPanel {
         return canRender(context)?new PanelCanvas(context,this):null;
     }
 
-    protected PanelCanvas surfaceCanvas(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        return canRender(context)?new PanelCanvas(context,this,true):null;
+    protected PanelSurface surface(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+        if(!canRender(context))return null;
+        boolean front=frontFacing(context.camera().getPosition());
+        if(front&&surfaceTarget==null)surfaceTarget=new PanelSurface.Target(surfaceLocation);
+        return new PanelSurface(context,this,surfaceTarget,front);
     }
 
     public void bringToView(ClientLevel world, Camera camera) {
@@ -191,6 +196,7 @@ public abstract class WorldPanel {
     public void close() {
         WindowGroups.detach(this);
         hoverX=hoverY=Integer.MIN_VALUE;
+        if(surfaceTarget!=null){surfaceTarget.close();surfaceTarget=null;}
         position = null;
         orientation = null;
         level = null;

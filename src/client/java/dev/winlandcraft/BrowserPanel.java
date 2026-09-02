@@ -280,8 +280,9 @@ public class BrowserPanel extends WorldPanel {
         return font.width(text) * scale <= width ? text : font.plainSubstrByWidth(text, (int) (width / scale) - font.width("...")) + "...";
     }
     @Override public void render(WorldRenderContext context) {
-        try (var canvas = surfaceCanvas(context)) {
-            if (canvas == null || !canvas.frontFacing()) return;
+        try (var surface = surface(context)) {
+            if (surface == null || !surface.frontFacing()) return;
+            var canvas=surface.canvas();
             drawSurface(canvas);
         }
     }

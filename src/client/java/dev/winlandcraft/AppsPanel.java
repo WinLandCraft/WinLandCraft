@@ -37,8 +37,9 @@ public final class AppsPanel extends WorldPanel {
         first = Math.clamp(first - (int) Math.signum(amount), 0, Math.max(0, apps.appEntries().size() - 3));
     }
     @Override public void render(WorldRenderContext context) {
-        try (var canvas = surfaceCanvas(context)) {
-            if (canvas == null || !canvas.frontFacing()) return;
+        try (var surface = surface(context)) {
+            if (surface == null || !surface.frontFacing()) return;
+            var canvas=surface.canvas();
             canvas.rect(0, 0, 360, 180, 0, 0xFF18212D);
             canvas.rect(0, 0, 360, 36, 0.1f, 0xFF314D63);
             PixelIcon.APPS.draw(canvas,14,6,24,.2f,0xFF72ECF1);
