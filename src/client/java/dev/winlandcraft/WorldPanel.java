@@ -10,6 +10,13 @@ import org.joml.Vector3f;
 public abstract class WorldPanel {
     final java.util.Set<WorldPanel> glued = new java.util.HashSet<>();
     GroupCurve curve;
+    java.util.UUID broadcastSession;
+    volatile MediaBridge.Endpoint encoder;
+    volatile String streamStatus="Starting codecs...";
+    StreamClient streamClient;
+    final boolean streaming(){return broadcastSession!=null;}
+    void drawSurface(PanelCanvas canvas) { }
+
     private int hoverX=Integer.MIN_VALUE,hoverY=Integer.MIN_VALUE;
     public boolean grouped() { return !glued.isEmpty(); }
     protected void renderUngroup(PanelCanvas canvas) {
@@ -76,7 +83,7 @@ public abstract class WorldPanel {
     public boolean canResize() { return true; }
     public boolean canMove() { return true; }
     public boolean canInteract() { return true; }
-    public boolean canGroup() { return true; }
+    public boolean canGroup() { return !streaming(); }
     protected boolean projectsLight(){return false;}
     final float[] screenLightColors(){return screenLightColors;}
     final void screenLightColors(float[] colors){screenLightColors=ScreenLighting.smooth(screenLightColors,colors);}
@@ -201,6 +208,7 @@ public abstract class WorldPanel {
     }
 
     public void close() {
+        if(streamClient!=null)streamClient.stop(this);
         WindowGroups.detach(this);
         hoverX=hoverY=Integer.MIN_VALUE;
         screenLightColors=null;

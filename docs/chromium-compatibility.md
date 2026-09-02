@@ -104,3 +104,11 @@ Stream audio capture health
 Codec health includes loopback request counts in `index/script/config/status` order. A healthy endpoint reaches all four, posts a `boot` status before probing codecs, and then advances to `encoding` or `decoding`. `index>0` with `script=0` indicates interception or script-load failure. `script>0` with `config>0` and `status=0` means JavaScript started but status requests were blocked or rejected; inspect the bridge security boundary before blaming WebCodecs. The startup watchdog intentionally follows status heartbeats rather than generic HTTP traffic so repeated media polling cannot disguise a dead control path.
 
 For a native crash, preserve `hs_err_pid*.log`. The native stack and fault address are more useful than the final lines of `latest.log`.
+
+## App streaming and audio lifecycle
+
+BrowserPanel registers every app browser tab with StreamAudio at creation and detaches it on render-thread close. This lets an already playing private tab become a stream source without reloading its website: CEF negotiates audio capture when playback starts, not when the player later chooses Stream. Captured tabs each retain bounded local Java Sound playback, even when not published or when broadcast audio is disabled. Only the selected tab of the current publishing BrowserPanel sees an encoder endpoint. Native apps use the same off-screen drawSurface capture but have no audio source. Codec/helper views are never registered as app audio sources.
+
+Stopping or switching publication clears the encoder pointer and releases remote browser inputs without closing the app or its local playback. Detaching a tab marks its monitor closed before removing the callback lookup, so an in-flight callback cannot recreate a monitor after teardown. No native pointers escape the audio callback.
+
+In-game checks required on Windows and Linux: start Stream on an already playing private browser and on a standalone webapp; verify creator and viewer audio, private/background-tab isolation, tab switching, audio toggle, stop/restart, source switching to a native app, and saving/quitting with multiple tabs open. Automated geometry/packaging checks do not exercise native audio or GPU capture.

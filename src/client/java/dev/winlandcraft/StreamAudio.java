@@ -17,13 +17,17 @@ final class StreamAudio {
     private static final ConcurrentHashMap<Integer,Source> sourcesById=new ConcurrentHashMap<>();
     private static final class Source {
         final CefBrowser browser;
-        final StreamBrowserPanel panel;
+        final BrowserPanel panel;
         volatile int browserId;
+        private StreamAudioMonitor monitor;
+        private boolean closed;
+        synchronized void monitor(Packet packet){if(closed){packet.release();return;}if(monitor==null)monitor=new StreamAudioMonitor();monitor.offer(packet);}
+        synchronized void close(){closed=true;if(monitor!=null){monitor.close();monitor=null;}}
         volatile int rate,channels;
         final ArrayBlockingQueue<byte[]> freeBuffers=new ArrayBlockingQueue<>(32);
         MediaBridge.Endpoint clockEndpoint;
         long lastPts=Long.MIN_VALUE,timeUs,packets,frames,invalid,nextLog,nextWarning;
-        Source(CefBrowser browser,StreamBrowserPanel panel){this.browser=browser;this.panel=panel;browserId=id(browser);}
+        Source(CefBrowser browser,BrowserPanel panel){this.browser=browser;this.panel=panel;browserId=id(browser);}
         byte[] acquire(int size){byte[] bytes;while((bytes=freeBuffers.poll())!=null)if(bytes.length==size)return bytes;return new byte[size];}
         void recycle(byte[] bytes){freeBuffers.offer(bytes);}
     }
@@ -58,7 +62,7 @@ final class StreamAudio {
         if(selected==callback)return true;
         int selectedId=id(selected),callbackId=id(callback);return selectedId>=0&&selectedId==callbackId;
     }
-    static void attach(CefBrowser browser,StreamBrowserPanel panel){
+    static void attach(CefBrowser browser,BrowserPanel panel){
         var source=new Source(browser,panel);sourcesByBrowser.put(browser,source);
         if(source.browserId>=0)sourcesById.put(source.browserId,source);
         WinLandCraftClient.LOGGER.info("Attached stream audio capture to browser tab {} ({} tabs tracked)",
@@ -68,7 +72,7 @@ final class StreamAudio {
         Source source=sourcesByBrowser.remove(browser);int browserId=id(browser);
         if(source==null&&browserId>=0)source=sourcesById.get(browserId);
         if(source!=null){
-            sourcesByBrowser.remove(source.browser);if(source.browserId>=0)sourcesById.remove(source.browserId,source);
+            source.close();sourcesByBrowser.remove(source.browser);if(source.browserId>=0)sourcesById.remove(source.browserId,source);
             WinLandCraftClient.LOGGER.info("Detached stream audio capture from browser tab {} ({} tabs tracked)",
                     source.browserId<0?"pending":Integer.toString(source.browserId),sourcesByBrowser.size());
         }
@@ -97,8 +101,8 @@ final class StreamAudio {
             }
             @Override public void onAudioStreamPacket(CefBrowser browser,DataPointer data,int frames,long pts) {
                 var source=source(browser);
-                if(source==null||!selected(source,browser))return;
-                var encoder=source.panel.encoder;
+                if(source==null)return;
+                var encoder=selected(source,browser)?source.panel.encoder:null;
                 int rate=source.rate,channels=source.channels;
                 if(frames<=0||frames>8192||channels<1||channels>32||rate<8000||rate>192000||data==null||data.getAddress()==0){
                     source.invalid++;return;
@@ -122,7 +126,7 @@ final class StreamAudio {
                     }
                     var packet=new Packet(source,pcm);boolean monitorOwned=false,encoderOwned=false;
                     try {
-                        source.panel.monitor(packet);monitorOwned=true;
+                        source.monitor(packet);monitorOwned=true;
                         if(encoder!=null){
                             long current=encoder.elapsedTimeUs();
                             if(source.clockEndpoint!=encoder){source.clockEndpoint=encoder;source.lastPts=pts;source.timeUs=current;}

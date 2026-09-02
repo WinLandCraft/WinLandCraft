@@ -28,6 +28,17 @@ final class EdgeControlsChecks {
             var ray=new Vec3(normal.x,normal.y,normal.z);
             check(Math.abs(ui.intersect(close.add(ray.scale(2)),ray.scale(-1))-2)<.00001,"expanded rotated picking");
         }
+        p.broadcastSession=java.util.UUID.randomUUID();
+        for(int edge=0;edge<4;edge++) {
+            Vec3 at=WindowGroups.world(p.position,p.orientation,edges[edge][0],edges[edge][1]);
+            var ui=new EdgeControls(p,at,0);Vec3 close=pixel(ui,220,20);ui.expand(1);
+            check(ui.pixelHeight()==328,"stream controls expand the pill");
+            check(close.distanceTo(pixel(ui,ui.headerX()+220,ui.headerY()+20))<.00001,"stream expansion keeps close anchored");
+            check(ui.action(306,ui.streamY()+32)==5,"quality button routes to stream controls");
+            check(ui.action(30,ui.streamY()+194)==5,"stop stream routes to stream controls");
+            check(ui.action(180,edge==EdgeControls.TOP?264:84)==4,"stream controls do not overlap curve slider");
+        }
+        p.broadcastSession=null;
         check(!EdgeControls.near(p,p.position),"center does not activate");
         var edgePoint=WindowGroups.world(p.position,p.orientation,0,.9f);
         var normalVector=new org.joml.Vector3f(0,0,1).rotate(p.orientation);

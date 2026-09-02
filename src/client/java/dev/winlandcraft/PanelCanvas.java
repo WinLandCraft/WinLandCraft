@@ -132,8 +132,11 @@ public final class PanelCanvas implements AutoCloseable {
         text(text, x, y, color, 1);
     }
     public void text(String text, int x, int y, int color, float scale) {
+        text(text,x,y,color,scale,.6f);
+    }
+    void text(String text,int x,int y,int color,float scale,float layer) {
         pose.pushPose();
-        pose.translate(x, y, depth(.6f));
+        pose.translate(x, y, depth(layer));
         pose.scale(scale, scale, 1);
         Minecraft.getInstance().font.drawInBatch(Component.literal(text), 0, 0, color, false,
                 pose.last().pose(), buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);

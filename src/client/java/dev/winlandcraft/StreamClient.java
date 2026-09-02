@@ -11,6 +11,7 @@ import org.joml.Vector3f;
 /** Owner-side capture and timestamped H.264/VP9/Opus relay. Chromium handles media codecs. */
 final class StreamClient {
     private final AppWindows apps;
+    private WorldPanel source;
     private final StreamCapture capture=new StreamCapture();
     private final Map<UUID,RemoteStreamPanel> remote=new HashMap<>();
     private MediaBridge bridge;
@@ -19,7 +20,29 @@ final class StreamClient {
     private boolean demand;
     private long lastState,nextFrame,sequence;
     private long sentUnits,sentParts,sentBytes,sentVideo,sentAudio,nextSenderHealth;
-    StreamClient(AppWindows apps){this.apps=apps;}
+    StreamClient(AppWindows apps){this.apps=apps;apps.streams=this;apps.streamBrowser.streamClient=this;}
+    boolean start(WorldPanel panel) {
+        var client=Minecraft.getInstance();
+        if(client.player==null||client.level==null)return false;
+        if(!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)||!ClientPlayNetworking.canSend(StreamProtocol.Frame.TYPE)) {
+            client.player.displayClientMessage(Component.literal("Streaming requires WinLandCraft on the server."),false);return false;
+        }
+        if(source==panel&&panel.streaming())return true;
+        if(source!=null)stop(source);
+        // The relay describes one independently curved surface per owner.
+        if(panel.grouped())WindowGroups.detach(panel);
+        source=panel;panel.streamClient=this;panel.broadcastSession=UUID.randomUUID();
+        if(!panel.isOpen())panel.open(client);
+        panel.streamStatus="Waiting for viewers...";
+        client.player.displayClientMessage(Component.literal("Sharing "+panel.windowTitle()+". Stream controls are in the floating pill."),false);
+        return true;
+    }
+    void stop(WorldPanel panel) {
+        if(source!=panel)return;
+        stopPublishing();panel.broadcastSession=null;panel.encoder=null;
+        if(panel instanceof BrowserPanel browser)browser.clearRemoteControls();
+        source=null;
+    }
     void register() {
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.State.TYPE,(p,c)->receive(p));
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Demand.TYPE,(p,c)->{
@@ -42,10 +65,10 @@ final class StreamClient {
             if(panel!=null&&panel.session.equals(p.session()))remove(panel);
         });
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Control.TYPE,(p,c)->{
-            var client=Minecraft.getInstance();var panel=apps.streamBrowser;
-            if(client.player==null||!p.owner().equals(client.player.getUUID())||published==null
+            var client=Minecraft.getInstance();var panel=source;
+            if(!(panel instanceof BrowserPanel browser)||client.player==null||!p.owner().equals(client.player.getUUID())||published==null
                     ||!published.session().equals(p.session())||!p.valid(published))return;
-            if(p.event()==StreamProtocol.Control.CANCEL||ModSettings.streamRemoteControl&&published.remoteControl())panel.remoteControl(p);
+            if(p.event()==StreamProtocol.Control.CANCEL||ModSettings.streamRemoteControl&&published.remoteControl())browser.remoteControl(p);
         });
     }
     private void receive(StreamProtocol.State state) {
@@ -67,8 +90,8 @@ final class StreamClient {
     void tick(Minecraft client) {
         long now=System.currentTimeMillis();
         for(var panel:List.copyOf(remote.values()))if(!panel.isOpen()||panel.level!=client.level||now-panel.lastState>10_000)remove(panel);
-        var panel=apps.streamBrowser;
-        if(client.player==null||client.level==null||!panel.isOpen()||panel.broadcastSession==null||!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)) {stopPublishing();return;}
+        var panel=source;
+        if(panel==null||client.player==null||client.level==null||!panel.isOpen()||panel.broadcastSession==null||!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)) {if(panel!=null)stop(panel);else stopPublishing();return;}
         if(published!=null&&!published.session().equals(panel.broadcastSession))stopPublishing();
         if(!publishState(panel,client,now))return;
         if(!demand) {
@@ -83,7 +106,7 @@ final class StreamClient {
         if(!encoder.error.isEmpty()) {
             String reason=encoder.error;WinLandCraftClient.LOGGER.warn("Stream codec error: {}",reason);
             client.player.displayClientMessage(Component.literal("Stream codec error: "+reason),false);
-            stopPublishing();panel.streamStatus=reason;panel.broadcastSession=null;return;
+            stop(panel);panel.streamStatus=reason;return;
         }
         if(published!=null)for(int i=0;i<128;i++) {
             byte[] packet=encoder.encoded.poll();if(packet==null)break;
@@ -98,7 +121,7 @@ final class StreamClient {
                     shortId(published.session()),sentUnits,sentVideo,sentAudio,sentParts,sentBytes,sequence);
         }
     }
-    private boolean publishState(StreamBrowserPanel panel,Minecraft client,long now) {
+    private boolean publishState(WorldPanel panel,Minecraft client,long now) {
         if(now-lastState<100)return true;
         var state=snapshot(panel,client.player.getUUID(),panel.broadcastSession);
         if(!state.valid()) {fail("Shared window exceeds the relay test limits.");return false;}
@@ -106,7 +129,7 @@ final class StreamClient {
         ClientPlayNetworking.send(state);published=state;lastState=now;
         return true;
     }
-    static StreamProtocol.State snapshot(BrowserPanel panel,UUID owner,UUID session) {
+    static StreamProtocol.State snapshot(WorldPanel panel,UUID owner,UUID session) {
         Vec3 center=panel.position;var rotation=new Quaternionf(panel.orientation);
         float amount=0;int facing=1;
         if(panel.curve!=null) {
@@ -117,11 +140,11 @@ final class StreamClient {
         var up=new Vector3f(0,title/2,0).rotate(rotation);center=center.add(up.x,up.y,up.z);
         return new StreamProtocol.State(owner,session,panel.level==null?net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"):panel.level.dimension().location(),
                 center.x,center.y,center.z,rotation.x,rotation.y,rotation.z,rotation.w,panel.worldWidth(),panel.worldHeight()+title,
-                panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),panel.titlebarHeight(),amount,facing,ModSettings.streamRemoteControl);
+                panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),panel.titlebarHeight(),amount,facing,panel instanceof BrowserPanel&&ModSettings.streamRemoteControl);
     }
     void renderCapture() {
-        var client=Minecraft.getInstance();var panel=apps.streamBrowser;
-        if(published==null||encoder==null||!encoder.wantsVideo()||!panel.isOpen()||!published.session().equals(panel.broadcastSession)||client.isPaused()||System.nanoTime()<nextFrame)return;
+        var client=Minecraft.getInstance();var panel=source;
+        if(panel==null||published==null||encoder==null||!encoder.wantsVideo()||!panel.isOpen()||!published.session().equals(panel.broadcastSession)||client.isPaused()||System.nanoTime()<nextFrame)return;
         nextFrame=System.nanoTime()+1_000_000_000L/encoder.quality.fps();
         try {
             encoder.video(capture.capture(panel,encoder.quality));
@@ -130,7 +153,7 @@ final class StreamClient {
         }
     }
     private void fail(String message) {
-        apps.streamBrowser.close();stopPublishing();
+        if(source!=null)stop(source);else stopPublishing();
         var player=Minecraft.getInstance().player;if(player!=null)player.displayClientMessage(Component.literal(message),false);
     }
     private void stopPublishing() {
@@ -140,7 +163,7 @@ final class StreamClient {
     }
     private void stopEncoder() {
         nextFrame=0;capture.close();
-        apps.streamBrowser.encoder=null;
+        if(source!=null)source.encoder=null;
         if(encoder!=null){encoder.close();encoder=null;}
     }
     private void remove(RemoteStreamPanel panel){
@@ -148,6 +171,6 @@ final class StreamClient {
         remote.remove(panel.owner);apps.windows.remove(panel);panel.close();
     }
     static String shortId(UUID id){return id.toString().substring(0,8);}
-    void clear(){stopPublishing();for(var panel:List.copyOf(remote.values()))remove(panel);if(bridge!=null){bridge.close();bridge=null;}}
+    void clear(){if(source!=null)stop(source);else stopPublishing();for(var panel:List.copyOf(remote.values()))remove(panel);if(bridge!=null){bridge.close();bridge=null;}}
     void shutdown(){clear();}
 }

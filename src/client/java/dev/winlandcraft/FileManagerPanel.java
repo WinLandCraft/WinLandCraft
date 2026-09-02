@@ -84,40 +84,42 @@ public final class FileManagerPanel extends WorldPanel {
     @Override public void render(WorldRenderContext context) {
         try(var surface=surface(context)) {
             if(surface==null||!surface.frontFacing())return;
-            var c=surface.canvas();
-            c.rect(-3,-3,1286,726,0,0xFF536579);
-            c.rect(0,0,1280,720,.1f,0xFF17212D);c.rect(0,76,232,602,.2f,0xFF202C3B);
-            PixelIcon[] buttons={PixelIcon.ARROW_LEFT,PixelIcon.ARROW_RIGHT,PixelIcon.ARROW_UP,PixelIcon.REFRESH};int[] xs={12,70,128,186};
-            boolean[] enabled={historyIndex>0,historyIndex+1<history.size(),directory!=null&&directory.getParent()!=null,directory!=null};
-            for(int i=0;i<4;i++){int width=i==3?60:50;colorButton(c,buttons[i],xs[i],14,width,44,enabled[i]);}
-            c.rect(260,14,996,44,.3f,editing?0xFF39566F:hoverColor(260,14,996,44,0xFF101B28,0xFF1D3042));
-            String shown=editing?address+(selectAll?"":"|"):directory==null?"Home":directory.toString();
-            c.text(fit(shown,972,1.5f),272,29,selectAll&&editing?0xFF72ECF1:-1,1.5f);
-            c.text("Quick locations",16,86,0xFF9BADBF,1.5f);
-            c.text("Name",280,86,0xFF9BADBF,1.5f);c.text("Modified",780,86,0xFF9BADBF,1.5f);c.text("Type",1020,86,0xFF9BADBF,1.5f);c.text("Size",1150,86,0xFF9BADBF,1.5f);
-            var r=result;
-            if(r==null){c.text("Reading folder...",260,124,0xFFB8CBDE,1.5f);return;}
-            for(int i=0;i<14&&sideFirst+i<r.locations().size();i++) {
-                var loc=r.locations().get(sideFirst+i);int y=112+i*34;
-                if(loc.path().equals(directory)||hovered(12,y,216,32))c.rect(12,y,216,32,.3f,loc.path().equals(directory)?0xFF395269:0xFF2B4052);
-                folder(c,16,y+8,22);c.text(fit(loc.name(),172,1.5f),46,y+9,-1,1.5f);
-            }
-            var date=java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
-            for(int i=0;i<16&&first+i<r.entries().size();i++) {
-                int index=first+i,y=112+i*34;var entry=r.entries().get(index);
-                if(index==selected||index==hoverRow)c.rect(242,y,1018,32,.3f,index==selected?0xFF39566F:0xFF283B4D);
-                if(entry.directory())folder(c,252,y+7,22);else PixelIcon.FILE_TEXT.draw(c,252,y+5,24,.45f,0xFFB6C9DC);
-                c.text(fit(entry.name(),480,1.5f),284,y+9,-1,1.5f);
-                c.text(entry.modified()==0?"-":date.format(java.time.Instant.ofEpochMilli(entry.modified())),780,y+10,0xFFB8CBDE,1.25f);
-                c.text(entry.directory()?"Folder":entry.link()?"Link":"File",1020,y+10,0xFFB8CBDE,1.25f);
-                c.text(entry.directory()?"-":size(entry.size()),1150,y+10,0xFFB8CBDE,1.25f);
-            }
-            if(!r.error().isEmpty())c.text(r.error(),260,124,0xFFFFA5A5,1.5f);
-            else if(r.entries().isEmpty())c.text("This folder is empty.",260,124,0xFFB8CBDE,1.5f);
-            if(r.entries().size()>16){float h=Math.max(16,544f*16/r.entries().size());c.rect(1266,112,5,544,.3f,0xFF283B4D);c.rect(1266,112+(544-h)*first/(r.entries().size()-16f),5,h,.4f,0xFF8AA6BD);}
-            c.text(r.entries().size()+" items"+(r.truncated()?" (first 10,000 shown)":"")+" | Scroll to browse",16,689,0xFF9BADBF,1.25f);
-            c.text(fit(notice,790,1.25f),470,689,0xFFB8CBDE,1.25f);
+            drawSurface(surface.canvas());
         }
+    }
+    @Override void drawSurface(PanelCanvas c) {
+        c.rect(-3,-3,1286,726,0,0xFF536579);
+        c.rect(0,0,1280,720,.1f,0xFF17212D);c.rect(0,76,232,602,.2f,0xFF202C3B);
+        PixelIcon[] buttons={PixelIcon.ARROW_LEFT,PixelIcon.ARROW_RIGHT,PixelIcon.ARROW_UP,PixelIcon.REFRESH};int[] xs={12,70,128,186};
+        boolean[] enabled={historyIndex>0,historyIndex+1<history.size(),directory!=null&&directory.getParent()!=null,directory!=null};
+        for(int i=0;i<4;i++){int width=i==3?60:50;colorButton(c,buttons[i],xs[i],14,width,44,enabled[i]);}
+        c.rect(260,14,996,44,.3f,editing?0xFF39566F:hoverColor(260,14,996,44,0xFF101B28,0xFF1D3042));
+        String shown=editing?address+(selectAll?"":"|"):directory==null?"Home":directory.toString();
+        c.text(fit(shown,972,1.5f),272,29,selectAll&&editing?0xFF72ECF1:-1,1.5f);
+        c.text("Quick locations",16,86,0xFF9BADBF,1.5f);
+        c.text("Name",280,86,0xFF9BADBF,1.5f);c.text("Modified",780,86,0xFF9BADBF,1.5f);c.text("Type",1020,86,0xFF9BADBF,1.5f);c.text("Size",1150,86,0xFF9BADBF,1.5f);
+        var r=result;
+        if(r==null){c.text("Reading folder...",260,124,0xFFB8CBDE,1.5f);return;}
+        for(int i=0;i<14&&sideFirst+i<r.locations().size();i++) {
+            var loc=r.locations().get(sideFirst+i);int y=112+i*34;
+            if(loc.path().equals(directory)||hovered(12,y,216,32))c.rect(12,y,216,32,.3f,loc.path().equals(directory)?0xFF395269:0xFF2B4052);
+            folder(c,16,y+8,22);c.text(fit(loc.name(),172,1.5f),46,y+9,-1,1.5f);
+        }
+        var date=java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
+        for(int i=0;i<16&&first+i<r.entries().size();i++) {
+            int index=first+i,y=112+i*34;var entry=r.entries().get(index);
+            if(index==selected||index==hoverRow)c.rect(242,y,1018,32,.3f,index==selected?0xFF39566F:0xFF283B4D);
+            if(entry.directory())folder(c,252,y+7,22);else PixelIcon.FILE_TEXT.draw(c,252,y+5,24,.45f,0xFFB6C9DC);
+            c.text(fit(entry.name(),480,1.5f),284,y+9,-1,1.5f);
+            c.text(entry.modified()==0?"-":date.format(java.time.Instant.ofEpochMilli(entry.modified())),780,y+10,0xFFB8CBDE,1.25f);
+            c.text(entry.directory()?"Folder":entry.link()?"Link":"File",1020,y+10,0xFFB8CBDE,1.25f);
+            c.text(entry.directory()?"-":size(entry.size()),1150,y+10,0xFFB8CBDE,1.25f);
+        }
+        if(!r.error().isEmpty())c.text(r.error(),260,124,0xFFFFA5A5,1.5f);
+        else if(r.entries().isEmpty())c.text("This folder is empty.",260,124,0xFFB8CBDE,1.5f);
+        if(r.entries().size()>16){float h=Math.max(16,544f*16/r.entries().size());c.rect(1266,112,5,544,.3f,0xFF283B4D);c.rect(1266,112+(544-h)*first/(r.entries().size()-16f),5,h,.4f,0xFF8AA6BD);}
+        c.text(r.entries().size()+" items"+(r.truncated()?" (first 10,000 shown)":"")+" | Scroll to browse",16,689,0xFF9BADBF,1.25f);
+        c.text(fit(notice,790,1.25f),470,689,0xFFB8CBDE,1.25f);
     }
     private void colorButton(PanelCanvas c,PixelIcon icon,int x,int y,int width,int height,boolean enabled){
         int color=enabled?hoverColor(x,y,width,height,0xFF304457,0xFF426079):0xFF263542;

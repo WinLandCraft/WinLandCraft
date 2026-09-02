@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
 import java.util.IdentityHashMap;
 import java.util.concurrent.ArrayBlockingQueue;
 
-/** Renders just the browser surface into a small FBO; never captures the desktop or game screen. */
+/** Renders just the app surface into a small FBO; never captures the desktop or game screen. */
 final class StreamCapture implements AutoCloseable {
     /** A pooled top-down RGBA frame. Ownership passes to the codec bridge. */
     static final class Pixels implements AutoCloseable {
@@ -39,10 +39,10 @@ final class StreamCapture implements AutoCloseable {
     private final ArrayBlockingQueue<byte[]> freeFrames=new ArrayBlockingQueue<>(4);
     private long captures,nextDiagnostic;
     private boolean inspectedFailure,loggedOpenGl;
-    Pixels capture(BrowserPanel panel) {
+    Pixels capture(WorldPanel panel) {
         return capture(panel,StreamQuality.current());
     }
-    Pixels capture(BrowserPanel panel,StreamQuality quality) {
+    Pixels capture(WorldPanel panel,StreamQuality quality) {
         RenderSystem.assertOnRenderThread();
         int logicalWidth=panel.pixelWidth(),logicalHeight=panel.pixelHeight()+panel.titlebarHeight();
         int maxHeight=quality.height(),maxWidth=maxHeight*16/9;

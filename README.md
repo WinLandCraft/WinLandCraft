@@ -1,6 +1,6 @@
 # WinLandCraft
 
-Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-anchored taskbar, Apps launcher, a Browser with vertical tabs, user-defined 1280x720 webapp panels sharing MCEF, and an experimental player-hosted browser stream relay.
+Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-anchored taskbar, Apps launcher, a Browser with vertical tabs, user-defined 1280x720 webapp panels sharing MCEF, and an experimental player-hosted app stream relay.
 
 ## Setup and build
 
@@ -22,11 +22,13 @@ Complete panels are composed off-screen, mipmapped, and submitted through Fabric
 
 Browser, webapp, and remote-stream panels can project their changing colors onto nearby geometry through an experimental Iris/Solas shader bridge. **Options > WinLandCraft...** controls its power and range and can create a non-destructive `+ WinLandCraft` copy of an installed Solas ZIP. Vanilla Minecraft keeps the panels emissive but cannot provide true dynamic RGB world lighting. The bounded asynchronous sampling path, shader-pack workflow, performance limits, and smoke test are documented in [docs/screen-lighting.md](docs/screen-lighting.md).
 
-## Browser(streamable): video and audio
+## Stream any app: video and audio
 
-Open **Apps > Browser(streamable)** (purple compass). The creator runs the website locally and broadcasts its complete browser surface, including sidebar, tabs, and stream quality controls; floating placement controls stay local to the owner. Other modded players in the same dimension see a video panel in the same world position. It is read-only by default; the creator can check **Allow remote control** to let those players point, click, scroll, and type in the shared browser. Only the creator can move, resize, scale, curve, close, or change stream settings. Shared/private grouping remains disabled.
+Right-click an app in **Apps**, then choose **Stream**. This opens it if necessary and shares its content: Browser, custom webapps, Notepad, File Manager, Task Manager, and Laser Calibration all use the same capture path. **Browser(streamable)** remains a purple-compass shortcut. The relay allows one outgoing app per player; starting another switches the source. Starting a grouped app detaches that app; shared/private grouping stays disabled while streaming, but individual curvature remains available.
 
-The sidebar's **Stream quality** section sits above the tabs. Use its minus/plus buttons to change:
+Hover the app's floating pill to reveal **Stream quality** and **Stop streaming**. These controls stay local to the owner and are not included in the video. Stopping a stream leaves the app open. Other modded players in the same dimension see its content at the same world position. Only the creator can move, resize, scale, curve, close, or change stream settings. Native apps are view-only; browsers retain the opt-in **Allow remote control** toggle.
+
+Use the pill's minus/plus buttons to change:
 
 - Target FPS: 15, 24, 30 (default), or 60.
 - Video bitrate: 500, 1,000, 2,000 (default), 4,000, 6,000, or 8,000 kbps.
@@ -35,7 +37,7 @@ The sidebar's **Stream quality** section sits above the tabs. Use its minus/plus
 - Opus audio bitrate: 64, 96 (default), 128, or 192 kbps.
 - Allow remote control: OFF by default. When checked, other players in the same dimension can operate the shared browser until it is unchecked or the stream ends.
 
-Settings apply live and persist in `config/winlandcraft.json`. Remote input is relayed only while the checkbox is enabled, is bound to the active stream and dimension, and cannot reposition or close the replica. Controller identity, packet bounds, and rate are validated by the server; held keys/buttons are released on timeout, disconnect, or permission changes. System-modifier shortcuts are not forwarded, so a remote player cannot invoke the creator's clipboard shortcuts. Video selection tries hardware-preferred Annex-B H.264 first, hardware-preferred VP9 second, and software VP9 as the compatibility fallback; the receiver independently prefers hardware decoding for the selected codec. One-second keyframes support late joins and recovery. Audio is stereo 48 kHz Opus. The selected streamable-browser tab supplies audio through CEF's browser-scoped audio handler. Desktop audio, microphone input, private browsers, and inactive tabs are not broadcast. Because CEF capture replaces native audio output, a bounded Java Sound playback queue keeps the creator's selected tab audible even when broadcast audio is off.
+Settings apply live and persist in `config/winlandcraft.json`. Remote input is relayed only while the checkbox is enabled, is bound to the active stream and dimension, and cannot reposition or close the replica. Controller identity, packet bounds, and rate are validated by the server; held keys/buttons are released on timeout, disconnect, or permission changes. System-modifier shortcuts are not forwarded, so a remote player cannot invoke the creator's clipboard shortcuts. Video selection tries hardware-preferred Annex-B H.264 first, hardware-preferred VP9 second, and software VP9 as the compatibility fallback; the receiver independently prefers hardware decoding for the selected codec. One-second keyframes support late joins and recovery. Audio is stereo 48 kHz Opus. The selected tab of the currently shared browser supplies audio through CEF's browser-scoped audio handler. Desktop audio, microphone input, private browsers, and inactive tabs are not broadcast. Because CEF capture replaces native audio output, each browser tab has a bounded Java Sound playback queue for local playback, including private and background tabs. Only the active tab of the published app feeds the encoder; native apps have no audio source.
 
 Encoding and playback use [Chromium's WebCodecs APIs](https://www.w3.org/TR/webcodecs/) through small internal MCEF views. A private loopback HTTP bridge transfers binary buffers between Java and these trusted codec pages; it binds only to 127.0.0.1, uses unguessable endpoint tokens, rejects foreign origins/hosts, and exposes no filesystem access. It is not an externally hosted service. Receiving players decode the stream in a local canvas/Web Audio view; they never load the source website. No FFmpeg installation, codec download, microphone permission, or new externally reachable port is needed. Unsupported codec or device errors appear in the app/log instead of falling back silently to JPEG.
 

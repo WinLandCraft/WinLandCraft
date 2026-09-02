@@ -128,32 +128,34 @@ public final class NotepadPanel extends WorldPanel {
     @Override public void render(WorldRenderContext context) {
         try(var surface=surface(context)) {
             if(surface==null||!surface.frontFacing())return;
-            var c=surface.canvas();
-            c.rect(-3,-3,1286,726,0,0xFF536579);
-            c.rect(0,0,1280,720,.1f,0xFF242424);c.rect(0,0,1280,40,.2f,0xFF13212C);
-            for(int i=0;i<6&&firstTab+i<tabs.size();i++){var tab=tabs.get(firstTab+i);int x=12+i*190;colorTab(c,tab,x);}
-            c.rect(1180,4,88,36,.3f,hoverColor(1180,4,88,36,0xFF1C2B36,0xFF30475A));PixelIcon.PLUS.draw(c,1212,10,24,.45f,-1);
-            boolean controls=savePath==null&&pendingClose==null;
-            toolbar(c,PixelIcon.PLUS,"New",0,90,controls);toolbar(c,PixelIcon.SAVE,"Save",90,90,controls&&!active.busy);
-            toolbar(c,PixelIcon.COPY,"Save As",180,110,controls&&!active.busy);toolbar(c,PixelIcon.UNDO,"Undo",290,100,controls&&!active.busy);toolbar(c,PixelIcon.REDO,"Redo",390,100,controls&&!active.busy);
-            c.rect(490,40,790,44,.2f,0xFF1C2B36);
-            var lines=lines();int offset=0;
-            for(int row=0;savePath==null&&pendingClose==null&&row<Math.min(lines.length,active.scroll+24);row++) {
-                String line=lines[row];if(row>=active.scroll){int y=104+(row-active.scroll)*22;int start=Math.min(active.columnScroll,line.length());String visible=fit(display(line.substring(start)),1170,1.5f);
-                    c.text(Integer.toString(row+1),10,y,0xFF788C9D,1.25f);
-                    int lo=Math.clamp(active.low()-offset,start,line.length()),hi=Math.clamp(active.high()-offset,start,line.length());
-                    if(hi>lo){float left=Math.min(1170,Minecraft.getInstance().font.width(display(line.substring(start,lo)))*1.5f),right=Math.min(1170,Minecraft.getInstance().font.width(display(line.substring(start,hi)))*1.5f);c.rect(72+left,y-2,right-left,20,.3f,0xFF365F79);}
-                    c.text(visible,72,y,0xFFE6E6E6,1.5f);
-                    if(editing&&active.caret>=offset&&active.caret<=offset+line.length()&&(System.currentTimeMillis()/500)%2==0){int col=active.caret-offset;if(col>=start){float dx=Minecraft.getInstance().font.width(display(line.substring(start,col)))*1.5f;if(dx<1170)c.rect(72+dx,y-2,1.5f,19,.5f,0xFFF1F1F1);}}
-                }offset+=line.length()+1;
-            }
-            c.text(fit(active.busy?"Working...":message,1235,1.25f),16,652,error?0xFFFFA5A5:0xFF91AABD,1.25f);
-            c.rect(0,680,1280,40,.2f,0xFF1C2B36);c.text("Ln "+(caretLine()+1)+", Col "+(active.caret-active.lineStart()+1)+"  |  "+active.text.length()+" characters",16,694,0xFFB8CBDE,1.25f);
-            c.text("Plain text | "+active.charset.name()+" | "+(active.newline.equals("\r\n")?"CRLF":active.newline.equals("\r")?"CR":"LF")+" | Shift+scroll: horizontal",700,694,0xFFB8CBDE,1.1f);
-            if(savePath!=null||pendingClose!=null){c.rect(160,214,1000,180,.4f,0xFF12232F);
-                if(savePath!=null){c.text("Save As - enter a new file path",184,238,-1,1.5f);c.rect(184,270,952,44,.5f,0xFF334958);c.text(fit(savePath,930,1.5f),196,284,pathSelected?0xFF72ECF1:-1,1.5f);button(c,PixelIcon.SAVE,"Save",900,330,120);button(c,PixelIcon.CLOSE,"Cancel",1040,330,120);}
-                else {c.text("This tab has unsaved changes.",184,258,-1,1.5f);button(c,PixelIcon.SAVE,"Save",600,330,140);button(c,PixelIcon.TRASH,"Discard",760,330,140);button(c,PixelIcon.CLOSE,"Cancel",920,330,140);}
-            }
+            drawSurface(surface.canvas());
+        }
+    }
+    @Override void drawSurface(PanelCanvas c) {
+        c.rect(-3,-3,1286,726,0,0xFF536579);
+        c.rect(0,0,1280,720,.1f,0xFF242424);c.rect(0,0,1280,40,.2f,0xFF13212C);
+        for(int i=0;i<6&&firstTab+i<tabs.size();i++){var tab=tabs.get(firstTab+i);int x=12+i*190;colorTab(c,tab,x);}
+        c.rect(1180,4,88,36,.3f,hoverColor(1180,4,88,36,0xFF1C2B36,0xFF30475A));PixelIcon.PLUS.draw(c,1212,10,24,.45f,-1);
+        boolean controls=savePath==null&&pendingClose==null;
+        toolbar(c,PixelIcon.PLUS,"New",0,90,controls);toolbar(c,PixelIcon.SAVE,"Save",90,90,controls&&!active.busy);
+        toolbar(c,PixelIcon.COPY,"Save As",180,110,controls&&!active.busy);toolbar(c,PixelIcon.UNDO,"Undo",290,100,controls&&!active.busy);toolbar(c,PixelIcon.REDO,"Redo",390,100,controls&&!active.busy);
+        c.rect(490,40,790,44,.2f,0xFF1C2B36);
+        var lines=lines();int offset=0;
+        for(int row=0;savePath==null&&pendingClose==null&&row<Math.min(lines.length,active.scroll+24);row++) {
+            String line=lines[row];if(row>=active.scroll){int y=104+(row-active.scroll)*22;int start=Math.min(active.columnScroll,line.length());String visible=fit(display(line.substring(start)),1170,1.5f);
+                c.text(Integer.toString(row+1),10,y,0xFF788C9D,1.25f);
+                int lo=Math.clamp(active.low()-offset,start,line.length()),hi=Math.clamp(active.high()-offset,start,line.length());
+                if(hi>lo){float left=Math.min(1170,Minecraft.getInstance().font.width(display(line.substring(start,lo)))*1.5f),right=Math.min(1170,Minecraft.getInstance().font.width(display(line.substring(start,hi)))*1.5f);c.rect(72+left,y-2,right-left,20,.3f,0xFF365F79);}
+                c.text(visible,72,y,0xFFE6E6E6,1.5f);
+                if(editing&&active.caret>=offset&&active.caret<=offset+line.length()&&(System.currentTimeMillis()/500)%2==0){int col=active.caret-offset;if(col>=start){float dx=Minecraft.getInstance().font.width(display(line.substring(start,col)))*1.5f;if(dx<1170)c.rect(72+dx,y-2,1.5f,19,.5f,0xFFF1F1F1);}}
+            }offset+=line.length()+1;
+        }
+        c.text(fit(active.busy?"Working...":message,1235,1.25f),16,652,error?0xFFFFA5A5:0xFF91AABD,1.25f);
+        c.rect(0,680,1280,40,.2f,0xFF1C2B36);c.text("Ln "+(caretLine()+1)+", Col "+(active.caret-active.lineStart()+1)+"  |  "+active.text.length()+" characters",16,694,0xFFB8CBDE,1.25f);
+        c.text("Plain text | "+active.charset.name()+" | "+(active.newline.equals("\r\n")?"CRLF":active.newline.equals("\r")?"CR":"LF")+" | Shift+scroll: horizontal",700,694,0xFFB8CBDE,1.1f);
+        if(savePath!=null||pendingClose!=null){c.rect(160,214,1000,180,.4f,0xFF12232F);
+            if(savePath!=null){c.text("Save As - enter a new file path",184,238,-1,1.5f);c.rect(184,270,952,44,.5f,0xFF334958);c.text(fit(savePath,930,1.5f),196,284,pathSelected?0xFF72ECF1:-1,1.5f);button(c,PixelIcon.SAVE,"Save",900,330,120);button(c,PixelIcon.CLOSE,"Cancel",1040,330,120);}
+            else {c.text("This tab has unsaved changes.",184,258,-1,1.5f);button(c,PixelIcon.SAVE,"Save",600,330,140);button(c,PixelIcon.TRASH,"Discard",760,330,140);button(c,PixelIcon.CLOSE,"Cancel",920,330,140);}
         }
     }
     private void colorTab(PanelCanvas c,NoteDocument tab,int x){

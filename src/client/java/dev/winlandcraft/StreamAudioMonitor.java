@@ -4,7 +4,7 @@ import javax.sound.sampled.*;
 import java.nio.*;
 import java.util.concurrent.ArrayBlockingQueue;
 
-/** CEF capture replaces native playback, so keep the creator's selected tab audible locally. */
+/** CEF capture replaces native playback, so keep the each captured browser tab audible locally. */
 final class StreamAudioMonitor implements AutoCloseable {
     private final ArrayBlockingQueue<StreamAudio.Packet> queue=new ArrayBlockingQueue<>(8);
     private volatile boolean closed;

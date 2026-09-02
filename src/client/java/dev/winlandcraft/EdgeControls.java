@@ -76,9 +76,9 @@ final class EdgeControls extends WorldPanel {
     void nearTouch(long now){touch(now);if(expanded&&now>hoverUntil){expanded=false;sync();}}
     boolean expanded(){return expanded;}
     int headerX(){return expanded&&edge!=RIGHT?120:0;}
-    int headerY(){return expanded&&edge==TOP?72:0;}
+    int headerY(){return expanded&&edge==TOP?72+streamHeight():0;}
     @Override public int pixelWidth(){return expanded?360:240;}
-    @Override public int pixelHeight(){return expanded?112:40;}
+    @Override public int pixelHeight(){return expanded?112+streamHeight():40;}
     @Override public boolean canResize(){return false;}
     @Override public boolean canGroup(){return false;}
     @Override public WorldPanel dragTarget(){return owner;}
@@ -111,10 +111,51 @@ final class EdgeControls extends WorldPanel {
         if(y>=hy&&y<hy+40&&x<hx+240)return x>=hx+200?2:1;
         if(expanded&&owner.grouped()&&x>=12&&x<112&&y>=ungroupY()&&y<ungroupY()+28)return 3;
         if(expanded&&GroupCurve.eligible(owner)&&y>=sliderY()-14&&y<sliderY()+18)return 4;
+        if(expanded&&owner.streaming()&&y>=streamY()&&y<streamY()+streamHeight())return 5;
         return 0;
     }
-    private int sliderY(){return edge==TOP?48:84;}
-    private int ungroupY(){return edge==TOP?4:42;}
+    private int sliderY(){return edge==TOP?48+streamHeight():84;}
+    private int ungroupY(){return edge==TOP?4+streamHeight():42;}
+    private int streamHeight(){return owner.streaming()?216:0;}
+    int streamY(){return edge==TOP?0:112;}
+    void streamClick(int x,int y) {
+        if(!expanded||!owner.streaming())return;
+        int local=y-streamY();
+        if(local>=184&&local<212&&x>=12&&x<348){owner.streamClient.stop(owner);sync();return;}
+        if(local>=144&&local<168&&owner instanceof BrowserPanel browser&&x>=292&&x<348) {
+            ModSettings.streamRemoteControl=!ModSettings.streamRemoteControl;
+            if(!ModSettings.streamRemoteControl)browser.clearRemoteControls();
+        } else {
+            if(local<24||local>=144||x<292||x>=348||(local-24)%24>=22)return;
+            int row=(local-24)/24,step=x<320?-1:1;
+            switch(row) {
+                case 0->ModSettings.streamFps=StreamQuality.step(ModSettings.streamFps,StreamQuality.FPS,step);
+                case 1->ModSettings.streamKbps=StreamQuality.step(ModSettings.streamKbps,StreamQuality.BITRATES,step);
+                case 2->ModSettings.streamHeight=StreamQuality.step(ModSettings.streamHeight,StreamQuality.HEIGHTS,step);
+                case 3->ModSettings.streamAudio=!ModSettings.streamAudio;
+                case 4->ModSettings.streamAudioKbps=StreamQuality.step(ModSettings.streamAudioKbps,StreamQuality.AUDIO,step);
+            }
+        }
+        if(!ModSettings.save())owner.streamStatus="Could not save quality settings";
+    }
+    private void drawStream(PanelCanvas c) {
+        int top=streamY();
+        c.text("Stream quality",12,top+6,0xFFD4ACFF,1.5f);
+        String[] labels={"FPS: "+ModSettings.streamFps,"Video: "+ModSettings.streamKbps+" kbps","Size: "+ModSettings.streamHeight+"p","Audio: "+(ModSettings.streamAudio?"ON":"OFF"),"Audio: "+ModSettings.streamAudioKbps+" kbps"};
+        for(int i=0;i<labels.length;i++) {
+            int y=top+24+i*24;c.rect(12,y,336,22,.3f,0xFF30263F);c.text(labels[i],18,y+7,-1,1.2f);
+            for(int j=0;j<2;j++){int x=292+j*28;c.rect(x,y,28,22,.4f,hoverColor(x,y,28,22,0xFF624389,0xFF8059AE));(j==0?PixelIcon.MINUS:PixelIcon.PLUS).draw(c,x+6,y+3,16,.5f,-1);}
+        }
+        int y=top+144;
+        if(owner instanceof BrowserPanel) {
+            c.text("Allow remote control",18,y+7,-1,1.2f);
+            c.rect(292,y,56,22,.4f,hoverColor(292,y,56,22,0xFF624389,0xFF8059AE));
+            c.text(ModSettings.streamRemoteControl?"ON":"OFF",306,y+7,-1);
+        }else c.text("View only | This app has no audio",18,y+7,0xFF9BAABD);
+        c.text(Minecraft.getInstance().font.plainSubstrByWidth(owner.streamStatus,326),18,top+172,0xFFD4ACFF);
+        c.rect(12,top+184,336,28,.4f,hoverColor(12,top+184,336,28,0xFF854551,0xFFB65B69));
+        c.text("Stop streaming",18,top+194,-1,1.2f);
+    }
     float curveValue(int x){return Math.clamp((x-92)/214f,0,1);}
     @Override public void render(WorldRenderContext context) {
         // Minecraft's font treats near-zero alpha as unspecified/opaque.
@@ -132,6 +173,7 @@ final class EdgeControls extends WorldPanel {
             c.rect(hx+200,hy,40,40,.4f,hoverColor(hx+200,hy,40,40,0xFF854551,0xFFB65B69));
             PixelIcon.CLOSE.draw(c,hx+208,hy+8,24,.5f,-1);
             if(expanded) {
+                if(owner.streaming())drawStream(c);
                 if(owner.grouped()) {
                     int y=ungroupY();c.rect(12,y,100,28,.4f,hoverColor(12,y,100,28,0xFF386776,0xFF4C8493));
                     PixelIcon.UNLINK.draw(c,16,y+2,24,.5f,-1);c.text("Ungroup",44,y+10,-1);

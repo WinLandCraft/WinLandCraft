@@ -11,6 +11,31 @@ import java.util.*;
 
 /** Native sidebar and independent CEF tabs, all in one shared MCEF runtime. */
 public class BrowserPanel extends WorldPanel {
+    volatile MCEFBrowser audioTab;
+    private final Set<UUID> remoteControllers=new HashSet<>();
+    void remoteControl(StreamProtocol.Control input) {
+        var controller=input.controller();
+        if(input.event()==StreamProtocol.Control.CANCEL){
+            releaseInputSource(controller);
+            remoteControllers.remove(controller);
+            return;
+        }
+        if(!ModSettings.streamRemoteControl)return;
+        if(input.event()==StreamProtocol.Control.MOUSE_DOWN||input.event()==StreamProtocol.Control.KEY)remoteControllers.add(controller);
+        switch(input.event()) {
+            case StreamProtocol.Control.MOVE -> hover(controller,input.x(),input.y());
+            case StreamProtocol.Control.MOUSE_DOWN -> mouseDown(controller,input.x(),input.y(),input.value());
+            case StreamProtocol.Control.MOUSE_UP -> mouseUp(controller,input.x(),input.y(),input.value());
+            case StreamProtocol.Control.SCROLL -> scroll(input.x(),input.y(),input.amount());
+            case StreamProtocol.Control.KEY -> key(controller,input.value(),input.scan(),input.action(),input.modifiers());
+            case StreamProtocol.Control.CHARACTER -> character((char)input.value(),input.modifiers());
+        }
+    }
+    void clearRemoteControls(){
+        if(remoteControllers.isEmpty())return;
+        for(var controller:java.util.Set.copyOf(remoteControllers))releaseInputSource(controller);
+        remoteControllers.clear();
+    }
     private static final int ROW = 44;
     private final int SIDE;
     private final String homeUrl;
@@ -37,9 +62,9 @@ public class BrowserPanel extends WorldPanel {
     protected int listTop(){return 176;}
     protected void drawSidebarExtras(PanelCanvas canvas){}
     protected boolean sidebarExtraClick(int x,int y,int button){return false;}
-    protected void browserCreated(MCEFBrowser browser){}
-    protected void browserClosed(MCEFBrowser browser){}
-    protected void tabSelected(MCEFBrowser browser){}
+    protected void browserCreated(MCEFBrowser browser){StreamAudio.attach(browser,this);}
+    protected void browserClosed(MCEFBrowser browser){StreamAudio.detach(browser);if(audioTab==browser)audioTab=null;}
+    protected void tabSelected(MCEFBrowser browser){audioTab=browser;}
     @Override public boolean floatingControls(){return true;}
     @Override protected boolean projectsLight(){return true;}
     public String windowTitle() {
@@ -152,7 +177,7 @@ public class BrowserPanel extends WorldPanel {
             com.mojang.blaze3d.systems.RenderSystem.recordRenderCall(this::close);
             return;
         }
-        super.close(); releaseInputs();
+        clearRemoteControls();super.close(); releaseInputs();
 
         for (Tab tab : tabs) tab.close();
         tabs.clear(); active = null; menu = null; editing = false; firstTab = 0; failed = false;

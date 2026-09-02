@@ -9,7 +9,7 @@ import org.joml.Quaternionf;
 public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
-        packets();media();bridgeOrigins();placement();
+        packets();media();bridgeOrigins();placement();MediaBridgeChecks.run();
         System.out.println("Streaming: bounded media/control codecs, viewer demand, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, immutable replicas, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {
@@ -108,8 +108,23 @@ public final class StreamChecks {
         check(!MediaBridge.acceptsOrigin(origin,"https://example.com","POST","status"),"foreign origin rejected");
     }
     private static void placement() {
+        boolean remoteControl=ModSettings.streamRemoteControl;
+        ModSettings.streamRemoteControl=true;
+        try {
+            for(WorldPanel nativePanel:new WorldPanel[]{new FileManagerPanel(),new NotepadPanel(),new TaskManagerPanel(null),new LaserCalibrationPanel()}) {
+                nativePanel.position=new Vec3(0,80,0);nativePanel.orientation=new Quaternionf();
+                nativePanel.broadcastSession=SESSION;
+                var state=StreamClient.snapshot(nativePanel,OWNER,SESSION);
+                check(state.valid()&&!state.remoteControl(),"native streams remain view-only even with browser remote control enabled");
+                check(!nativePanel.canGroup(),"published native apps cannot join private groups");
+                check(state.pixelsWide()==nativePanel.pixelWidth()&&state.pixelsHigh()==nativePanel.pixelHeight(),"native capture keeps app resolution");
+                nativePanel.broadcastSession=null;
+                check(nativePanel.canGroup(),"stopping publication restores grouping");
+            }
+        } finally {ModSettings.streamRemoteControl=remoteControl;}
+
         for(float curvature:new float[]{0,.6f,1}) {
-            var host=new StreamBrowserPanel();host.position=new Vec3(20000000,80,20000000);host.orientation=new Quaternionf().rotateXYZ(.2f,.7f,.1f);
+            var host=new StreamBrowserPanel();host.broadcastSession=SESSION;host.position=new Vec3(20000000,80,20000000);host.orientation=new Quaternionf().rotateXYZ(.2f,.7f,.1f);
             host.scaleTo(4,2.25f);GroupCurve.get(host).apply(curvature);
             var s=StreamClient.snapshot(host,OWNER,SESSION);var viewer=new RemoteStreamPanel(s);viewer.place(s);
             check(!viewer.canInteract()&&!viewer.canResize()&&!viewer.canMove()&&!viewer.canGroup(),"read-only viewer cannot manipulate stream");

@@ -6,6 +6,8 @@ import java.util.LinkedHashMap;
 import net.minecraft.client.Minecraft;
 
 public final class AppWindows {
+    StreamClient streams;
+    void stream(AppEntry entry){if(streams!=null&&streams.start(entry.panel()))launcher.close();}
     public final BrowserPanel browser = new BrowserPanel();
     final StreamBrowserPanel streamBrowser = new StreamBrowserPanel();
     public final AppsPanel launcher = new AppsPanel(this);

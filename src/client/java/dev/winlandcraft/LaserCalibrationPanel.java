@@ -77,22 +77,24 @@ public final class LaserCalibrationPanel extends WorldPanel {
     @Override public void render(WorldRenderContext context) {
         try(var surface=surface(context)) {
             if(surface==null||!surface.frontFacing())return;
-            var canvas=surface.canvas();
-            canvas.rect(-3,-3,786,466,0,0xFF536579);
-            canvas.rect(0,0,780,460,.1f,0xFF18212D);
-            canvas.text("Tune the remote while holding it",24,18,-1,1.8f);
-            canvas.text(instruction(),24,48,0xFFAAC2D3,1.12f);
-            tab(canvas,LaserTuning.Section.POSE,"Pose",24);tab(canvas,LaserTuning.Section.BEAM,"Beam",156);
-            tab(canvas,LaserTuning.Section.MOTION,"Motion",288);
-            var parameters=parameters();
-            for(int row=0;row<parameters.length;row++)renderRow(canvas,parameters[row],row);
-            if(section==LaserTuning.Section.MOTION) {
-                button(canvas,PixelIcon.REFRESH,"Preview spin",24,300,154);
-                button(canvas,PixelIcon.ARROW_UP,"Preview power",194,300,184);
-            }
-            button(canvas,PixelIcon.UNDO,"Reset",24,410,122);button(canvas,PixelIcon.COPY,"Copy all",160,410,190);
-            canvas.text(status,374,423,status.startsWith("Could not")?0xFFFFA5A5:0xFF9EB6C7,1.05f);
+            drawSurface(surface.canvas());
         }
+    }
+    @Override void drawSurface(PanelCanvas canvas) {
+        canvas.rect(-3,-3,786,466,0,0xFF536579);
+        canvas.rect(0,0,780,460,.1f,0xFF18212D);
+        canvas.text("Tune the remote while holding it",24,18,-1,1.8f);
+        canvas.text(instruction(),24,48,0xFFAAC2D3,1.12f);
+        tab(canvas,LaserTuning.Section.POSE,"Pose",24);tab(canvas,LaserTuning.Section.BEAM,"Beam",156);
+        tab(canvas,LaserTuning.Section.MOTION,"Motion",288);
+        var parameters=parameters();
+        for(int row=0;row<parameters.length;row++)renderRow(canvas,parameters[row],row);
+        if(section==LaserTuning.Section.MOTION) {
+            button(canvas,PixelIcon.REFRESH,"Preview spin",24,300,154);
+            button(canvas,PixelIcon.ARROW_UP,"Preview power",194,300,184);
+        }
+        button(canvas,PixelIcon.UNDO,"Reset",24,410,122);button(canvas,PixelIcon.COPY,"Copy all",160,410,190);
+        canvas.text(status,374,423,status.startsWith("Could not")?0xFFFFA5A5:0xFF9EB6C7,1.05f);
     }
 
     private String instruction() {
