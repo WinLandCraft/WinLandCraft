@@ -106,17 +106,19 @@ final class EdgeControls extends WorldPanel {
         position=anchor.add(offset.x,offset.y,offset.z);level=owner.level;
         scaleTo(pixelWidth()*unit,pixelHeight()*unit);
     }
-    /** 1 drag, 2 close, 3 ungroup, 4 curve, 5 stream, 6 group. */
+    /** 1 drag, 2 close, 3 ungroup, 4 curve, 5 stream, 6 group, 7 start stream. */
     int action(int x,int y) {
         if(x<0||y<0||x>=pixelWidth()||y>=pixelHeight())return 0;
         int hx=headerX(),hy=headerY();
         if(y>=hy&&y<hy+40&&x<hx+240)return x>=hx+200?2:1;
+        if(expanded&&canStartStream()&&x>=244&&x<348&&y>=ungroupY()&&y<ungroupY()+28)return 7;
         if(expanded&&groupCandidate!=null&&x>=124&&x<232&&y>=ungroupY()&&y<ungroupY()+28)return 6;
         if(expanded&&owner.grouped()&&x>=12&&x<112&&y>=ungroupY()&&y<ungroupY()+28)return 3;
         if(expanded&&GroupCurve.eligible(owner)&&y>=sliderY()-14&&y<sliderY()+18)return 4;
         if(expanded&&owner.streaming()&&y>=streamY()&&y<streamY()+streamHeight())return 5;
         return 0;
     }
+    private boolean canStartStream(){return !owner.streaming()&&owner.isOpen()&&owner.canMove()&&owner.canInteract();}
     void updateGroup(java.util.List<WorldPanel> windows) {
         WindowGroups.Suggestion next=null;
         if(owner.isOpen()&&owner.canGroup()) {
@@ -192,7 +194,7 @@ final class EdgeControls extends WorldPanel {
             c.text("Allow remote control",18,y+7,-1,1.2f);
             c.rect(292,y,56,22,.4f,hoverColor(292,y,56,22,0xFF624389,0xFF8059AE));
             c.text(ModSettings.streamRemoteControl?"ON":"OFF",306,y+7,-1);
-        }else c.text("View only | This app has no audio",18,y+7,0xFF9BAABD);
+        }else c.text("View only",18,y+7,0xFF9BAABD);
         c.text(Minecraft.getInstance().font.plainSubstrByWidth(owner.streamStatus,326),18,top+172,0xFFD4ACFF);
         c.rect(12,top+184,336,28,.4f,hoverColor(12,top+184,336,28,0xFF854551,0xFFB65B69));
         c.text("Stop streaming",18,top+194,-1,1.2f);
@@ -215,6 +217,10 @@ final class EdgeControls extends WorldPanel {
             PixelIcon.CLOSE.draw(c,hx+208,hy+8,24,.5f,-1);
             if(expanded) {
                 if(owner.streaming())drawStream(c);
+                else if(canStartStream()) {
+                    int y=ungroupY();c.rect(244,y,104,28,.4f,hoverColor(244,y,104,28,0xFF624389,0xFF8059AE));
+                    c.text("Start stream",250,y+10,-1);
+                }
                 if(owner.canGroup()) {
                     int y=ungroupY();boolean enabled=groupCandidate!=null;
                     c.rect(124,y,108,28,.4f,enabled?hoverColor(124,y,108,28,0xFF326D4A,0xFF458F62):0xFF293B42);

@@ -181,6 +181,7 @@ public final class WindowControls {
                 int[] at=edgeUi.pixelAt(hit.point);int actionAt=edgeUi.action(at[0],at[1]);
                 if(actionAt==2){stopTyping();edgeUi.owner.close();discardEdge();}
                 else if(actionAt==6){stopTyping();edgeUi.joinGroup();edgeUi.touch(System.nanoTime());}
+                else if(actionAt==7){stopTyping();if(apps.streams!=null)apps.streams.start(edgeUi.owner);edgeUi.sync();edgeUi.touch(System.nanoTime());}
                 else if(actionAt==5){stopTyping();edgeUi.streamClick(at[0],at[1]);}
                 else if(actionAt==3){WindowGroups.detach(edgeUi.owner);edgeUi.touch(System.nanoTime());}
                 else if(actionAt==1)beginMove(hit,c.gameRenderer.getMainCamera(),null);

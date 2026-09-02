@@ -36,9 +36,11 @@ final class EdgeControlsChecks {
             check(EdgeControls.near(p,at),"all edges activate");
             var ui=new EdgeControls(p,at,100);
             check(ui.edge==edge,"nearest edge on rotated panel");
+            check(ui.action(270,20)!=7,"start stream hidden while compact");
             check(ui.action(20,20)==1&&ui.action(220,20)==2,"compact move/close");
             Vec3 close=pixel(ui,220,20);
             ui.expand(200);
+            check(ui.action(270,(edge==EdgeControls.TOP?4:42)+14)==7,"start stream available on every edge");
             check(close.distanceTo(pixel(ui,ui.headerX()+220,ui.headerY()+20))<.00001,"expansion preserves close world position");
             check(ui.action(ui.headerX()+220,ui.headerY()+20)==2,"expanded close target");
             check(ui.action(ui.headerX()+20,ui.headerY()+20)==1,"expanded move target");
@@ -57,6 +59,7 @@ final class EdgeControlsChecks {
             Vec3 at=WindowGroups.world(p.position,p.orientation,edges[edge][0],edges[edge][1]);
             var ui=new EdgeControls(p,at,0);Vec3 close=pixel(ui,220,20);ui.expand(1);
             check(ui.pixelHeight()==328,"stream controls expand the pill");
+            check(ui.action(270,(edge==EdgeControls.TOP?220:42)+14)!=7,"active stream hides start action");
             check(close.distanceTo(pixel(ui,ui.headerX()+220,ui.headerY()+20))<.00001,"stream expansion keeps close anchored");
             check(ui.action(306,ui.streamY()+32)==5,"quality button routes to stream controls");
             check(ui.action(30,ui.streamY()+194)==5,"stop stream routes to stream controls");

@@ -190,3 +190,5 @@ seeking and volume, with aspect-preserving video fitting on resize. Codec/contai
 support depends on the installed CEF runtime; the listed associations are playback
 attempts, not a guarantee every encoding works. Unsupported/unreadable videos show
 an error in the player. No external player executable is needed.
+
+To share an already running app, hover its floating titlebar pill and click **Start stream**. The pill then shows the existing quality settings and **Stop streaming** controls. Starting a stream uses the current window without reopening it; existing server requirements and single-stream ownership rules still apply.
