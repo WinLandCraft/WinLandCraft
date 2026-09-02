@@ -19,6 +19,13 @@ public final class AppWindows {
     public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, streamBrowser, taskManager, fileManager, notepad, laserCalibration));
     private final LinkedHashMap<String, AppEntry> custom = new LinkedHashMap<>();
     private final List<NotepadPanel> fileEditors=new ArrayList<>();
+    final PluginHost plugins=new PluginHost(this);
+    record FileTarget(String id,String name) { }
+    List<FileTarget> fileTargets(java.nio.file.Path path){
+        var result=new ArrayList<FileTarget>();if(FileAppPlacement.supported(path))result.add(new FileTarget("winlandcraft:notepad","Notepad"));
+        result.addAll(plugins.handlers(path));return result;
+    }
+    boolean openFile(String id,FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side){return id.equals("winlandcraft:notepad")?openFile(source,path,side):plugins.openFile(id,source,path,side);}
     boolean openFile(FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side) {
         if(!FileAppPlacement.supported(path)||!source.isOpen())return false;
         var editor=fileEditors.stream().filter(p->!p.isOpen()).findFirst().orElse(null);
@@ -56,12 +63,12 @@ public final class AppWindows {
         result.add(new AppEntry("File Manager", fileManager, null));
         result.add(new AppEntry("Notepad", notepad, null));
         result.add(new AppEntry("Laser Calibration",laserCalibration,null));
-        result.addAll(custom.values()); return result;
+        result.addAll(custom.values());result.addAll(plugins.entries());return result;
     }
     public List<AppEntry> runningApps() {
         var result=new ArrayList<>(appEntries().stream().filter(e -> e.panel.isOpen()).toList());
         for(var editor:fileEditors)if(editor.isOpen())result.add(new AppEntry(editor.windowTitle(),editor,null));
-        return result;
+        result.addAll(plugins.running());return result;
     }
     public void launch(AppEntry entry) {
         var client = Minecraft.getInstance();
@@ -69,7 +76,11 @@ public final class AppWindows {
     }
     public void drawIcon(PanelCanvas canvas, AppEntry entry, int x, int y, int size) {
         var icon = WebApps.icon(entry.definition);
-        if (icon != null) canvas.texture(icon, x, y, size, size, 0.4f);
+        if(entry.panel instanceof PluginPanel plugin){
+            if(plugin.definition.icon()!=null)canvas.texture(net.minecraft.resources.ResourceLocation.parse(plugin.definition.icon()),x,y,size,size,.4f);
+            else PixelIcon.APPS.draw(canvas,x,y,size,.45f,0xFF8BD9CE);
+        }
+        else if (icon != null) canvas.texture(icon, x, y, size, size, 0.4f);
         else if(entry.panel==streamBrowser) canvas.browserIcon(x,y,size,true);
         else if(entry.panel==fileManager) PixelIcon.FOLDER.draw(canvas,x,y,size,.45f,0xFFFFCE57);
         else if(entry.panel instanceof NotepadPanel)PixelIcon.FILE_TEXT.draw(canvas,x,y,size,.45f,0xFF69D1E9);

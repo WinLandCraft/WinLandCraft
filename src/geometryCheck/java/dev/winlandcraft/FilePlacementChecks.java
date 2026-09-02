@@ -35,7 +35,7 @@ final class FilePlacementChecks {
             source.mouseDown(300,120,0);check(source.dragFileAt(300,120)==null,"double click blocks dragging");
             var modal=FileManagerPanel.class.getDeclaredField("placementFile");modal.setAccessible(true);
             check(file.equals(modal.get(source)),"double click opens placement");
-            source.mouseDown(640,400,0);check(modal.get(source)==null,"cancel placement");
+            source.mouseDown(640,410,0);check(modal.get(source)==null,"cancel placement");
             check(source.dragFileAt(300,120)==null,"cancel does not start hidden file drag");
         } catch(ReflectiveOperationException error){throw new AssertionError(error);}
         System.out.println("File placement: associations, four edges, rotated/curved poses, viewer-facing folds, modal double-click and cancel passed.");

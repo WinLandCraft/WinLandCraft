@@ -77,7 +77,21 @@ public class BrowserPanel extends WorldPanel {
         homeUrl = standalone ? appUrl : "https://www.google.com/";
         SIDE = standalone ? 0 : 260;
     }
-    private int layoutWidth = 1280, layoutHeight = 720;
+    protected int layoutWidth = 1280, layoutHeight = 720;
+    protected boolean browserEnabled(){return true;}
+    protected String initialUrl(){return homeUrl;}
+    protected int browserWidth(){return pixelWidth()-SIDE;}
+    protected int browserHeight(){return pixelHeight();}
+    boolean remoteControlAllowed(){return true;}
+    protected boolean showBrowserMenu(){return true;}
+    protected void managedLoaded() { }
+    protected final MCEFBrowser managedBrowser(){return active==null?null:active.browser;}
+    protected final String managedAddress(){return active==null?initialUrl():active.url;}
+    protected final String managedTitle(){return active==null?"":active.title;}
+    protected final void drawManagedBrowser(PanelCanvas canvas,int x,int y,int width,int height){
+        if(active!=null&&active.browser.getRenderer().getTextureID()>0)canvas.texture(active.texture,x,y,width,height,.2f);
+        else canvas.text(failed?"Browser failed. Reopen to retry.":"Waiting for Chromium...",x+12,y+16,-1,1.5f);
+    }
     @Override public int pixelWidth() { return layoutWidth; }
     @Override public int pixelHeight() { return layoutHeight; }
     @Override protected float minimumWidth() { return standalone ? 0.8f : 1.3f; }
@@ -106,9 +120,9 @@ public class BrowserPanel extends WorldPanel {
                 if (!standalone) { tab.icon.clear(); tab.refreshAt = System.nanoTime() + 500_000_000L; }
             }
             @Override public void title(String title) { tab.title = title; }
-            @Override public void loaded() { tab.refreshAt = System.nanoTime() + 500_000_000L; }
+            @Override public void loaded() { tab.refreshAt = System.nanoTime() + 500_000_000L;managedLoaded(); }
             @Override public void menu(int x, int y, String link) {
-                if (active == tab) menu = new ContextMenu(Math.clamp(x + SIDE, SIDE, pixelWidth() - 240), Math.clamp(y, 0, pixelHeight() - 180), link);
+                if (showBrowserMenu() && active == tab) menu = new ContextMenu(Math.clamp(x + SIDE, SIDE, pixelWidth() - 240), Math.clamp(y, 0, pixelHeight() - 180), link);
             }
             @Override public void popup(String url) {
                 if (!webLink(url)) return;
@@ -121,7 +135,7 @@ public class BrowserPanel extends WorldPanel {
         Tab tab = null;
         try {
 
-            tab = new Tab(++nextId, url, pixelWidth() - SIDE, pixelHeight());
+            tab = new Tab(++nextId, url, browserWidth(), browserHeight());
             tabs.add(tab);
             registerEvents(tab);
             select(tab);
@@ -154,7 +168,7 @@ public class BrowserPanel extends WorldPanel {
         }
         firstTab = Math.clamp(firstTab, 0, Math.max(0, tabs.size() - visibleRows()));
     }
-    private void releaseInputs() {
+    protected final void releaseInputs() {
         pressed.forEach((input, tab) -> tab.browser.sendMouseRelease(-1, -1, input.code()));
         pressed.clear();
         pressedKeys.forEach((input, tab) -> tab.browser.sendKeyRelease(input.code(), 0, 0));
@@ -177,7 +191,10 @@ public class BrowserPanel extends WorldPanel {
             com.mojang.blaze3d.systems.RenderSystem.recordRenderCall(this::close);
             return;
         }
-        clearRemoteControls();super.close(); releaseInputs();
+        super.close(); closeViews();
+    }
+    protected final void closeViews() {
+        clearRemoteControls();releaseInputs();
 
         for (Tab tab : tabs) tab.close();
         tabs.clear(); active = null; menu = null; editing = false; firstTab = 0; failed = false;
@@ -293,9 +310,9 @@ public class BrowserPanel extends WorldPanel {
     @Override public void tick(Minecraft client) {
         super.tick(client);
         if (!isOpen()) return;
-        if (tabs.isEmpty() && !failed && MCEF.isInitialized()) newTab(homeUrl);
+        if (browserEnabled() && tabs.isEmpty() && !failed && MCEF.isInitialized()) newTab(initialUrl());
         // At most once per game tick; page layout follows the new size instead of stretching 720p.
-        for (Tab tab : tabs) tab.resize(pixelWidth() - SIDE, pixelHeight());
+        for (Tab tab : tabs) tab.resize(browserWidth(), browserHeight());
         firstTab = Math.clamp(firstTab, 0, Math.max(0, tabs.size() - visibleRows()));
         for (Tab tab : tabs) if (!standalone && tab.refreshAt != 0 && System.nanoTime() >= tab.refreshAt && !tab.browser.isLoading()) {
             tab.refreshAt = 0; tab.icon.refresh(tab.browser);

@@ -85,10 +85,20 @@ public final class WindowControls {
         buttons.clear(); pointer = null;
         draggedFile=null;fileDragging=false;
     }
+    private boolean stoppingTyping;
+    void requestPluginKeyboard(WorldPanel panel,boolean requested){
+        if(stoppingTyping)return;
+        if(focused!=panel)return;
+        if(!requested){stopTyping();return;}
+        if(!typing&&panel.isOpen()&&active(Minecraft.getInstance())){KeyMapping.releaseAll();typing=true;panel.keyboardStarted();}
+    }
     private void stopTyping() {
-        if (focused != null) keys.forEach((key, scan) -> focused.key(key, scan, GLFW.GLFW_RELEASE, 0));
-        if (focused != null) focused.keyboardStopped();
-        keys.clear(); typing = false; activationKey = -1;
+        if(stoppingTyping)return;stoppingTyping=true;
+        try {
+            if (focused != null) keys.forEach((key, scan) -> focused.key(key, scan, GLFW.GLFW_RELEASE, 0));
+            if (focused != null) focused.keyboardStopped();
+            keys.clear(); typing = false; activationKey = -1;
+        } finally {stoppingTyping=false;}
     }
     public void use(Minecraft c, InteractionHand hand) {
         if (usedThisPress || !active(c)) return;

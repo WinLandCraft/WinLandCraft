@@ -2,6 +2,10 @@
 
 Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-anchored taskbar, Apps launcher, a Browser with vertical tabs, user-defined 1280x720 webapp panels sharing MCEF, and an experimental player-hosted app stream relay.
 
+## Plugin apps
+
+Other Fabric mods can register native, Chromium, and hybrid apps through the versioned public API. See [PLUGINS.md](PLUGINS.md) for the complete development guide, input contract, file associations, examples, and compatibility policy.
+
 ## Setup and build
 
 - JDK 21 (Temurin), Fabric Loader 0.16.9+, and Fabric API 0.119.4+1.21.4. The ABI-matched MCEF/JCEF runtime is embedded in WinLandCraft.
@@ -64,7 +68,7 @@ The build runs automated media/control-envelope, permission, batching, queue-bou
 
 Open **Apps > File Manager** (yellow folder icon). It opens your home directory and shows quick locations on the left, with directories and files on the right. Double-click a folder to enter it; use Back, Forward, Up, Reload, or click the path bar and type/paste a path, then Enter. Esc returns to Minecraft controls. Scroll the file list or sidebar to see more entries. Existing Desktop/Downloads/Documents/Pictures/Music/Videos folders and filesystem roots appear in the sidebar; Linux XDG user-directory settings and macOS Movies are recognized.
 
-This version only reads directory names and metadata. Selecting files does not open them, and no create/delete/rename/move operations exist. Listings load in the background, directories appear first, and errors/empty folders have explicit states. Very large directories show at most 10,000 entries. File Manager is native (no Chromium view) and supports titlebar dragging, resizing, grouping, and curving. Closing and reopening starts at home.
+This version only reads directory names and metadata. Double-clicking supported files opens a placement overlay with four green arrows. Choose the receiving app when multiple handlers match, then choose an edge to open it beside File Manager. No create/delete/rename/move operations exist. Listings load in the background, directories appear first, and errors/empty folders have explicit states. Very large directories show at most 10,000 entries. File Manager is native (no Chromium view) and supports titlebar dragging, resizing, grouping, and curving. Closing and reopening starts at home.
 
 ## Notepad
 

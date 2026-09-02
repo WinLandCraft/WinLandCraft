@@ -19,6 +19,8 @@ public final class FileManagerPanel extends NativePanel {
     private String address="",notice="";
     private final AppWindows apps;
     private Path placementFile;
+    private List<AppWindows.FileTarget> placementApps=List.of();
+    private int placementApp;
     private boolean suppressFileDrag;
     public FileManagerPanel(){this(null);}
     public FileManagerPanel(AppWindows apps){super(3.2f,1.8f,1280,720);this.apps=apps;}
@@ -31,9 +33,9 @@ public final class FileManagerPanel extends NativePanel {
         String title="Where to create the window?";
         int width=Minecraft.getInstance().font.width(title);
         float scale=Math.min(2f,Math.max(.5f,(pixelWidth()-160f)/width));
-        c.text(title,(int)((pixelWidth()-width*scale)/2),pixelHeight()/2-44,-1,scale);
+        c.text(title,(int)((pixelWidth()-width*scale)/2),pixelHeight()/2-62,-1,scale);
         String name=fit(placementFile.getFileName().toString(),Math.max(1,pixelWidth()-180),1.25f);
-        c.text(name,(int)((pixelWidth()-Minecraft.getInstance().font.width(name)*1.25f)/2),pixelHeight()/2-14,0xFFB6D9CF,1.25f);
+        c.text(name,(int)((pixelWidth()-Minecraft.getInstance().font.width(name)*1.25f)/2),pixelHeight()/2-34,0xFFB6D9CF,1.25f);
         for(var side:FileAppPlacement.Side.values()) {
             var b=placementButton(side);int x=b[0],y=b[1];
             c.rect(x,y,56,56,.2f,hoverColor(x,y,56,56,0xFF25543E,0xFF397E59));
@@ -42,7 +44,12 @@ public final class FileManagerPanel extends NativePanel {
             for(int i=-12;i<=12;i++)c.rect(x+26+dx*i,y+26+dy*i,4,4,.4f,0xFF75F5A5);
             for(int i=0;i<=12;i++)for(int sign:new int[]{-1,1})c.rect(x+26+dx*(12-i)+dy*i*sign,y+26+dy*(12-i)+dx*i*sign,4,4,.4f,0xFF75F5A5);
         }
-        int x=pixelWidth()/2-50,y=pixelHeight()/2+28;
+        if(!placementApps.isEmpty()){
+            int left=pixelWidth()/2-160,top=pixelHeight()/2-8;
+            c.rect(left,top,320,32,.2f,hoverColor(left,top,320,32,0xFF30473F,0xFF4A675A));
+            c.text(fit("Open with: "+placementApps.get(placementApp).name()+(placementApps.size()>1?" >":""),300,1.25f),left+10,top+9,-1,1.25f);
+        }
+        int x=pixelWidth()/2-50,y=pixelHeight()/2+38;
         c.rect(x,y,100,34,.2f,hoverColor(x,y,100,34,0xFF30473F,0xFF4A675A));c.text("Cancel",x+20,y+10,-1,1.5f);
     }
     int visibleRows(){return Math.max(1,(pixelHeight()-176)/34);}
@@ -95,10 +102,11 @@ public final class FileManagerPanel extends NativePanel {
         if(placementFile!=null) {
             suppressFileDrag=true;
             for(var side:FileAppPlacement.Side.values()) {var b=placementButton(side);if(x>=b[0]&&x<b[0]+56&&y>=b[1]&&y<b[1]+56) {
-                if(apps!=null&&apps.openFile(this,placementFile,side))notice="Opened in Notepad.";else notice="Close a file window first (16 maximum).";
+                if(apps!=null&&!placementApps.isEmpty()&&apps.openFile(placementApps.get(placementApp).id(),this,placementFile,side))notice="Opened in "+placementApps.get(placementApp).name()+".";else notice="Could not open app. Close unused file windows and try again.";
                 placementFile=null;return;
             }}
-            if(x>=pixelWidth()/2-50&&x<pixelWidth()/2+50&&y>=pixelHeight()/2+28&&y<pixelHeight()/2+62)placementFile=null;
+            if(x>=pixelWidth()/2-160&&x<pixelWidth()/2+160&&y>=pixelHeight()/2-8&&y<pixelHeight()/2+24&&!placementApps.isEmpty())placementApp=(placementApp+1)%placementApps.size();
+            if(x>=pixelWidth()/2-50&&x<pixelWidth()/2+50&&y>=pixelHeight()/2+38&&y<pixelHeight()/2+72)placementFile=null;
             return;
         }
         if(y>=14&&y<58) {
@@ -117,10 +125,13 @@ public final class FileManagerPanel extends NativePanel {
             if(row==lastRow&&now-lastClick<450_000_000L) {
                 lastRow=-1;lastClick=0;
                 if(entry.directory())navigate(entry.path(),true);
-                else if(FileAppPlacement.supported(entry.path())){placementFile=entry.path();editing=false;}
-                else notice="No app supports this file type yet.";
+                else {
+                    placementApps=apps==null?(FileAppPlacement.supported(entry.path())?List.of(new AppWindows.FileTarget("winlandcraft:notepad","Notepad")):List.of()):apps.fileTargets(entry.path());
+                    placementApp=0;
+                    if(!placementApps.isEmpty()){placementFile=entry.path();editing=false;}else notice="No app supports this file type yet.";
+                }
             }
-            else {notice=entry.directory()?"Double-click to enter this folder.":"Hold left mouse and drag this file onto Notepad.";lastRow=row;lastClick=now;}
+            else {notice=entry.directory()?"Double-click to enter this folder.":"Double-click to open, or drag this file onto a compatible app.";lastRow=row;lastClick=now;}
         }
     }
     private static String fit(String value,int width,float scale){return Minecraft.getInstance().font.plainSubstrByWidth(value,(int)(width/scale));}

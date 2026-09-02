@@ -46,6 +46,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
         var typing = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.winlandcraft.typing",
                 InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, "key.categories.winlandcraft"));
         var apps = new AppWindows();
+        apps.plugins.load();
         ScreenLighting.install(apps);
         var streams = new StreamClient(apps);
         streams.register();

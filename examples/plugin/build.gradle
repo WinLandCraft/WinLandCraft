@@ -1,0 +1,5 @@
+plugins { id 'java' }
+java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }
+// Copy winlandcraft-*-plugin-api.jar into libs; it is compile-only, never bundled.
+dependencies { compileOnly fileTree(dir: 'libs', include: '*-plugin-api.jar') }
+version = '1.0.0'

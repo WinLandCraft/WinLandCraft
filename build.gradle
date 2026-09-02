@@ -300,3 +300,31 @@ tasks.register('verifyMixinPackaging') {
     }
 }
 check.dependsOn verifyMixinPackaging
+
+// Public API stays pure Java and separate from mapped implementation classes.
+tasks.register('pluginApiJar', Jar) {
+    dependsOn compileClientJava
+    archiveClassifier = 'plugin-api'
+    from(sourceSets.client.output) { include 'dev/winlandcraft/api/v1/**' }
+}
+sourceSets {
+    pluginExample {
+        java.srcDir 'examples/plugin/src/main/java'
+        resources.srcDir 'examples/plugin/src/main/resources'
+        compileClasspath = files(tasks.named('pluginApiJar'))
+        runtimeClasspath = output + compileClasspath
+    }
+}
+tasks.register('pluginExampleJar', Jar) {
+    dependsOn pluginExampleClasses
+    archiveClassifier = 'example-plugin'
+    from sourceSets.pluginExample.output
+}
+tasks.register('verifyPluginApi', JavaExec) {
+    dependsOn geometryCheckClasses, pluginExampleClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath + sourceSets.pluginExample.output
+    mainClass = 'dev.winlandcraft.PluginApiChecks'
+    args file('docs/plugin-api-v1.txt').absolutePath
+}
+check.dependsOn verifyPluginApi
+build.dependsOn pluginApiJar, pluginExampleJar
