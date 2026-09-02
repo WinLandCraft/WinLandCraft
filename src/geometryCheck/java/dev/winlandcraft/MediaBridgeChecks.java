@@ -9,6 +9,7 @@ import java.util.Map;
 final class MediaBridgeChecks {
     @SuppressWarnings("unchecked")
     static void run() throws Exception {
+        int oldMode=ModSettings.streamCodecMode;ModSettings.streamCodecMode=3;
         try(var bridge=new MediaBridge();var client=HttpClient.newHttpClient()) {
             var endpoint=bridge.new Endpoint(true,"HTTP regression");
             var endpoints=MediaBridge.class.getDeclaredField("endpoints");endpoints.setAccessible(true);
@@ -17,6 +18,8 @@ final class MediaBridgeChecks {
             String origin=(String)originField.get(bridge),base=origin+"/"+endpoint.token+"/";
             var config=client.send(HttpRequest.newBuilder(URI.create(base+"config")).timeout(Duration.ofSeconds(3)).build(),HttpResponse.BodyHandlers.ofString());
             check(config.statusCode()==200,"config GET accepted");
+            check(com.google.gson.JsonParser.parseString(config.body()).getAsJsonObject().get("codecMode").getAsInt()==3,"sender mode reaches worker config");
+            check(bridge.new Endpoint(false,"decoder policy").codecMode==0,"sender preference does not override viewer decoder policy");
             var request=HttpRequest.newBuilder(URI.create(base+"status")).timeout(Duration.ofSeconds(3))
                     .header("Origin",origin).POST(HttpRequest.BodyPublishers.ofString("{\"ready\":true,\"phase\":\"encoding\"}"));
             var status=client.send(request.build(),HttpResponse.BodyHandlers.ofString());
@@ -31,7 +34,7 @@ final class MediaBridgeChecks {
             var missing=client.send(HttpRequest.newBuilder(URI.create(origin+"/invalid-token/status")).timeout(Duration.ofSeconds(3))
                     .header("Origin","null").POST(HttpRequest.BodyPublishers.ofString("{}")).build(),HttpResponse.BodyHandlers.ofString());
             check(missing.statusCode()==404&&endpoint.statusRequests.get()==2,"opaque origin cannot bypass endpoint token");
-        }
+        }finally{ModSettings.streamCodecMode=oldMode;}
     }
     private static void check(boolean valid,String message){if(!valid)throw new AssertionError(message);}
 }

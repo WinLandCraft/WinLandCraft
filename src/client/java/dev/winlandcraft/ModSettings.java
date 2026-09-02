@@ -20,6 +20,7 @@ final class ModSettings {
     static boolean removeSizingLimitations = false;
     static boolean extendInteractionRange = false;
     static double interactionRange = 16;
+    static int streamCodecMode=0;
     static int streamFps=30,streamKbps=2000,streamHeight=720,streamAudioKbps=96;
     static boolean streamAudio=true,streamRemoteControl=false;
     static boolean screenLighting=true;
@@ -56,6 +57,7 @@ final class ModSettings {
         try {
             if (Files.exists(path())) {
                 var json = JsonParser.parseString(Files.readString(path())).getAsJsonObject();
+                if(json.has("streamCodecMode"))streamCodecMode=Math.clamp(json.get("streamCodecMode").getAsInt(),0,StreamQuality.CODECS.length-1);
                 if(json.has("streamFps"))streamFps=StreamQuality.nearest(json.get("streamFps").getAsInt(),StreamQuality.FPS);
                 if(json.has("streamKbps"))streamKbps=StreamQuality.nearest(json.get("streamKbps").getAsInt(),StreamQuality.BITRATES);
                 if(json.has("streamHeight"))streamHeight=StreamQuality.nearest(json.get("streamHeight").getAsInt(),StreamQuality.HEIGHTS);
@@ -116,6 +118,7 @@ final class ModSettings {
             json.addProperty("removeSizingLimitations", removeSizingLimitations);
             json.addProperty("extendInteractionRange", extendInteractionRange);
             json.addProperty("interactionRange", interactionRange);
+            json.addProperty("streamCodecMode",streamCodecMode);
             json.addProperty("streamFps",streamFps);json.addProperty("streamKbps",streamKbps);json.addProperty("streamHeight",streamHeight);
             json.addProperty("streamAudio",streamAudio);json.addProperty("streamAudioKbps",streamAudioKbps);
             json.addProperty("streamRemoteControl",streamRemoteControl);

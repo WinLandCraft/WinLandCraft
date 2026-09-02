@@ -18,6 +18,8 @@ final class StreamClient {
     private MediaBridge.Endpoint encoder;
     private StreamProtocol.State published;
     private boolean demand;
+    private int codecMode;
+    private String reportedCodecError="";
     private long lastState,nextFrame,sequence;
     private long sentUnits,sentParts,sentBytes,sentVideo,sentAudio,nextSenderHealth;
     StreamClient(AppWindows apps){this.apps=apps;apps.streams=this;apps.streamBrowser.streamClient=this;}
@@ -31,6 +33,7 @@ final class StreamClient {
         if(source!=null)stop(source);
         // The relay describes one independently curved surface per owner.
         if(panel.grouped())WindowGroups.detach(panel);
+        codecMode=ModSettings.streamCodecMode;reportedCodecError="";
         source=panel;panel.streamClient=this;panel.broadcastSession=UUID.randomUUID();
         if(!panel.isOpen())panel.open(client);
         panel.streamStatus="Waiting for viewers...";
@@ -92,6 +95,8 @@ final class StreamClient {
         for(var panel:List.copyOf(remote.values()))if(!panel.isOpen()||panel.level!=client.level||now-panel.lastState>10_000)remove(panel);
         var panel=source;
         if(panel==null||client.player==null||client.level==null||!panel.isOpen()||panel.broadcastSession==null||!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)) {if(panel!=null)stop(panel);else stopPublishing();return;}
+        // A fresh session makes existing viewers recreate their decoder after a codec switch.
+        if(codecMode!=ModSettings.streamCodecMode){codecMode=ModSettings.streamCodecMode;panel.broadcastSession=UUID.randomUUID();reportedCodecError="";}
         if(published!=null&&!published.session().equals(panel.broadcastSession))stopPublishing();
         if(!publishState(panel,client,now))return;
         if(!demand) {
@@ -104,9 +109,10 @@ final class StreamClient {
         encoder.quality=StreamQuality.current();encoder.tick();
         panel.streamStatus=encoder.error.isEmpty()?(encoder.ready?"Live: "+encoder.videoCodec+" ("+encoder.videoAcceleration+") + Opus":"Starting video + Opus..."):encoder.error;
         if(!encoder.error.isEmpty()) {
-            String reason=encoder.error;WinLandCraftClient.LOGGER.warn("Stream codec error: {}",reason);
-            client.player.displayClientMessage(Component.literal("Stream codec error: "+reason),false);
-            stop(panel);panel.streamStatus=reason;return;
+            String reason=encoder.error;
+            if(!reason.equals(reportedCodecError)){reportedCodecError=reason;WinLandCraftClient.LOGGER.warn("Stream codec error: {}",reason);
+                client.player.displayClientMessage(Component.literal("Stream codec error: "+reason+". Choose another codec in the pill."),false);}
+            return;
         }
         if(published!=null)for(int i=0;i<128;i++) {
             byte[] packet=encoder.encoded.poll();if(packet==null)break;

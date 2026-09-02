@@ -159,23 +159,24 @@ final class EdgeControls extends WorldPanel {
     }
     private int sliderY(){return edge==TOP?48+streamHeight():84;}
     private int ungroupY(){return edge==TOP?4+streamHeight():42;}
-    private int streamHeight(){return owner.streaming()?216:0;}
+    private int streamHeight(){return owner.streaming()?240:0;}
     int streamY(){return edge==TOP?0:112;}
     void streamClick(int x,int y) {
         if(!expanded||!owner.streaming())return;
         int local=y-streamY();
-        if(local>=184&&local<212&&x>=12&&x<348){owner.streamClient.stop(owner);sync();return;}
-        if(local>=144&&local<168&&owner instanceof BrowserPanel browser&&browser.remoteControlAllowed()&&x>=292&&x<348) {
+        if(local>=208&&local<236&&x>=12&&x<348){owner.streamClient.stop(owner);sync();return;}
+        if(local>=168&&local<192&&owner instanceof BrowserPanel browser&&browser.remoteControlAllowed()&&x>=292&&x<348) {
             ModSettings.streamRemoteControl=!ModSettings.streamRemoteControl;
             if(!ModSettings.streamRemoteControl)browser.clearRemoteControls();
         } else {
-            if(local<24||local>=144||x<292||x>=348||(local-24)%24>=22)return;
+            if(local<24||local>=168||x<292||x>=348||(local-24)%24>=22)return;
             int row=(local-24)/24,step=x<320?-1:1;
             switch(row) {
                 case 0->ModSettings.streamFps=StreamQuality.step(ModSettings.streamFps,StreamQuality.FPS,step);
                 case 1->ModSettings.streamKbps=StreamQuality.step(ModSettings.streamKbps,StreamQuality.BITRATES,step);
                 case 2->ModSettings.streamHeight=StreamQuality.step(ModSettings.streamHeight,StreamQuality.HEIGHTS,step);
                 case 3->ModSettings.streamAudio=!ModSettings.streamAudio;
+                case 5->ModSettings.streamCodecMode=Math.clamp(ModSettings.streamCodecMode+step,0,StreamQuality.CODECS.length-1);
                 case 4->ModSettings.streamAudioKbps=StreamQuality.step(ModSettings.streamAudioKbps,StreamQuality.AUDIO,step);
             }
         }
@@ -184,20 +185,20 @@ final class EdgeControls extends WorldPanel {
     private void drawStream(PanelCanvas c) {
         int top=streamY();
         c.text("Stream quality",12,top+6,0xFFD4ACFF,1.5f);
-        String[] labels={"FPS: "+ModSettings.streamFps,"Video: "+ModSettings.streamKbps+" kbps","Size: "+ModSettings.streamHeight+"p","Audio: "+(ModSettings.streamAudio?"ON":"OFF"),"Audio: "+ModSettings.streamAudioKbps+" kbps"};
+        String[] labels={"FPS: "+ModSettings.streamFps,"Video: "+ModSettings.streamKbps+" kbps","Size: "+ModSettings.streamHeight+"p","Audio: "+(ModSettings.streamAudio?"ON":"OFF"),"Audio: "+ModSettings.streamAudioKbps+" kbps","Codec: "+StreamQuality.CODECS[ModSettings.streamCodecMode]};
         for(int i=0;i<labels.length;i++) {
             int y=top+24+i*24;c.rect(12,y,336,22,.3f,0xFF30263F);c.text(labels[i],18,y+7,-1,1.2f);
             for(int j=0;j<2;j++){int x=292+j*28;c.rect(x,y,28,22,.4f,hoverColor(x,y,28,22,0xFF624389,0xFF8059AE));(j==0?PixelIcon.MINUS:PixelIcon.PLUS).draw(c,x+6,y+3,16,.5f,-1);}
         }
-        int y=top+144;
+        int y=top+168;
         if(owner instanceof BrowserPanel browser&&browser.remoteControlAllowed()) {
             c.text("Allow remote control",18,y+7,-1,1.2f);
             c.rect(292,y,56,22,.4f,hoverColor(292,y,56,22,0xFF624389,0xFF8059AE));
             c.text(ModSettings.streamRemoteControl?"ON":"OFF",306,y+7,-1);
         }else c.text("View only",18,y+7,0xFF9BAABD);
-        c.text(Minecraft.getInstance().font.plainSubstrByWidth(owner.streamStatus,326),18,top+172,0xFFD4ACFF);
-        c.rect(12,top+184,336,28,.4f,hoverColor(12,top+184,336,28,0xFF854551,0xFFB65B69));
-        c.text("Stop streaming",18,top+194,-1,1.2f);
+        c.text(Minecraft.getInstance().font.plainSubstrByWidth(owner.streamStatus,326),18,top+196,0xFFD4ACFF);
+        c.rect(12,top+208,336,28,.4f,hoverColor(12,top+208,336,28,0xFF854551,0xFFB65B69));
+        c.text("Stop streaming",18,top+218,-1,1.2f);
     }
     float curveValue(int x){return Math.clamp((x-92)/214f,0,1);}
     @Override public void render(WorldRenderContext context) {

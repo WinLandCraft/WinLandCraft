@@ -157,3 +157,26 @@ HTTP regression checks cover the image page, PNG bytes/MIME, selection failure,
 and associations (including SVG preferred over Notepad). Smoke-test PNG/JPEG,
 transparency, animated GIF/WebP, SVG, Fit/100%/zoom/scroll, resize, replacement,
 corrupt image handling and close/reopen in-game on supported OSes.
+
+
+## Sender codec override (0.1.88-dev)
+
+The owner pill persists streamCodecMode: 0 Auto, 1 H.264/prefer-hardware,
+2 VP9/prefer-hardware, 3 VP9/prefer-software. Auto retains its previous candidate
+order; an explicit mode filters out all other candidates and reports an error
+rather than silently selecting another codec. The local encoder endpoint snapshots
+this preference in config. Decoder endpoints retain mode 0 and their existing
+incoming-packet codec and hardware/software probing. No viewer UI or relay payload
+changes are made.
+
+Changing the owner's preference rotates the broadcast session. Existing Stop/State
+handling tears down the old encoder/decoder queues and restarts with a fresh
+keyframe/timestamp epoch, keeping the source app open and in place. Encoder failure
+keeps the session/pill alive with a deduplicated error so another mode can be chosen.
+Hardware/software preferences remain hints in WebCodecs, not proof of acceleration.
+Test Auto and each explicit candidate, failed-encoder recovery, active codec
+switching with viewers, audio synchronization after reconnect, and stop/quit on
+Windows and Linux. HTTP regression checks verify sender configuration and unchanged
+decoder policy; pill geometry checks cover the extra row on all four edges.
+
+Run the optional worker-selection regression with: node src/geometryCheck/codec-selection-check.cjs. It mocks capability probes against the production selection functions; native codec support still needs in-game testing.

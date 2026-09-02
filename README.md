@@ -206,3 +206,12 @@ Associations include PNG/APNG, JPEG, GIF, WebP, AVIF, BMP, ICO and SVG. Chromium
 handles decoding and animation; damaged/unreadable or unsupported images show an
 error. SVG opens in Image Viewer by default, with Notepad still available via Open
 with. SVG is embedded as an image, never navigated as an executable document.
+
+
+Sender stream options include **Codec**: Auto (the existing preference order),
+H.264 / HW, VP9 / HW, and VP9 / SW. For the stock CEF codec problem, choose
+**VP9 / SW**. Explicit modes probe only the chosen codec/acceleration preference;
+changing the option restarts the stream session and reconnects viewers without
+reopening or moving the app. Encoder failures keep the pill available for another
+selection. Viewers have no codec controls. HW/SW are WebCodecs acceleration
+preferences, not a guarantee of the implementation selected by the driver.

@@ -92,6 +92,7 @@ final class MediaBridge implements AutoCloseable {
         final AtomicLong rawVideoFrames=new AtomicLong(),rawVideoReplaced=new AtomicLong(),rawAudioPackets=new AtomicLong(),rawAudioDropped=new AtomicLong();
         final AtomicLong rawAudioBatches=new AtomicLong(),rawAudioBatchPackets=new AtomicLong(),rawAudioBatchMax=new AtomicLong();
         final AtomicLong indexRequests=new AtomicLong(),scriptRequests=new AtomicLong(),configRequests=new AtomicLong(),statusRequests=new AtomicLong();
+        final int codecMode;
         volatile StreamQuality quality=StreamQuality.current();
         volatile boolean ready,closed;
         volatile boolean renderedVideo;
@@ -103,7 +104,7 @@ final class MediaBridge implements AutoCloseable {
         private int width=2,height=2;
         private long nextGesture,nextHealth;
         private String lastHealthState="";
-        Endpoint(boolean encode,String label){this.encode=encode;this.label=label;}
+        Endpoint(boolean encode,String label){this.encode=encode;this.label=label;this.codecMode=encode?ModSettings.streamCodecMode:0;}
         long elapsedTimeUs(){return Math.max(0,(System.nanoTime()-startedNanos)/1_000);}
         void open() {
             endpoints.put(token,this);
@@ -249,7 +250,7 @@ final class MediaBridge implements AutoCloseable {
                 case "config" -> {
                     endpoint.configRequests.incrementAndGet();
                     var q=endpoint.quality;
-                    String config="{\"encode\":"+endpoint.encode+",\"fps\":"+q.fps()+",\"bitrate\":"+(q.kbps()*1000)+",\"audio\":"+q.audio()+",\"audioBitrate\":"+(q.audioKbps()*1000)+",\"forceKey\":"+endpoint.forceKey+"}";
+                    String config="{\"encode\":"+endpoint.encode+",\"codecMode\":"+endpoint.codecMode+",\"fps\":"+q.fps()+",\"bitrate\":"+(q.kbps()*1000)+",\"audio\":"+q.audio()+",\"audioBitrate\":"+(q.audioKbps()*1000)+",\"forceKey\":"+endpoint.forceKey+"}";
                     exchange.getResponseHeaders().set("Content-Type","application/json");reply(exchange,200,config.getBytes(StandardCharsets.UTF_8));
                 }
                 case "video" -> {

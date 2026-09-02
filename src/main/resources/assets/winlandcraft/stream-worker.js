@@ -82,13 +82,15 @@
     return {codec:codec===H264?'avc1.42E02A':'vp09.00.10.08',codedWidth:width,codedHeight:height,
       optimizeForLatency:true,hardwareAcceleration};
   }
-  async function selectEncoderConfig(width,height,bitrate,blocked) {
+  async function selectEncoderConfig(width,height,bitrate,blocked,mode=0) {
     const candidates=[
       {id:'h264-hardware',codec:H264,acceleration:'prefer-hardware'},
       {id:'vp9-hardware',codec:VP9,acceleration:'prefer-hardware'},
       {id:'vp9-software',codec:VP9,acceleration:'prefer-software'}
     ],probes=[];
+    const selectedMode=[null,"h264-hardware","vp9-hardware","vp9-software"][mode];
     for(const candidate of candidates){
+      if(selectedMode&&candidate.id!==selectedMode)continue;
       if(blocked.has(candidate.id)){probes.push(`${candidate.id}=blocked`);continue;}
       const config=encoderConfig(candidate.codec,width,height,bitrate,candidate.acceleration);
       try {
@@ -171,7 +173,7 @@
       const signature=[frameWidth,frameHeight,current.bitrate].join(':');
       if(signature!==videoSignature){
         if(video.state==='configured')await video.flush();
-        const selected=await selectEncoderConfig(frameWidth,frameHeight,current.bitrate,blockedVideoModes);
+        const selected=await selectEncoderConfig(frameWidth,frameHeight,current.bitrate,blockedVideoModes,current.codecMode);
         width=frameWidth;height=frameHeight;videoCodec=selected.codec;videoMode=selected.id;
         video.configure(selected.config);videoSignature=signature;keyNeeded=true;
         metrics.videoCodec=codecName(videoCodec);metrics.videoAcceleration=selected.acceleration;

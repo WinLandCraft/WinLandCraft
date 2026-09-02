@@ -58,12 +58,13 @@ final class EdgeControlsChecks {
         for(int edge=0;edge<4;edge++) {
             Vec3 at=WindowGroups.world(p.position,p.orientation,edges[edge][0],edges[edge][1]);
             var ui=new EdgeControls(p,at,0);Vec3 close=pixel(ui,220,20);ui.expand(1);
-            check(ui.pixelHeight()==328,"stream controls expand the pill");
-            check(ui.action(270,(edge==EdgeControls.TOP?220:42)+14)!=7,"active stream hides start action");
+            check(ui.pixelHeight()==352,"stream controls expand the pill");
+            check(ui.action(270,(edge==EdgeControls.TOP?244:42)+14)!=7,"active stream hides start action");
             check(close.distanceTo(pixel(ui,ui.headerX()+220,ui.headerY()+20))<.00001,"stream expansion keeps close anchored");
+            check(ui.action(306,ui.streamY()+152)==5,"codec selector routes to stream controls");
             check(ui.action(306,ui.streamY()+32)==5,"quality button routes to stream controls");
-            check(ui.action(30,ui.streamY()+194)==5,"stop stream routes to stream controls");
-            check(ui.action(180,edge==EdgeControls.TOP?264:84)==4,"stream controls do not overlap curve slider");
+            check(ui.action(30,ui.streamY()+218)==5,"stop stream routes to stream controls");
+            check(ui.action(180,edge==EdgeControls.TOP?288:84)==4,"stream controls do not overlap curve slider");
         }
         p.broadcastSession=null;
         check(!EdgeControls.near(p,p.position),"center does not activate");
