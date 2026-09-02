@@ -62,7 +62,7 @@ Automated checks cover zone orientation, temporal smoothing, relative-range boun
 2. Open a bright, colorful video in a dark enclosed room.
 3. Check that nearby floor, walls, blocks, and entities receive changing RGB light, and that dark scenes become visibly dimmer than bright scenes.
 4. Move, rotate, resize, curve, and close the panel; verify the light follows and disappears.
-5. Toggle lighting, power, range, and F1 GUI hiding.
+5. Toggle lighting, power, and range. F1 should hide interaction affordances without hiding panels or stopping their light.
 6. Move the panel close to a floor and confirm no three-column hotspot pattern or detached light source is visible.
 7. Repeat with two panels and confirm a third distant panel does not cause a frame-time spike.
 8. Re-select the original Solas ZIP and verify it remains unchanged and functional.

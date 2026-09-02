@@ -91,13 +91,14 @@ final class MediaBridge implements AutoCloseable {
         final Queue encoded=new Queue(),incoming=new Queue();
         final AtomicLong rawVideoFrames=new AtomicLong(),rawVideoReplaced=new AtomicLong(),rawAudioPackets=new AtomicLong(),rawAudioDropped=new AtomicLong();
         final AtomicLong rawAudioBatches=new AtomicLong(),rawAudioBatchPackets=new AtomicLong(),rawAudioBatchMax=new AtomicLong();
+        final AtomicLong indexRequests=new AtomicLong(),scriptRequests=new AtomicLong(),configRequests=new AtomicLong(),statusRequests=new AtomicLong();
         volatile StreamQuality quality=StreamQuality.current();
         volatile boolean ready,closed;
         volatile boolean renderedVideo;
         volatile String error="",phase="created",audioState="n/a",videoCodec="n/a",videoAcceleration="n/a",workerNote="";
         volatile long workerVideoIn,workerVideoOut,workerVideoDrop,workerAudioIn,workerAudioOut,workerAudioDrop,workerBytes,workerResets,workerRendered;
         volatile long workerBatches,workerBatchPackets,workerBatchMax;
-        volatile long lastSeen=System.currentTimeMillis(),forceKey;
+        volatile long lastRequest=System.currentTimeMillis(),lastStatus=lastRequest,forceKey;
         MCEFBrowser browser;
         private int width=2,height=2;
         private long nextGesture,nextHealth;
@@ -155,7 +156,7 @@ final class MediaBridge implements AutoCloseable {
             incoming.offer(packet,media);return media;
         }
         void updateStatus(com.google.gson.JsonObject json) {
-            lastSeen=System.currentTimeMillis();ready=readBoolean(json,"ready");
+            lastStatus=lastRequest=System.currentTimeMillis();ready=readBoolean(json,"ready");
             phase=readString(json,"phase",phase);audioState=readString(json,"audioState",audioState);
             videoCodec=readString(json,"videoCodec",videoCodec);videoAcceleration=readString(json,"videoAcceleration",videoAcceleration);
             workerNote=readString(json,"note",workerNote);
@@ -182,7 +183,8 @@ final class MediaBridge implements AutoCloseable {
         void tick() {
             if(closed)return;
             long now=System.currentTimeMillis();
-            if(now-lastSeen>15_000&&error.isEmpty())error="Codec worker stopped responding";
+            long heartbeat=ready?Math.max(lastStatus,lastRequest):lastStatus;
+            if(now-heartbeat>15_000&&error.isEmpty())error=ready?"Codec worker stopped responding":"Codec page failed to start";
             // Native CEF input activates Web Audio for the local playback surface. Never sent to a website.
             if(!encode&&ready&&now>=nextGesture) {
                 nextGesture=now+1000;
@@ -193,8 +195,10 @@ final class MediaBridge implements AutoCloseable {
         }
         void logHealth(String event) {
             var output=encoded.stats();var input=incoming.stats();
-            WinLandCraftClient.LOGGER.info("Stream codec {} #{} ({}): ready={}, phase={}, codec={}, acceleration={}, audio={}, worker video={}/{} drop={}, audio={}/{} drop={}, rendered={}, bytes={}, resets={}, receive batches={}/{} packets max={}, raw video={} replaced={}, raw audio={} drop={} batches={}/{} max={}, outgoing={} queued/{} accepted/{} dropped/{} key-wait/{} reset, incoming={} queued/{} accepted/{} dropped/{} key-wait/{} reset{}",
-                    event,id,label,ready,phase,videoCodec,videoAcceleration,audioState,workerVideoIn,workerVideoOut,workerVideoDrop,workerAudioIn,workerAudioOut,workerAudioDrop,
+            WinLandCraftClient.LOGGER.info("Stream codec {} #{} ({}): ready={}, phase={}, codec={}, acceleration={}, audio={}, bridge requests={}/{}/{}/{} index/script/config/status, worker video={}/{} drop={}, audio={}/{} drop={}, rendered={}, bytes={}, resets={}, receive batches={}/{} packets max={}, raw video={} replaced={}, raw audio={} drop={} batches={}/{} max={}, outgoing={} queued/{} accepted/{} dropped/{} key-wait/{} reset, incoming={} queued/{} accepted/{} dropped/{} key-wait/{} reset{}",
+                    event,id,label,ready,phase,videoCodec,videoAcceleration,audioState,
+                    indexRequests.get(),scriptRequests.get(),configRequests.get(),statusRequests.get(),
+                    workerVideoIn,workerVideoOut,workerVideoDrop,workerAudioIn,workerAudioOut,workerAudioDrop,
                     workerRendered,workerBytes,workerResets,workerBatches,workerBatchPackets,workerBatchMax,
                     rawVideoFrames.get(),rawVideoReplaced.get(),rawAudioPackets.get(),rawAudioDropped.get(),
                     rawAudioBatches.get(),rawAudioBatchPackets.get(),rawAudioBatchMax.get(),
@@ -223,24 +227,27 @@ final class MediaBridge implements AutoCloseable {
             String path=exchange.getRequestURI().getPath();int separator=path.indexOf('/',1);
             var endpoint=separator>1&&path.indexOf('/',separator+1)<0?endpoints.get(path.substring(1,separator)):null;
             if(endpoint==null||endpoint.closed){reply(exchange,404,null);return;}
-            endpoint.lastSeen=System.currentTimeMillis();
             exchange.getResponseHeaders().set("Cache-Control","no-store");
             exchange.getResponseHeaders().set("Referrer-Policy","no-referrer");
             exchange.getResponseHeaders().set("X-Content-Type-Options","nosniff");
             String route=path.substring(separator+1);
+            endpoint.lastRequest=System.currentTimeMillis();
             if(exchange.getRequestMethod().equals("GET"))switch(route) {
                 case "index" -> {
+                    endpoint.indexRequests.incrementAndGet();
                     exchange.getResponseHeaders().set("Content-Type","text/html; charset=utf-8");
                     exchange.getResponseHeaders().set("Content-Security-Policy","default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'unsafe-inline'; media-src blob:");
                     reply(exchange,200,("<!doctype html><meta charset='utf-8'><style>html,body{margin:0;background:#181d29;overflow:hidden}canvas{width:100vw;height:100vh}</style><canvas id='view'></canvas><script src='worker.js'></script>").getBytes(StandardCharsets.UTF_8));
                 }
                 case "worker.js" -> {
+                    endpoint.scriptRequests.incrementAndGet();
                     exchange.getResponseHeaders().set("Content-Type","text/javascript; charset=utf-8");
                     try(var input=MediaBridge.class.getResourceAsStream("/assets/winlandcraft/stream-worker.js")) {
                         if(input==null)throw new IOException("Missing codec worker");reply(exchange,200,input.readAllBytes());
                     }
                 }
                 case "config" -> {
+                    endpoint.configRequests.incrementAndGet();
                     var q=endpoint.quality;
                     String config="{\"encode\":"+endpoint.encode+",\"fps\":"+q.fps()+",\"bitrate\":"+(q.kbps()*1000)+",\"audio\":"+q.audio()+",\"audioBitrate\":"+(q.audioKbps()*1000)+",\"forceKey\":"+endpoint.forceKey+"}";
                     exchange.getResponseHeaders().set("Content-Type","application/json");reply(exchange,200,config.getBytes(StandardCharsets.UTF_8));
@@ -277,6 +284,7 @@ final class MediaBridge implements AutoCloseable {
                     if(!accepted)endpoint.forceKey++;
                     reply(exchange,accepted?200:429,null);
                 } else if(route.equals("status")) {
+                    endpoint.statusRequests.incrementAndGet();
                     var json=com.google.gson.JsonParser.parseString(new String(body,StandardCharsets.UTF_8)).getAsJsonObject();
                     endpoint.updateStatus(json);
                     reply(exchange,200,null);

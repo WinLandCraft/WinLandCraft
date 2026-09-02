@@ -17,6 +17,7 @@ import org.cef.handler.CefResourceRequestHandlerAdapter;
 import org.cef.misc.BoolRef;
 import org.cef.network.CefRequest;
 
+import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -37,6 +38,7 @@ final class AdBlock {
             if (request == null) return false;
             String url = request.getURL();
             if (url == null || url.isBlank()) return false;
+            if (bypasses(url)) return false;
             String top = browser == null ? "" : browser.getURL();
             String source = frame == null ? top : frame.getURL();
             if (source == null || source.isBlank()) source = top;
@@ -112,7 +114,7 @@ final class AdBlock {
     private static void inject(CefFrame frame) {
         if (!AdBlockNative.isReady() || frame == null) return;
         String url = frame.getURL();
-        if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) return;
+        if (url == null || bypasses(url) || !(url.startsWith("http://") || url.startsWith("https://"))) return;
         try {
             String serialized = AdBlockNative.cosmetics(url);
             if (serialized == null) return;
@@ -285,6 +287,16 @@ final class AdBlock {
             case RT_PING -> "ping";
             default -> "other";
         };
+    }
+
+    /** The private codec bridge must not inherit a transient about:blank initiator from JCEF. */
+    static boolean bypasses(String url) {
+        try {
+            URI parsed = URI.create(url);
+            return "http".equalsIgnoreCase(parsed.getScheme()) && "127.0.0.1".equals(parsed.getHost());
+        } catch (IllegalArgumentException malformed) {
+            return false;
+        }
     }
 
     private static void logHealth() {

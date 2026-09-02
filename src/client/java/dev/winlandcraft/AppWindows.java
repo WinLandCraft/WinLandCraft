@@ -13,7 +13,8 @@ public final class AppWindows {
     public final TaskManagerPanel taskManager = new TaskManagerPanel(this);
     public final FileManagerPanel fileManager = new FileManagerPanel();
     public final NotepadPanel notepad = new NotepadPanel();
-    public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, streamBrowser, taskManager, fileManager, notepad));
+    public final LaserCalibrationPanel laserCalibration=new LaserCalibrationPanel();
+    public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, streamBrowser, taskManager, fileManager, notepad, laserCalibration));
     private final LinkedHashMap<String, AppEntry> custom = new LinkedHashMap<>();
     public record AppEntry(String name, WorldPanel panel, WebApps.App definition) { }
     public AppWindows() { reconcileWebApps(); }
@@ -40,6 +41,7 @@ public final class AppWindows {
         result.add(new AppEntry("Task Manager", taskManager, null));
         result.add(new AppEntry("File Manager", fileManager, null));
         result.add(new AppEntry("Notepad", notepad, null));
+        result.add(new AppEntry("Laser Calibration",laserCalibration,null));
         result.addAll(custom.values()); return result;
     }
     public List<AppEntry> runningApps() { return appEntries().stream().filter(e -> e.panel.isOpen()).toList(); }
@@ -54,6 +56,7 @@ public final class AppWindows {
         else if(entry.panel==fileManager) PixelIcon.FOLDER.draw(canvas,x,y,size,.45f,0xFFFFCE57);
         else if(entry.panel==notepad)PixelIcon.FILE_TEXT.draw(canvas,x,y,size,.45f,0xFF69D1E9);
         else if(entry.panel==taskManager)PixelIcon.CHART.draw(canvas,x,y,size,.45f,0xFF65E4AE);
+        else if(entry.panel==laserCalibration)PixelIcon.SCALE.draw(canvas,x,y,size,.45f,0xFFFFC857);
         else if (entry.definition == null) canvas.browserIcon(x, y, size);
         else {
             canvas.rect(x, y, size, size, 0.4f, 0xFF426E80);

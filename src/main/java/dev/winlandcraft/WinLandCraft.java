@@ -22,7 +22,10 @@ public final class WinLandCraft implements ModInitializer {
     // Read old inventories without an unknown-item registry error; never give this item again.
     private static final Item LEGACY_INTERACT = createItem("interact");
     public static final Item APPS = createItem("apps");
-    public static final Item[] CONTROLS = {TASKS, WINDOW_DRAG, APPS};
+    public static final ResourceLocation LASER_POINTER_ID = ResourceLocation.fromNamespaceAndPath("winlandcraft", "laser_pointer");
+    public static final Item LASER_POINTER = new Item(new Item.Properties()
+            .setId(ResourceKey.create(Registries.ITEM, LASER_POINTER_ID)).stacksTo(1));
+    public static final Item[] CONTROLS = {TASKS, WINDOW_DRAG, APPS, LASER_POINTER};
 
     private static Item createItem(String name) {
         return new Item(new Item.Properties().setId(ResourceKey.create(Registries.ITEM,
@@ -41,6 +44,7 @@ public final class WinLandCraft implements ModInitializer {
         Registry.register(BuiltInRegistries.ITEM, DRAG_ID, WINDOW_DRAG);
         Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "interact"), LEGACY_INTERACT);
         Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "apps"), APPS);
+        Registry.register(BuiltInRegistries.ITEM, LASER_POINTER_ID, LASER_POINTER);
         PayloadTypeRegistry.playC2S().register(RequestTasksPayload.TYPE, RequestTasksPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> removeLegacyInteract(handler.player));
         ServerPlayNetworking.registerGlobalReceiver(RequestTasksPayload.TYPE, (payload, context) -> {

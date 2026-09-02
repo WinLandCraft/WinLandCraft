@@ -14,6 +14,10 @@ public final class AdBlockNativeChecks {
     public static void main(String[] arguments) throws IOException {
         if (arguments.length != 1 && arguments.length != 4)
             throw new AssertionError("Expected native library path, optionally followed by main, unbreak, and resources assets");
+        check(AdBlock.bypasses("http://127.0.0.1:49152/token/index"), "codec page bypass");
+        check(AdBlock.bypasses("http://127.0.0.1:49152/token/worker.js"), "codec script bypass");
+        check(!AdBlock.bypasses("https://127.0.0.1:49152/token/worker.js"), "HTTPS is not the private codec bridge");
+        check(!AdBlock.bypasses("http://127.0.0.1.example/token/worker.js"), "lookalike host is not bypassed");
         System.load(arguments[0]);
         if (arguments.length == 4) {
             verifyBraveBundle(arguments);

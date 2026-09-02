@@ -106,7 +106,9 @@ Grouped titlebars have **Ungroup**, which detaches that app. The group's four ou
 
 Grouping checks cover side/stacked suggestions, bridge removal, singleton cleanup, movement/rotation, all four rotated resize handles, fixed opposite corners, mixed browser/native panels, and size limits. In Prism, try three apps in a row: group them, move/resize the group, then close the middle app and check both remaining apps move independently.
 
-Point at a window to interact automatically: the crosshair becomes a white pointer. Left/right click and scroll go to the targeted panel; away from panels, normal Minecraft controls work. Tasks, Apps, and Window Drag retain their right-click item actions. The Interact item is no longer given, and old copies are removed from player inventories on world join or Get controls.
+Point at a window to interact automatically: the crosshair becomes a white pointer. Left/right click and scroll go to the targeted panel; away from panels, normal Minecraft controls work. Hold **Laser Pointer** for a world-rendered interaction beam instead of the pointer. Panel clicks always retain priority; while aiming away from every panel, left-click toggles the beam with a power bounce and right-click cycles its color with a model-local body spin instead of Minecraft's hand swing. Sneak-right-click opens **Laser Calibration** for live pose, beam-origin, motion, and sound tuning; changes save automatically and can be copied together. Tasks, Apps, Window Drag, and Laser Pointer retain their off-panel item actions. The Interact item is no longer given, and old copies are removed from the inventory on world join or Get controls.
+
+F1 enters a clean cinematic mode: it hides the cursor, resize handles, hints, and first-person laser and suspends panel interaction. Panels remain visible because they are world surfaces rather than HUD widgets, and enabled screen lighting continues to illuminate the world.
 
 Browser and webapps have a titlebar above their content, showing the current page title and app name, with a close icon for the whole window. Hold **left mouse on the titlebar** and look/walk to move it; release to leave it in place. While holding either the titlebar or the Window Drag item, **scroll up moves farther away; scroll down moves closer**. Both movement methods respect the rotation setting.
 
@@ -119,6 +121,7 @@ Assign **Get controls** under Options > Controls > Key Binds > WinLandCraft. It 
 | Tasks | Right-click to open/recall the taskbar. Sneak-right-click closes it. |
 | Apps | Right-click to open/recall Apps independently of Tasks. Sneak-right-click closes it. |
 | Window Drag | Aim at a panel, hold right-click, and look/walk to move it. Scroll up moves farther, down moves closer; release leaves it in place. |
+| Laser Pointer | Hold it to replace the panel cursor with a visible beam. Away from panels, left-click toggles it, right-click cycles color, and sneak-right-click opens live calibration; clicks on a panel still interact with that panel. |
 
 Click **Apps** on Tasks, then click **Browser** in the launcher. Its cyan compass icon also appears on Tasks. Clicking Browser again in Apps or Tasks recalls the same window without reloading tabs. The taskbar X closes the entire browser and disposes all tabs.
 
@@ -140,13 +143,13 @@ Window picking respects player block-interaction reach and nearer world targets.
 
 ## Verification
 
-For this update, test titlebar dragging/close on Browser and custom apps, title changes when switching tabs, scroll up/down distance with both movement methods, and fixed-size Tasks/Apps. Automated checks cover titlebar picking on rotated windows, close/drag boundaries, retained content resolution, resize corners, and distance direction/limits. Cursor/input injection has a packaging gate for all eight mappings; native gameplay still needs an in-game check.
+For this update, test titlebar dragging/close on Browser and custom apps, title changes when switching tabs, scroll up/down distance with both movement methods, and fixed-size Tasks/Apps. Automated checks cover titlebar picking on rotated windows, close/drag boundaries, retained content resolution, resize corners, and distance direction/limits. Cursor/input and first-person model injection have a packaging gate for all 12 mappings; native gameplay still needs an in-game check.
 
 Disconnect cleanup is dispatched to the client/render thread because MCEF deletes OpenGL textures during browser close. A regression check verifies off-thread close deferral, render-thread execution, and repeated close without loading native CEF. In Prism, check Save and Quit with several browser tabs open, then rejoin and reopen Browser.
 
-`build` checks the packaged input mixin refmap and all eight production mappings, 12 address/search cases, 10 favicon parsing/decoding cases, 9 custom-app URL/persistence cases, plus window geometry, four-corner resizing, attachment, rotation, and cleanup. Browser, taskbar, rotation settings, and disconnect cleanup were verified in Prism by the user. Custom apps need an in-game check: save two sites, verify icons after restarting, open both alongside Browser, test input/dragging, edit/delete an app, cancel an icon lookup, and Save and Quit with all panels open. Other interaction checks:
+`build` checks the packaged input mixin refmap and all 12 production mappings, 12 address/search cases, 10 favicon parsing/decoding cases, 9 custom-app URL/persistence cases, plus window geometry, four-corner resizing, attachment, rotation, and cleanup. Browser, taskbar, rotation settings, and disconnect cleanup were verified in Prism by the user. Custom apps need an in-game check: save two sites, verify icons after restarting, open both alongside Browser, test input/dragging, edit/delete an app, cancel an icon lookup, and Save and Quit with all panels open. Other interaction checks:
 
-1. Get controls: only Tasks, Window Drag, and Apps are given. Old Interact items disappear from the inventory.
+1. Get controls: Tasks, Window Drag, Apps, and Laser Pointer are given. Old Interact items disappear from the inventory.
 2. Open Apps through both the taskbar button and the item. Open Browser, then recall it without resetting its tabs.
 3. Click a field, enable typing, type a query, and press Enter. Check Esc restores movement and hotbar keys.
 4. Test wheel scrolling without hotbar changes, right-click menus, and text-selection dragging across panel edges.

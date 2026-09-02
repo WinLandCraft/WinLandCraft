@@ -169,7 +169,7 @@ public abstract class WorldPanel {
     }
 
     private boolean canRender(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        return position != null && level == context.world() && !net.minecraft.client.Minecraft.getInstance().options.hideGui
+        return position != null && level == context.world()
                 && context.matrixStack() != null && context.consumers() != null;
     }
 

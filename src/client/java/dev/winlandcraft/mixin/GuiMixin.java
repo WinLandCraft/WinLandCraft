@@ -16,6 +16,9 @@ public final class GuiMixin {
     private void winlandcraft$cursor(GuiGraphics graphics, DeltaTracker delta, CallbackInfo ci) {
         if (WinLandCraftClient.controls == null) return;
         int cursor = WinLandCraftClient.controls.cursor();
-        if (cursor != 0) { WindowCursor.render(graphics, cursor); ci.cancel(); }
+        if (cursor != 0) {
+            if(cursor>0)WindowCursor.render(graphics, cursor);
+            ci.cancel();
+        }
     }
 }

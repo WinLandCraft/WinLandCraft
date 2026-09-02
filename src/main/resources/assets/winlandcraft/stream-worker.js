@@ -22,6 +22,9 @@
     if(failed)return;
     failed=true;ready=false;metrics.phase='failed';note(error);status(metrics.note);
   }
+  addEventListener('error',event=>fail(event.error||event.message));
+  addEventListener('unhandledrejection',event=>fail(event.reason));
+  status();
   async function settings() {
     if(config&&performance.now()-configAt<=500)return config;
     if(!configRequest)configRequest=(async()=>{

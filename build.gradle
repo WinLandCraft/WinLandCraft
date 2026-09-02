@@ -159,7 +159,10 @@ tasks.register('verifyMixinPackaging') {
                             KeyboardHandlerMixin: ['keyPress', 'charTyped'],
                             GuiMixin: ['renderCrosshair'],
                             MinecraftMixin: ['startAttack', 'continueAttack', 'startUseItem'],
-                            GameRendererLightMixin: ['renderLevel']]
+                            GameRendererLightMixin: ['renderLevel'],
+                            ItemInHandRendererMixin: ['renderItem', 'renderHandsWithItems'],
+                            ItemStackRenderStateMixin: ['render'],
+                            ItemStackLayerRenderStateMixin: ['render']]
             if (!mod.mixins.contains('winlandcraft.client.mixins.json')) {
                 throw new GradleException('Input mixin configuration is not registered')
             }
@@ -195,6 +198,16 @@ tasks.register('verifyMixinPackaging') {
                 throw new GradleException('Missing PixelIcon runtime class')
             if (zip.getEntry('assets/winlandcraft/shaderpacks/screen_lights.glsl') == null)
                 throw new GradleException('Missing bundled Solas screen-light shader')
+            ['items/laser_pointer.json', 'models/item/laser_pointer.json'].each { asset ->
+                if (zip.getEntry("assets/winlandcraft/${asset}") == null)
+                    throw new GradleException("Missing Laser Pointer asset: ${asset}")
+            }
+            def laserModel = readJson('assets/winlandcraft/models/item/laser_pointer.json')
+            def sensor = laserModel.elements.find { element ->
+                element.from[2] == 0 && (element.from[0] + element.to[0]) / 2 == 8
+                        && (element.from[1] + element.to[1]) / 2 == 8 && element.faces.north.texture == '#dark'
+            }
+            if (sensor == null) throw new GradleException('Laser Pointer sensor must remain centered at (8, 8, 0)')
             def iconEntry = zip.getEntry('assets/winlandcraft/textures/gui/pixelarticons.png')
             if (iconEntry == null) throw new GradleException('Missing Pixelarticons atlas')
             zip.getInputStream(iconEntry).withCloseable { stream ->

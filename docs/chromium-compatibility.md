@@ -84,4 +84,6 @@ Stream codec health
 Stream audio capture health
 ```
 
+Codec health includes loopback request counts in `index/script/config/status` order. A healthy endpoint reaches all four, posts a `boot` status before probing codecs, and then advances to `encoding` or `decoding`. `index>0` with `script=0` indicates interception or script-load failure; `script>0` with `status=0` indicates a parse or pre-bootstrap execution failure. The startup watchdog intentionally follows status heartbeats rather than generic HTTP traffic so repeated navigation requests cannot disguise a dead codec page.
+
 For a native crash, preserve `hs_err_pid*.log`. The native stack and fault address are more useful than the final lines of `latest.log`.

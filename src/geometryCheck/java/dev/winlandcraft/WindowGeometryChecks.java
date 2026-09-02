@@ -43,8 +43,35 @@ public final class WindowGeometryChecks {
         scaling();
         titlebars();
         browserCloseThread();
+        laserPointer();
         GroupChecks.run();
         CurveChecks.run();
+    }
+
+    private static void laserPointer() {
+        if(LaserPointer.normalizeColor(-1)!=4||LaserPointer.normalizeColor(5)!=0)
+            throw new AssertionError("laser color wrapping");
+        near(-1.5,ModSettings.DEFAULT_LASER_BEAM_X,"laser calibrated beam horizontal");
+        near(0,ModSettings.DEFAULT_LASER_BEAM_Y,"laser calibrated beam vertical");
+        near(3.45,ModSettings.DEFAULT_LASER_BEAM_INSET,"laser calibrated beam inset");
+        float near=LaserPointer.beamWidth(.34),far=LaserPointer.beamWidth(16);
+        if(!(near>0&&far>near&&LaserPointer.beamWidth(1000)<=.04f))
+            throw new AssertionError("laser beam distance scaling");
+        if(!(LaserPointer.targetRadius(1)>0&&LaserPointer.targetRadius(1000)<=.11f))
+            throw new AssertionError("laser target distance scaling");
+        near(0,LaserPointer.spinDegrees(0),"laser spin starts home");
+        near(0,LaserPointer.spinDegrees(1),"laser spin ends home");
+        float last=0;
+        for(int step=1;step<100;step++) {
+            float next=LaserPointer.spinDegrees(step/100f);
+            if(next<last)throw new AssertionError("laser spin easing reversed");
+            last=next;
+        }
+        near(0,LaserPointer.bounceDegrees(0,12),"laser bounce starts home");
+        near(0,LaserPointer.bounceDegrees(1,12),"laser bounce ends home");
+        if(LaserPointer.bounceDegrees(.38f,12)<11.9f||LaserPointer.bounceDegrees(.76f,12)>0)
+            throw new AssertionError("laser bounce keyframes");
+        System.out.println("Laser pointer: calibrated origin, distance scaling, spin easing, and power bounce passed.");
     }
 
     private static void scaling() {

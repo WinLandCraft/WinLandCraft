@@ -45,6 +45,8 @@ public final class WindowControls {
     private boolean fileDragging;
     private int fileStartX,fileStartY;
     private Vec3 fileStartRay;
+    private Vec3 hoveredPoint;
+    private boolean laserToggleDown;
 
     public WindowControls(AppWindows apps, KeyMapping typingKey) { this.apps = apps; this.typingKey = typingKey; }
     private boolean active(Minecraft c) {
@@ -68,6 +70,8 @@ public final class WindowControls {
         stopTyping();
         if (hovered != null && hovered.isOpen()) hovered.pointerMoved(-1, -1);
         hovered = null;
+        hoveredPoint = null;
+        laserToggleDown = false;
         suggestion = null;
         clearCurve();
     }
@@ -95,6 +99,10 @@ public final class WindowControls {
             if (c.player.isShiftKeyDown()) apps.launcher.close(); else apps.openApps();
             return;
         }
+        if (item.is(WinLandCraft.LASER_POINTER)) {
+            if(c.player.isShiftKeyDown())apps.laserCalibration.open(c);else LaserPointer.cycleColor(c);
+            return;
+        }
         if (!item.is(WinLandCraft.WINDOW_DRAG)) return;
         Hit hit = pick(c,MOVE_RANGE);
         if (hit == null) { message("Point at a window to drag it."); return; }
@@ -116,6 +124,10 @@ public final class WindowControls {
     }
     public boolean mouseButton(int button, int action) {
         Minecraft c = Minecraft.getInstance();
+        if(action==GLFW.GLFW_RELEASE&&button==GLFW.GLFW_MOUSE_BUTTON_LEFT&&laserToggleDown) {
+            laserToggleDown=false;
+            return true;
+        }
         if (action == GLFW.GLFW_RELEASE && buttons.remove(button)) {
             if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                 if(fileDragging&&draggedFile!=null&&active(c)) {
@@ -135,12 +147,19 @@ public final class WindowControls {
         if (!active(c)) return false;
         if (action != GLFW.GLFW_PRESS) return false;
         if (resizing != null || dragging != null || curving) { buttons.add(button); return true; }
-        // Control items keep their right-click actions, including Window Drag.
+        Hit hit=pointer==null?pick(c):null;
+        boolean laserHeld=LaserPointer.heldHand(c)!=null;
+        // The laser yields to panel input; its controls only apply when this raycast missed.
         if (pointer == null && button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
                 && (WinLandCraft.isControl(c.player.getMainHandItem())
-                || c.player.getMainHandItem().isEmpty() && WinLandCraft.isControl(c.player.getOffhandItem()))) return false;
+                || c.player.getMainHandItem().isEmpty() && WinLandCraft.isControl(c.player.getOffhandItem()))
+                && (!laserHeld||hit==null)) return false;
+        if(pointer==null&&button==GLFW.GLFW_MOUSE_BUTTON_LEFT&&laserHeld&&hit==null) {
+            LaserPointer.toggle(c);
+            laserToggleDown=true;
+            return true;
+        }
         if (pointer == null && c.player.isUsingItem()) return false;
-        Hit hit = pick(c);
         if(pointer==null && hit!=null && hit.panel==curveUi) {
             buttons.add(button);
             if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
@@ -260,6 +279,7 @@ public final class WindowControls {
             int diagonal=((corner&1)!=0)==((corner&4)!=0)?3:2;
             return (resizing!=null?resizing.scaling():scalingHeld())?diagonal+2:diagonal;
         }
+        if((hovered!=null||pointer!=null)&&hoveredPoint!=null&&LaserPointer.active(client)&&!fileDragging)return -1;
         return hovered != null || pointer != null || dragging != null || curving ? 1 : 0;
     }
     public void renderResizeHint(net.minecraft.client.gui.GuiGraphics graphics) {
@@ -312,9 +332,13 @@ public final class WindowControls {
             }
         }
     }
+    public void renderLaser(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+        LaserPointer.prepare(context.camera(),hoveredPoint);
+    }
     public void update(Camera camera) {
         var c = Minecraft.getInstance(); tick(c);
         if (!active(c)) return;
+        hoveredPoint=null;
         if(draggedFile!=null&&pointer!=null) {
             Hit target=pick(c);
             if(target==null||target.panel!=pointer||fileStartRay.dot(direction(camera))<.99995
@@ -324,7 +348,10 @@ public final class WindowControls {
         if(!curving && System.nanoTime()>curveUntil) clearCurve();
         if(curving && curveUi!=null) {
             double t=curveUi.planeDistance(camera.getPosition(),direction(camera));
-            if(Double.isFinite(t) && t<Math.max(64,ModSettings.interactionRange(c.player.blockInteractionRange()))) setCurve(camera.getPosition().add(direction(camera).scale(t)));
+            if(Double.isFinite(t) && t<Math.max(64,ModSettings.interactionRange(c.player.blockInteractionRange()))) {
+                hoveredPoint=camera.getPosition().add(direction(camera).scale(t));
+                setCurve(hoveredPoint);
+            }
             hoveredCorner=0; return;
         }
         if (suggestion != null && (!suggestion.a().isOpen() || !suggestion.b().isOpen() || WindowGroups.members(suggestion.a()).contains(suggestion.b()))) suggestion=null;
@@ -346,10 +373,13 @@ public final class WindowControls {
         WorldPanel nextHover = null;
         if (resizing != null) {
             nextHover = resizing.panel;
+            double t=resizing.planeDistance(camera.getPosition(),direction(camera));
+            if(Double.isFinite(t))hoveredPoint=camera.getPosition().add(direction(camera).scale(t));
         } else if (pointer != null) {
             double t = pointer.planeDistance(camera.getPosition(), direction(camera));
             if (Double.isFinite(t)) {
-                int[] pixel = pointer.pixelAt(camera.getPosition().add(direction(camera).scale(t)));
+                hoveredPoint=camera.getPosition().add(direction(camera).scale(t));
+                int[] pixel = pointer.pixelAt(hoveredPoint);
                 pointerX = pixel[0]; pointerY = pixel[1];
                 pointer.pointerMoved(pointerX, pointerY);
             }
@@ -365,6 +395,7 @@ public final class WindowControls {
                     }
                 }
                 nextHover = hit.panel;
+                hoveredPoint=hit.point;
                 hoveredCorner = corner(hit.panel,hit.point);
                 if (dragging==null) {
                     int[] at=hit.panel.pixelAt(hit.point);

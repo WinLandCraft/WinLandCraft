@@ -83,7 +83,7 @@ public final class ScreenLighting {
         Minecraft minecraft=Minecraft.getInstance();
         Vec3 eye=camera.getPosition();
         candidates.clear();
-        if(!minecraft.options.hideGui)for(WorldPanel panel:panels)
+        for(WorldPanel panel:panels)
             if(panel.isOpen()&&panel.level==minecraft.level&&panel.screenLightColors()!=null)
                 candidates.add(panel);
         candidates.sort(Comparator.comparingDouble(panel->distanceToBounds(panel,eye)));

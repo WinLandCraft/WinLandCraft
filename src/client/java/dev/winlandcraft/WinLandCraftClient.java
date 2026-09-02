@@ -86,6 +86,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
         WorldRenderEvents.AFTER_ENTITIES.register(context -> {
             controls.update(context.camera());
             apps.windows.forEach(window -> window.render(context));
+            controls.renderLaser(context);
             controls.renderHandles(context);
         });
         HudLayerRegistrationCallback.EVENT.register(layers -> layers.addLayer(IdentifiedLayer.of(
@@ -107,8 +108,9 @@ public final class WinLandCraftClient implements ClientModInitializer {
         LOGGER.info("WinLandCraft browser window controls initialized.");
     }
     private static InteractionResult use(Player player, Level level, InteractionHand hand) {
-        if (player.isSpectator() || !WinLandCraft.isControl(player.getItemInHand(hand))) return InteractionResult.PASS;
+        var item=player.getItemInHand(hand);
+        if (player.isSpectator() || !WinLandCraft.isControl(item)) return InteractionResult.PASS;
         if (level.isClientSide()) controls.use(Minecraft.getInstance(), hand);
-        return InteractionResult.SUCCESS;
+        return item.is(WinLandCraft.LASER_POINTER)?InteractionResult.CONSUME:InteractionResult.SUCCESS;
     }
 }
