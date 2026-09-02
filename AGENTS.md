@@ -53,3 +53,7 @@ Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR pai
 2. A single-page-app navigation such as a real click on YouTube that changes the URL without a full page load.
 3. Saving and quitting with several browser views open.
 4. Stream encode/decode and audio on one Linux GPU stack and one Windows GPU stack.
+
+# Git
+- Always, ALWAYS check if there is a newer commit on the remote origin first before changing anything. If there is, try to pull it first and see if there is a conflict. If there is, pause and ask.
+- Commit every change you do.
