@@ -41,6 +41,7 @@ public final class WindowGeometryChecks {
         rotationLock();
         resizing();
         scaling();
+        NativeResizeChecks.run();
         titlebars();
         browserCloseThread();
         laserPointer();

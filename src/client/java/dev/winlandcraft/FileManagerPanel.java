@@ -7,7 +7,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import org.lwjgl.glfw.GLFW;
 
 /** Native, read-only directory browser; no CEF view and no shell/file launching. */
-public final class FileManagerPanel extends WorldPanel {
+public final class FileManagerPanel extends NativePanel {
     private Path directory;
     private volatile FileDirectory.Listing result;
     private final List<Path> history=new ArrayList<>();
@@ -17,9 +17,12 @@ public final class FileManagerPanel extends WorldPanel {
     private Thread worker;
     private boolean editing,selectAll;
     private String address="",notice="";
-    public FileManagerPanel(){super(3.2f,1.8f);}
-    @Override public int pixelWidth(){return 1280;}
-    @Override public int pixelHeight(){return 720;}
+    public FileManagerPanel(){super(3.2f,1.8f,1280,720);}
+    int visibleRows(){return Math.max(1,(pixelHeight()-176)/34);}
+    int listBottom(){return 112+visibleRows()*34;}
+    private int modifiedX(){return pixelWidth()-500;}
+    private boolean details(){return pixelWidth()>=1000;}
+    @Override protected void layoutChanged(){var r=result;if(r!=null){first=Math.clamp(first,0,Math.max(0,r.entries().size()-visibleRows()));sideFirst=Math.clamp(sideFirst,0,Math.max(0,r.locations().size()-visibleRows()));}}
     @Override public boolean floatingControls(){return true;}
     @Override public String windowTitle(){return "File Manager"+(directory==null?"":" - "+directory);}
     @Override protected float minimumWidth(){return 1.6f;}
@@ -52,17 +55,17 @@ public final class FileManagerPanel extends WorldPanel {
             Path path=Path.of(address);navigate(path.isAbsolute()?path:directory.resolve(path),true);
         }catch(InvalidPathException error){notice="Invalid folder path.";}
     }
-    @Override public void hover(int x,int y){hoverRow=x>=240&&x<1260&&y>=112&&y<656?(y-112)/34+first:-1;}
+    @Override public void hover(int x,int y){hoverRow=x>=240&&x<pixelWidth()-20&&y>=112&&y<listBottom()?(y-112)/34+first:-1;}
     @Override public Path dragFileAt(int x,int y){
-        var r=result;if(r==null||x<240||x>=1260||y<112||y>=656)return null;
+        var r=result;if(r==null||x<240||x>=pixelWidth()-20||y<112||y>=listBottom())return null;
         int row=(y-112)/34+first;
         return row<r.entries().size()&&!r.entries().get(row).directory()?r.entries().get(row).path():null;
     }
-    @Override public void scroll(int x,int y,double amount){var r=result;if(r==null||y<0)return;if(x<240)sideFirst=Math.clamp(sideFirst-(int)Math.signum(amount),0,Math.max(0,r.locations().size()-14));else first=Math.clamp(first-(int)Math.signum(amount)*3,0,Math.max(0,r.entries().size()-16));}
+    @Override public void scroll(int x,int y,double amount){var r=result;if(r==null||y<0)return;if(x<240)sideFirst=Math.clamp(sideFirst-(int)Math.signum(amount),0,Math.max(0,r.locations().size()-visibleRows()));else first=Math.clamp(first-(int)Math.signum(amount)*3,0,Math.max(0,r.entries().size()-visibleRows()));}
     @Override public void mouseDown(int x,int y,int button) {
         if(button!=0||y<0)return;
         if(y>=14&&y<58) {
-            if(x>=260&&x<1256){editing=true;selectAll=true;return;}
+            if(x>=260&&x<pixelWidth()-24){editing=true;selectAll=true;return;}
             if(x>=12&&x<62&&historyIndex>0)navigate(history.get(--historyIndex),false);
             else if(x>=70&&x<120&&historyIndex+1<history.size())navigate(history.get(++historyIndex),false);
             else if(x>=128&&x<178&&directory!=null&&directory.getParent()!=null)navigate(directory.getParent(),true);
@@ -70,8 +73,8 @@ public final class FileManagerPanel extends WorldPanel {
             return;
         }
         var r=result;if(r==null)return;
-        if(x>=12&&x<228&&y>=112&&y<588){int row=(y-112)/34+sideFirst;if(row<r.locations().size())navigate(r.locations().get(row).path(),true);return;}
-        if(x>=240&&x<1260&&y>=112&&y<656) {
+        if(x>=12&&x<228&&y>=112&&y<listBottom()){int row=(y-112)/34+sideFirst;if(row<r.locations().size())navigate(r.locations().get(row).path(),true);return;}
+        if(x>=240&&x<pixelWidth()-20&&y>=112&&y<listBottom()) {
             int row=(y-112)/34+first;if(row>=r.entries().size())return;
             selected=row;var entry=r.entries().get(row);long now=System.nanoTime();
             if(row==lastRow&&now-lastClick<450_000_000L&&entry.directory())navigate(entry.path(),true);
@@ -88,38 +91,38 @@ public final class FileManagerPanel extends WorldPanel {
         }
     }
     @Override void drawSurface(PanelCanvas c) {
-        c.rect(-3,-3,1286,726,0,0xFF536579);
-        c.rect(0,0,1280,720,.1f,0xFF17212D);c.rect(0,76,232,602,.2f,0xFF202C3B);
+        c.rect(-3,-3,pixelWidth()+6,pixelHeight()+6,0,0xFF536579);
+        c.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF17212D);c.rect(0,76,232,Math.max(0,pixelHeight()-118),.2f,0xFF202C3B);
         PixelIcon[] buttons={PixelIcon.ARROW_LEFT,PixelIcon.ARROW_RIGHT,PixelIcon.ARROW_UP,PixelIcon.REFRESH};int[] xs={12,70,128,186};
         boolean[] enabled={historyIndex>0,historyIndex+1<history.size(),directory!=null&&directory.getParent()!=null,directory!=null};
         for(int i=0;i<4;i++){int width=i==3?60:50;colorButton(c,buttons[i],xs[i],14,width,44,enabled[i]);}
-        c.rect(260,14,996,44,.3f,editing?0xFF39566F:hoverColor(260,14,996,44,0xFF101B28,0xFF1D3042));
+        c.rect(260,14,Math.max(1,pixelWidth()-284),44,.3f,editing?0xFF39566F:hoverColor(260,14,Math.max(1,pixelWidth()-284),44,0xFF101B28,0xFF1D3042));
         String shown=editing?address+(selectAll?"":"|"):directory==null?"Home":directory.toString();
-        c.text(fit(shown,972,1.5f),272,29,selectAll&&editing?0xFF72ECF1:-1,1.5f);
+        c.text(fit(shown,Math.max(1,pixelWidth()-308),1.5f),272,29,selectAll&&editing?0xFF72ECF1:-1,1.5f);
         c.text("Quick locations",16,86,0xFF9BADBF,1.5f);
-        c.text("Name",280,86,0xFF9BADBF,1.5f);c.text("Modified",780,86,0xFF9BADBF,1.5f);c.text("Type",1020,86,0xFF9BADBF,1.5f);c.text("Size",1150,86,0xFF9BADBF,1.5f);
+        c.text("Name",280,86,0xFF9BADBF,1.5f);if(details()){c.text("Modified",modifiedX(),86,0xFF9BADBF,1.5f);c.text("Type",pixelWidth()-260,86,0xFF9BADBF,1.5f);c.text("Size",pixelWidth()-130,86,0xFF9BADBF,1.5f);}
         var r=result;
         if(r==null){c.text("Reading folder...",260,124,0xFFB8CBDE,1.5f);return;}
-        for(int i=0;i<14&&sideFirst+i<r.locations().size();i++) {
+        for(int i=0;i<visibleRows()&&sideFirst+i<r.locations().size();i++) {
             var loc=r.locations().get(sideFirst+i);int y=112+i*34;
             if(loc.path().equals(directory)||hovered(12,y,216,32))c.rect(12,y,216,32,.3f,loc.path().equals(directory)?0xFF395269:0xFF2B4052);
             folder(c,16,y+8,22);c.text(fit(loc.name(),172,1.5f),46,y+9,-1,1.5f);
         }
         var date=java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
-        for(int i=0;i<16&&first+i<r.entries().size();i++) {
+        for(int i=0;i<visibleRows()&&first+i<r.entries().size();i++) {
             int index=first+i,y=112+i*34;var entry=r.entries().get(index);
-            if(index==selected||index==hoverRow)c.rect(242,y,1018,32,.3f,index==selected?0xFF39566F:0xFF283B4D);
+            if(index==selected||index==hoverRow)c.rect(242,y,Math.max(1,pixelWidth()-262),32,.3f,index==selected?0xFF39566F:0xFF283B4D);
             if(entry.directory())folder(c,252,y+7,22);else PixelIcon.FILE_TEXT.draw(c,252,y+5,24,.45f,0xFFB6C9DC);
-            c.text(fit(entry.name(),480,1.5f),284,y+9,-1,1.5f);
-            c.text(entry.modified()==0?"-":date.format(java.time.Instant.ofEpochMilli(entry.modified())),780,y+10,0xFFB8CBDE,1.25f);
-            c.text(entry.directory()?"Folder":entry.link()?"Link":"File",1020,y+10,0xFFB8CBDE,1.25f);
-            c.text(entry.directory()?"-":size(entry.size()),1150,y+10,0xFFB8CBDE,1.25f);
+            c.text(fit(entry.name(),Math.max(1,(details()?modifiedX():pixelWidth()-20)-300),1.5f),284,y+9,-1,1.5f);
+            if(details()){c.text(entry.modified()==0?"-":date.format(java.time.Instant.ofEpochMilli(entry.modified())),modifiedX(),y+10,0xFFB8CBDE,1.25f);
+            c.text(entry.directory()?"Folder":entry.link()?"Link":"File",pixelWidth()-260,y+10,0xFFB8CBDE,1.25f);
+            c.text(entry.directory()?"-":size(entry.size()),pixelWidth()-130,y+10,0xFFB8CBDE,1.25f);}
         }
         if(!r.error().isEmpty())c.text(r.error(),260,124,0xFFFFA5A5,1.5f);
         else if(r.entries().isEmpty())c.text("This folder is empty.",260,124,0xFFB8CBDE,1.5f);
-        if(r.entries().size()>16){float h=Math.max(16,544f*16/r.entries().size());c.rect(1266,112,5,544,.3f,0xFF283B4D);c.rect(1266,112+(544-h)*first/(r.entries().size()-16f),5,h,.4f,0xFF8AA6BD);}
-        c.text(r.entries().size()+" items"+(r.truncated()?" (first 10,000 shown)":"")+" | Scroll to browse",16,689,0xFF9BADBF,1.25f);
-        c.text(fit(notice,790,1.25f),470,689,0xFFB8CBDE,1.25f);
+        if(r.entries().size()>visibleRows()){float track=visibleRows()*34f,h=Math.max(16,track*visibleRows()/r.entries().size());c.rect(pixelWidth()-14,112,5,track,.3f,0xFF283B4D);c.rect(pixelWidth()-14,112+(track-h)*first/(r.entries().size()-visibleRows()),5,h,.4f,0xFF8AA6BD);}
+        c.text(fit(r.entries().size()+" items"+(r.truncated()?" (first 10,000 shown)":"")+" | Scroll to browse",pixelWidth()-32,1.25f),16,pixelHeight()-31,0xFF9BADBF,1.25f);
+        if(pixelWidth()>900)c.text(fit(notice,pixelWidth()-490,1.25f),470,pixelHeight()-31,0xFFB8CBDE,1.25f);
     }
     private void colorButton(PanelCanvas c,PixelIcon icon,int x,int y,int width,int height,boolean enabled){
         int color=enabled?hoverColor(x,y,width,height,0xFF304457,0xFF426079):0xFF263542;

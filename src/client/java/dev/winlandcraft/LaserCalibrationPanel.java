@@ -4,20 +4,19 @@ import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 
 /** Live laser pose, beam-origin, and motion controls. */
-public final class LaserCalibrationPanel extends WorldPanel {
-    private static final int ROW_TOP=118,ROW_HEIGHT=38,TRACK_X=306,TRACK_WIDTH=330;
+public final class LaserCalibrationPanel extends NativePanel {
+    private static final int ROW_TOP=118,ROW_HEIGHT=38,TRACK_X=306;
+    private int trackWidth(){return Math.max(40,pixelWidth()-450);}
     private LaserTuning.Section section=LaserTuning.Section.POSE;
     private int active=-1;
     private boolean changed;
     private String status="Changes save automatically.";
 
-    public LaserCalibrationPanel(){super(3.4f,2f);}
-    @Override public int pixelWidth(){return 780;}
-    @Override public int pixelHeight(){return 460;}
+    public LaserCalibrationPanel(){super(3.4f,2f,780,460);}
     @Override public boolean floatingControls(){return true;}
     @Override public String windowTitle(){return "Laser Calibration";}
-    @Override protected float minimumWidth(){return 1.7f;}
-    @Override protected float minimumHeight(){return 1f;}
+    @Override protected float minimumWidth(){return worldWidth()*700/pixelWidth();}
+    @Override protected float minimumHeight(){return worldHeight()*460/pixelHeight();}
 
     @Override public void mouseDown(int x,int y,int button) {
         if(button!=0||y<0)return;
@@ -30,8 +29,8 @@ public final class LaserCalibrationPanel extends WorldPanel {
         if(row>=0) {
             var parameter=parameters()[row];
             if(x>=250&&x<286)change(parameter,-1);
-            else if(x>=650&&x<686)change(parameter,1);
-            else if(x>=TRACK_X-6&&x<TRACK_X+TRACK_WIDTH+6) {
+            else if(x>=pixelWidth()-130&&x<pixelWidth()-94)change(parameter,1);
+            else if(x>=TRACK_X-6&&x<TRACK_X+trackWidth()+6) {
                 active=row;setFromTrack(parameter,x);
             }
             return;
@@ -41,9 +40,9 @@ public final class LaserCalibrationPanel extends WorldPanel {
             else if(x>=194&&x<378){LaserPointer.previewBounce(Minecraft.getInstance());status="Previewing power bounce.";}
             return;
         }
-        if(y>=410&&y<446&&x>=24&&x<146) {
+        if(y>=pixelHeight()-50&&y<pixelHeight()-14&&x>=24&&x<146) {
             LaserTuning.reset(section);changed=true;save("Reset this section.");
-        } else if(y>=410&&y<446&&x>=160&&x<350) {
+        } else if(y>=pixelHeight()-50&&y<pixelHeight()-14&&x>=160&&x<350) {
             Minecraft.getInstance().keyboardHandler.setClipboard(LaserTuning.summary());
             status="Copied all tuning values.";
         }
@@ -67,7 +66,7 @@ public final class LaserCalibrationPanel extends WorldPanel {
 
     private LaserTuning.Parameter[] parameters(){return LaserTuning.parameters(section);}
     private void change(LaserTuning.Parameter parameter,float direction){LaserTuning.adjust(parameter,direction);changed=true;}
-    private void setFromTrack(LaserTuning.Parameter parameter,int x){LaserTuning.setNormalized(parameter,(x-TRACK_X)/(float)TRACK_WIDTH);changed=true;}
+    private void setFromTrack(LaserTuning.Parameter parameter,int x){LaserTuning.setNormalized(parameter,(x-TRACK_X)/(float)trackWidth());changed=true;}
     private void save(String message){status=ModSettings.save()?message:"Could not save; see latest.log.";changed=false;}
     private int rowAt(int y) {
         int row=(y-ROW_TOP)/ROW_HEIGHT;
@@ -81,8 +80,8 @@ public final class LaserCalibrationPanel extends WorldPanel {
         }
     }
     @Override void drawSurface(PanelCanvas canvas) {
-        canvas.rect(-3,-3,786,466,0,0xFF536579);
-        canvas.rect(0,0,780,460,.1f,0xFF18212D);
+        canvas.rect(-3,-3,pixelWidth()+6,pixelHeight()+6,0,0xFF536579);
+        canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF18212D);
         canvas.text("Tune the remote while holding it",24,18,-1,1.8f);
         canvas.text(instruction(),24,48,0xFFAAC2D3,1.12f);
         tab(canvas,LaserTuning.Section.POSE,"Pose",24);tab(canvas,LaserTuning.Section.BEAM,"Beam",156);
@@ -93,8 +92,8 @@ public final class LaserCalibrationPanel extends WorldPanel {
             button(canvas,PixelIcon.REFRESH,"Preview spin",24,300,154);
             button(canvas,PixelIcon.ARROW_UP,"Preview power",194,300,184);
         }
-        button(canvas,PixelIcon.UNDO,"Reset",24,410,122);button(canvas,PixelIcon.COPY,"Copy all",160,410,190);
-        canvas.text(status,374,423,status.startsWith("Could not")?0xFFFFA5A5:0xFF9EB6C7,1.05f);
+        button(canvas,PixelIcon.UNDO,"Reset",24,pixelHeight()-50,122);button(canvas,PixelIcon.COPY,"Copy all",160,pixelHeight()-50,190);
+        canvas.text(status,374,pixelHeight()-37,status.startsWith("Could not")?0xFFFFA5A5:0xFF9EB6C7,1.05f);
     }
 
     private String instruction() {
@@ -114,12 +113,12 @@ public final class LaserCalibrationPanel extends WorldPanel {
         int y=ROW_TOP+row*ROW_HEIGHT;
         canvas.text(parameter.label,24,y+9,-1,1.2f);canvas.text(LaserTuning.display(parameter),170,y+9,0xFFFFD37A,1.15f);
         squareButton(canvas,PixelIcon.MINUS,250,y);
-        canvas.rect(TRACK_X,y+13,TRACK_WIDTH,5,.35f,0xFF526878);
+        canvas.rect(TRACK_X,y+13,trackWidth(),5,.35f,0xFF526878);
         float amount=LaserTuning.normalized(parameter);
-        canvas.rect(TRACK_X,y+13,TRACK_WIDTH*amount,5,.4f,0xFF51CFDF);
-        canvas.rect(TRACK_X-5+TRACK_WIDTH*amount,y+6,10,19,.5f,
-                hovered(TRACK_X-6,y,TRACK_WIDTH+12,30)||active==row?0xFFFFFFFF:0xFFA9EAF0);
-        squareButton(canvas,PixelIcon.PLUS,650,y);
+        canvas.rect(TRACK_X,y+13,trackWidth()*amount,5,.4f,0xFF51CFDF);
+        canvas.rect(TRACK_X-5+trackWidth()*amount,y+6,10,19,.5f,
+                hovered(TRACK_X-6,y,trackWidth()+12,30)||active==row?0xFFFFFFFF:0xFFA9EAF0);
+        squareButton(canvas,PixelIcon.PLUS,pixelWidth()-130,y);
     }
 
     private void squareButton(PanelCanvas canvas,PixelIcon icon,int x,int y) {
