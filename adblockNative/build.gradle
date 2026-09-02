@@ -1,0 +1,27 @@
+plugins {
+    id 'base'
+}
+
+def cargoTarget = layout.buildDirectory.dir('cargo-target')
+def cargoExecutable = providers.environmentVariable('CARGO').orElse('cargo')
+
+tasks.register('cargoBuild', Exec) {
+    inputs.files('Cargo.toml', 'Cargo.lock')
+    inputs.dir('src')
+    outputs.dir(cargoTarget.map { it.dir('release') })
+    environment 'CARGO_TARGET_DIR', cargoTarget.get().asFile.absolutePath
+    environment 'RUSTUP_TOOLCHAIN', '1.97'
+    commandLine cargoExecutable.get(), 'build', '--locked', '--release'
+}
+
+tasks.register('cargoTest', Exec) {
+    inputs.files('Cargo.toml', 'Cargo.lock')
+    inputs.dir('src')
+    outputs.upToDateWhen { false }
+    environment 'CARGO_TARGET_DIR', cargoTarget.get().asFile.absolutePath
+    environment 'RUSTUP_TOOLCHAIN', '1.97'
+    commandLine cargoExecutable.get(), 'test', '--locked'
+}
+
+check.dependsOn cargoTest
+assemble.dependsOn cargoBuild

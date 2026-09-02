@@ -9,6 +9,7 @@ These instructions apply to the entire repository.
 - Dependency-free regression programs live in `src/geometryCheck` and run as part of `check`.
 - `mcefFork` assembles the embedded browser compatibility JAR. It combines MCEF 2.1.6 integration classes with the pinned JCEF classes in `gradle.properties`; do not add a separate MCEF runtime dependency.
 - Chromium/JCEF compatibility decisions are documented in `docs/chromium-compatibility.md`. Update that document whenever the pinned runtime, browser flags, download source, or lifecycle handling changes.
+- `adblockNative` is the pinned Rust/JNI adblock engine. Its request, page-injection, asset, and packaging invariants are documented in `docs/adblocking.md`.
 
 ## Browser invariants
 
@@ -19,6 +20,7 @@ These instructions apply to the entire repository.
 - Close browser views on the render thread and make cleanup idempotent. Disconnect callbacks can originate on Netty threads.
 - Merge Chromium feature lists instead of replacing existing `--enable-features` or `--disable-features` arguments. Apply startup flags consistently to both `CefApp.startup` and `CefApp.getInstance`.
 - MCEF/JCEF mixins use `remap = false`. Register new mixins in `winlandcraft.client.mixins.json` and extend `verifyMixinPackaging` so missing production classes fail the build.
+- CEF request objects may only be mutated in callbacks that explicitly allow it. Keep the adblock engine immutable after initialization and bound every page-to-Java cosmetic query.
 
 ## Implementation style
 
@@ -27,6 +29,7 @@ These instructions apply to the entire repository.
 - Preserve user changes in a dirty worktree. Do not commit or push unless explicitly requested.
 - Bump `mod_version` for testable behavior changes so logs and artifacts identify the exact build.
 - Do not commit generated output, runtime natives, launcher logs, crash dumps, or local Gradle caches.
+- Pin Rust crates with `Cargo.lock`; build native libraries from source and package cross-platform binaries through the CI matrix.
 
 ## Verification
 

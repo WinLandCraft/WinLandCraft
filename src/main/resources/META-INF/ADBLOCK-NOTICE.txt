@@ -1,0 +1,9 @@
+WinLandCraft includes a native build of brave/adblock-rust 0.13.3.
+
+Copyright (c) Brave Software
+Licensed under the Mozilla Public License 2.0:
+https://www.mozilla.org/MPL/2.0/
+
+Source: https://github.com/brave/adblock-rust
+WinLandCraft JNI bridge source: adblockNative/src/lib.rs
+The exact dependency graph is recorded in adblockNative/Cargo.lock.

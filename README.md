@@ -14,6 +14,8 @@ Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-ancho
 - Replace the old Prism mod JAR with the new `build/libs/winlandcraft-*.jar`. Keep only one WinLandCraft version installed, alongside Fabric API; remove any separate MCEF JAR.
 - MCEF downloads native browser files on its first launch. Online websites need an internet connection.
 
+Browser requests and page cosmetics are filtered by a pinned build of Brave's `adblock-rust` engine, including redirect resources and trusted scriptlets used by current YouTube rules. Filter assets are checksum-verified and cached under `config/winlandcraft/adblock`. A local JAR contains the adblock native for the OS that built it; release/CI artifacts combine Linux, Windows, and Intel macOS natives. Implementation and update constraints are documented in [docs/adblocking.md](docs/adblocking.md).
+
 ## Browser(streamable): video and audio
 
 Open **Apps > Browser(streamable)** (purple compass). The creator runs the website locally and broadcasts its complete browser surface, including sidebar, tabs, titlebar, and quality controls. Other modded players in the same dimension see a video panel in the same world position. It is read-only by default; the creator can check **Allow remote control** to let those players point, click, scroll, and type in the shared browser. Only the creator can move, resize, scale, curve, close, or change stream settings. Shared/private grouping remains disabled.

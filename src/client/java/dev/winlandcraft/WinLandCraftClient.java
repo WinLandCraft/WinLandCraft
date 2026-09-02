@@ -38,7 +38,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
             throw new IllegalStateException("Chromium 151 requires a Java runtime with Java Desktop/JAWT support.", missingJavaDesktop);
         }
         ModSettings.load();
-        UBlockLite.install();
+        AdBlock.install();
         StreamAudio.install();
         WebApps.load();
         var give = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.winlandcraft.give_tasks",

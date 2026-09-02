@@ -6,10 +6,30 @@ version = project.mod_version
 group = 'dev.winlandcraft'
 
 evaluationDependsOn(':mcefFork')
+evaluationDependsOn(':adblockNative')
 def modernMcef = project(':mcefFork').tasks.named('modernMcef')
 def modernMcefJar = project(':mcefFork').layout.buildDirectory.file(
         "distributions/winlandcraft-mcef-${project.chromium_version}.jar")
 def modernMcefFiles = files(modernMcefJar).builtBy(modernMcef)
+def adblockBuild = project(':adblockNative').tasks.named('cargoBuild')
+def adblockTarget = project(':adblockNative').layout.buildDirectory.dir('cargo-target/release')
+def hostOs = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+def hostArch = System.getProperty('os.arch').toLowerCase(Locale.ROOT)
+def nativePlatform = hostOs.contains('win') ? 'windows' : hostOs.contains('mac') ? 'macos' : 'linux'
+def nativeArch = ['amd64': 'amd64', 'x86_64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'][hostArch]
+if (nativeArch == null) throw new GradleException("Unsupported adblock native architecture: ${hostArch}")
+def adblockLibrary = nativePlatform == 'windows' ? 'winlandcraft_adblock.dll'
+        : nativePlatform == 'macos' ? 'libwinlandcraft_adblock.dylib' : 'libwinlandcraft_adblock.so'
+def stagedAdblock = layout.buildDirectory.dir('generated/adblockNativeResources')
+def adblockNativeBundleDir = providers.gradleProperty('adblockNativeBundleDir')
+def stageAdblockNative = tasks.register('stageAdblockNative', Sync) {
+    dependsOn adblockBuild
+    into(stagedAdblock)
+    from(adblockTarget.map { it.file(adblockLibrary) }) {
+        into "META-INF/natives/${nativePlatform}_${nativeArch}"
+    }
+    if (adblockNativeBundleDir.isPresent()) from(file(adblockNativeBundleDir.get()))
+}
 
 repositories {
     maven { url = 'https://mcef-download.cinemamod.com/repositories/releases' }
@@ -35,11 +55,13 @@ dependencies {
 
 def modVersion = version.toString()
 processResources {
+    dependsOn stageAdblockNative
     inputs.property 'version', modVersion
     inputs.property 'chromiumVersion', project.chromium_version
     filesMatching('fabric.mod.json') {
         expand version: modVersion, chromiumVersion: project.chromium_version
     }
+    from(stagedAdblock)
 }
 
 jar {
@@ -94,6 +116,13 @@ tasks.register('verifyUBlock', JavaExec) {
     mainClass = 'dev.winlandcraft.UBlockChecks'
 }
 check.dependsOn verifyUBlock
+tasks.register('verifyAdBlockNative', JavaExec) {
+    dependsOn geometryCheckClasses, adblockBuild
+    classpath = sourceSets.geometryCheck.runtimeClasspath
+    mainClass = 'dev.winlandcraft.AdBlockNativeChecks'
+    doFirst { args adblockTarget.get().file(adblockLibrary).asFile.absolutePath }
+}
+check.dependsOn verifyAdBlockNative
 tasks.register('verifyWebApps', JavaExec) {
     dependsOn geometryCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath
@@ -112,6 +141,7 @@ tasks.register('smokeResourceCounters', JavaExec) {
     args '--live'
 }
 check.dependsOn verifyResourceCounters
+check.dependsOn project(':adblockNative').tasks.named('cargoTest')
 
 // Development launches can hide missing refmap declarations. Check the distributable JAR.
 tasks.register('verifyMixinPackaging') {
@@ -153,7 +183,18 @@ tasks.register('verifyMixinPackaging') {
             }
             def nested = zip.entries().find { it.name.startsWith('META-INF/jars/winlandcraft-mcef-') && it.name.endsWith('.jar') }
             if (nested == null) throw new GradleException('Missing embedded Chromium 151 MCEF runtime')
-            logger.lifecycle('Packaged input/cursor mixins, Chromium runtime mixins, mappings, and embedded MCEF fork verified.')
+            if (zip.getEntry('META-INF/ADBLOCK-NOTICE.txt') == null)
+                throw new GradleException('Missing adblock third-party notice')
+            def expectedNatives = adblockNativeBundleDir.isPresent() ? [
+                    'META-INF/natives/linux_amd64/libwinlandcraft_adblock.so',
+                    'META-INF/natives/windows_amd64/winlandcraft_adblock.dll',
+                    'META-INF/natives/macos_amd64/libwinlandcraft_adblock.dylib']
+                    : ["META-INF/natives/${nativePlatform}_${nativeArch}/${adblockLibrary}"]
+            expectedNatives.each { nativePath ->
+                if (zip.getEntry(nativePath) == null)
+                    throw new GradleException("Missing native adblock engine: ${nativePath}")
+            }
+            logger.lifecycle('Packaged input/cursor mixins, Chromium runtime mixins, mappings, embedded MCEF fork, and native adblock engine verified.')
         }
     }
 }
