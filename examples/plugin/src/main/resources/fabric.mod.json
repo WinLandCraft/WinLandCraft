@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 1,
-  "id": "wlc_example",
-  "version": "1.0.0",
-  "name": "WinLandCraft API Example",
-  "environment": "client",
-  "entrypoints": { "winlandcraft:plugins": ["example.ExamplePlugin"] },
-  "depends": { "fabricloader": ">=0.16.9", "java": ">=21", "minecraft": "1.21.4", "winlandcraft": ">=0.1.82-dev" }
-}

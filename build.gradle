@@ -308,23 +308,17 @@ tasks.register('pluginApiJar', Jar) {
     from(sourceSets.client.output) { include 'dev/winlandcraft/api/v1/**' }
 }
 sourceSets {
-    pluginExample {
-        java.srcDir 'examples/plugin/src/main/java'
-        resources.srcDir 'examples/plugin/src/main/resources'
+    pluginCheck {
+        java.srcDir 'src/pluginCheck/java'
         compileClasspath = files(tasks.named('pluginApiJar'))
         runtimeClasspath = output + compileClasspath
     }
 }
-tasks.register('pluginExampleJar', Jar) {
-    dependsOn pluginExampleClasses
-    archiveClassifier = 'example-plugin'
-    from sourceSets.pluginExample.output
-}
 tasks.register('verifyPluginApi', JavaExec) {
-    dependsOn geometryCheckClasses, pluginExampleClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath + sourceSets.pluginExample.output
+    dependsOn geometryCheckClasses, pluginCheckClasses
+    classpath = sourceSets.geometryCheck.runtimeClasspath + sourceSets.pluginCheck.output
     mainClass = 'dev.winlandcraft.PluginApiChecks'
     args file('docs/plugin-api-v1.txt').absolutePath
 }
 check.dependsOn verifyPluginApi
-build.dependsOn pluginApiJar, pluginExampleJar
+build.dependsOn pluginApiJar

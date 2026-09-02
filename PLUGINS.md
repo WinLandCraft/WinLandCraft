@@ -18,7 +18,7 @@ Build WinLandCraft normally. The outputs include:
 
 - `winlandcraft-0.1.82-dev.jar`: install on the client/host as usual.
 - `winlandcraft-0.1.82-dev-plugin-api.jar`: compile-only public API; do **not** install, shade, include, or package it in your plugin.
-- `winlandcraft-0.1.82-dev-example-plugin.jar`: optional test mod with native, Chromium, and hybrid example apps. Install alongside the main JAR, never instead of it.
+The example apps now live in the separate `WLCP-Example-Plugin` project. Its README covers its independent build and installation; the main mod build no longer produces an example plugin JAR.
 
 There is no published Maven repository yet. Copy the API JAR into your plugin project's `libs/` folder. Minimal Gradle configuration:
 
@@ -187,8 +187,8 @@ Do not depend on `dev.winlandcraft.*` implementation classes outside `api.v1`, r
 
 Within supported Minecraft/Fabric versions, newer WinLandCraft builds must keep old v1 plugin binaries working. Existing types, signatures, enum values, and documented behavior remain supported. New callbacks must have default implementations; new builder options must preserve existing defaults. An incompatible future API must coexist in another versioned package rather than replacing v1. Cross-Minecraft compatibility still depends on Fabric and any Minecraft APIs your own mod uses.
 
-The repository's `verifyPluginApi` gate checks the frozen public-signature baseline and rejects new mandatory interface callbacks. It also compiles [the example plugin](examples/plugin/) against **only** the API JAR, exercises registration/file handlers/input/geometry, and tests registration rollback. Do not regenerate the baseline to approve a breaking change.
+The repository's `verifyPluginApi` gate checks the frozen public-signature baseline and rejects new mandatory interface callbacks. It compiles a small regression fixture in `src/pluginCheck` against **only** the API JAR, exercises registration/file handlers/input/geometry, and tests registration rollback. This fixture is not a shipped app or the example plugin. Do not regenerate the baseline to approve a breaking change.
 
-To build the standalone example, copy the API JAR into `examples/plugin/libs/`, enter that directory, then run the root wrapper (`../../gradlew -p . build`, or `..\..\gradlew.bat -p . build` on Windows with Java 21). The host build also produces its installable example JAR automatically, without requiring that copy.
+The installable example is maintained separately in **WLCP-Example-Plugin** (the local checkout is `D:/Repositories/WLCP-Example-Plugin`). It includes its own Gradle wrapper, README, API guide, source, and sample file. Copy one API JAR into that project's `libs/` and build there using its wrapper; it does not depend on a sibling checkout or the host build. Example source/build changes belong in that project.
 
 Before releasing a plugin, smoke-test all three relevant paths: open from Apps, double-click a supported file and choose each edge, and drag a file between windows. Check typing/Escape, pointer release outside the window, Ctrl-scaling versus resizing, groups/curves, taskbar close/reopen, and saving/quitting. Chromium/hybrid plugins additionally need navigation, resize, close/reopen, and audio/stream tests on the target operating systems. Automated checks do not validate native CEF or GPU behavior.

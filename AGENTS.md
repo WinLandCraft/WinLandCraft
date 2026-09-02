@@ -60,7 +60,7 @@ Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR pai
 - Preserve existing public classes, methods, descriptors, enum values, entrypoint name, defaults, and documented semantics. Add only optional builder settings or default interface methods. Never add a mandatory callback to a v1 interface.
 - If incompatible changes are unavoidable, introduce another API version alongside v1 and retain its host adapter. Older plugin binaries must continue working on supported Minecraft/Fabric versions.
 - `docs/plugin-api-v1.txt` is the frozen baseline: do not regenerate it to make a failing compatibility check pass. Extend checks for new optional capabilities without deleting historical signatures.
-- Keep `PLUGINS.md`, the independently compiled example plugin, file-handler integration, and `verifyPluginApi` synchronized. Public API types must not expose Minecraft, MCEF/JCEF, or internal window classes.
+- Keep `PLUGINS.md`, the independently compiled API regression fixture, file-handler integration, and `verifyPluginApi` synchronized. Public API types must not expose Minecraft, MCEF/JCEF, or internal window classes.
 - WinLandCraft exclusively owns input capture, keyboard/mouse locking, focus, picking, and browser input forwarding. Plugins receive local callbacks and request keyboard focus through WindowContext; never require input mixins from plugins.
 - Plugin CEF views use the shared runtime and render-thread lifecycle. Keep completion queues bounded, expire contexts on close, and contain callback/registration failures without treating Java mods as sandboxed code.
 
