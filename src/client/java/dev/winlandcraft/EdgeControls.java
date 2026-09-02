@@ -19,6 +19,8 @@ final class EdgeControls extends WorldPanel {
     private float opacity,frameSeconds;
     private long lastFrame;
     private boolean expanded;
+    private WindowGroups.Suggestion groupCandidate;
+    private long previewSince;
     private long until,hoverUntil;
     EdgeControls(WorldPanel owner,Vec3 point,long now) {
         super(.6f,.1f);this.owner=owner;
@@ -104,15 +106,54 @@ final class EdgeControls extends WorldPanel {
         position=anchor.add(offset.x,offset.y,offset.z);level=owner.level;
         scaleTo(pixelWidth()*unit,pixelHeight()*unit);
     }
-    /** 1 drag, 2 close, 3 ungroup, 4 curve; body gaps consume input without moving. */
+    /** 1 drag, 2 close, 3 ungroup, 4 curve, 5 stream, 6 group. */
     int action(int x,int y) {
         if(x<0||y<0||x>=pixelWidth()||y>=pixelHeight())return 0;
         int hx=headerX(),hy=headerY();
         if(y>=hy&&y<hy+40&&x<hx+240)return x>=hx+200?2:1;
+        if(expanded&&groupCandidate!=null&&x>=124&&x<232&&y>=ungroupY()&&y<ungroupY()+28)return 6;
         if(expanded&&owner.grouped()&&x>=12&&x<112&&y>=ungroupY()&&y<ungroupY()+28)return 3;
         if(expanded&&GroupCurve.eligible(owner)&&y>=sliderY()-14&&y<sliderY()+18)return 4;
         if(expanded&&owner.streaming()&&y>=streamY()&&y<streamY()+streamHeight())return 5;
         return 0;
+    }
+    void updateGroup(java.util.List<WorldPanel> windows) {
+        WindowGroups.Suggestion next=null;
+        if(owner.isOpen()&&owner.canGroup()) {
+            Vec3 anchor=owner.curve==null?WindowGroups.world(owner.position,owner.orientation,anchorX,anchorY)
+                    :owner.curve.panelPoint(owner,anchorX,anchorY,0);
+            next=WindowGroups.suggest(owner,anchor,windows);
+        }
+        if(groupCandidate==null||next==null||groupCandidate.b()!=next.b()||groupCandidate.edge()!=next.edge())previewSince=0;
+        groupCandidate=next;
+    }
+    void joinGroup() {
+        if(groupCandidate==null)return;
+        WindowGroups.join(owner,groupCandidate.b(),groupCandidate.edge());
+        groupCandidate=null;previewSince=0;sync();
+    }
+    boolean previewsGroup(){return expanded&&groupCandidate!=null&&hovered(124,ungroupY(),108,28);}
+    static float previewOpacity(double seconds){return (float)(.85*(1-Math.cos(Math.max(0,seconds)*Math.PI/1.2))/2);}
+    void renderGroupPreview(WorldRenderContext context,boolean active) {
+        if(!active||!previewsGroup()){previewSince=0;return;}
+        long now=System.nanoTime();if(previewSince==0)previewSince=now;
+        int alpha=Math.round(255*opacity*previewOpacity((now-previewSince)/1e9));
+        if(alpha<2)return;
+        var panels=new java.util.LinkedHashSet<>(WindowGroups.members(owner));
+        panels.addAll(WindowGroups.members(groupCandidate.b()));
+        for(var panel:panels)try(var c=panel.canvas(context)) {
+            if(c==null)continue;
+            c.foreground();
+            float width=panel.pixelWidth(),height=panel.pixelHeight()+panel.titlebarHeight(),top=-panel.titlebarHeight();
+            float size=(float)Math.max(.004,context.camera().getPosition().distanceTo(panel.position)*.001);
+            float dx=Math.clamp(size*width/panel.worldWidth(),1,Math.max(1,width/30));
+            float dy=Math.clamp(size*panel.pixelHeight()/panel.worldHeight(),1,Math.max(1,height/30));
+            int color=alpha<<24|0x49DC75;
+            // Bound dash count even for oversized windows; the canvas follows curved surfaces.
+            float stepX=Math.max(dx*3,width/160),stepY=Math.max(dy*3,height/90);
+            for(float x=0;x<width;x+=stepX){float dash=Math.min(stepX*.5f,width-x);c.rect(x,top-dy,dash,dy,.75f,color);c.rect(x,panel.pixelHeight(),dash,dy,.75f,color);}
+            for(float y=0;y<height;y+=stepY){float dash=Math.min(stepY*.5f,height-y);c.rect(-dx,top+y,dx,dash,.75f,color);c.rect(width,top+y,dx,dash,.75f,color);}
+        }
     }
     private int sliderY(){return edge==TOP?48+streamHeight():84;}
     private int ungroupY(){return edge==TOP?4+streamHeight():42;}
@@ -174,6 +215,11 @@ final class EdgeControls extends WorldPanel {
             PixelIcon.CLOSE.draw(c,hx+208,hy+8,24,.5f,-1);
             if(expanded) {
                 if(owner.streaming())drawStream(c);
+                if(owner.canGroup()) {
+                    int y=ungroupY();boolean enabled=groupCandidate!=null;
+                    c.rect(124,y,108,28,.4f,enabled?hoverColor(124,y,108,28,0xFF326D4A,0xFF458F62):0xFF293B42);
+                    c.text("Group",140,y+10,enabled?-1:0xFF7E9199);
+                }
                 if(owner.grouped()) {
                     int y=ungroupY();c.rect(12,y,100,28,.4f,hoverColor(12,y,100,28,0xFF386776,0xFF4C8493));
                     PixelIcon.UNLINK.draw(c,16,y+2,24,.5f,-1);c.text("Ungroup",44,y+10,-1);

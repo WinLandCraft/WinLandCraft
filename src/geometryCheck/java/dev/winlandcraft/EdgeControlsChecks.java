@@ -4,7 +4,31 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 final class EdgeControlsChecks {
+    private static void grouping() {
+        for(int edge=0;edge<4;edge++) {
+            var a=new BrowserPanel();var b=new BrowserPanel();
+            a.position=new Vec3(0,80,0);a.orientation=new Quaternionf().rotateXYZ(.2f,.7f,.1f);
+            b.orientation=new Quaternionf(a.orientation);
+            float x=edge==EdgeControls.LEFT?-3.3f:edge==EdgeControls.RIGHT?3.3f:0;
+            float y=edge==EdgeControls.TOP?1.9f:edge==EdgeControls.BOTTOM?-1.9f:0;
+            b.position=WindowGroups.world(a.position,a.orientation,x,y);
+            var at=WindowGroups.world(a.position,a.orientation,Math.signum(x)*1.6f,Math.signum(y)*.9f);
+            var ui=new EdgeControls(a,at,0);ui.expand(1);ui.updateGroup(java.util.List.of(a,b));
+            int row=edge==EdgeControls.TOP?4:42;
+            check(ui.action(150,row+14)==6,"group action available on every edge");
+            ui.pointerMoved(150,row+14);check(ui.previewsGroup(),"hover previews joining windows");
+            ui.pointerMoved(20,ui.headerY()+20);check(!ui.previewsGroup(),"title hover does not preview grouping");
+            b.position=WindowGroups.world(a.position,a.orientation,x*10,y*10);ui.updateGroup(java.util.List.of(a,b));
+            check(ui.action(150,row+14)==0,"distant candidate cannot be grouped");
+            b.position=WindowGroups.world(a.position,a.orientation,x,y);ui.updateGroup(java.util.List.of(a,b));ui.joinGroup();
+            check(a.grouped()&&b.grouped(),"pill joins the selected pair");
+            ui.updateGroup(java.util.List.of(a,b));check(ui.action(150,row+14)==0,"already grouped pair is not suggested again");
+        }
+        check(EdgeControls.previewOpacity(0)==0&&Math.abs(EdgeControls.previewOpacity(1.2)-.85)<.0001
+                &&EdgeControls.previewOpacity(2.4)<.0001,"outline fades in and out over 2.4 seconds");
+    }
     static void run() {
+        grouping();
         var p=new BrowserPanel();p.position=new Vec3(20,80,30);p.orientation=new Quaternionf().rotateXYZ(.2f,.8f,.1f);
         float[][] edges={{0,.9f},{1.6f,0},{0,-.9f},{-1.6f,0}};
         for(int edge=0;edge<4;edge++) {

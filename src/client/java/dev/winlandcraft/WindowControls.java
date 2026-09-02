@@ -37,7 +37,6 @@ public final class WindowControls {
     private WorldPanel hintPanel;
     private int hintCorner;
     private long hintSince;
-    private WindowGroups.Suggestion suggestion;
     private WorldPanel curveUi,curveOwner;
     private EdgeControls edgeUi;
     private final EdgeControls.Dwell edgeDwell=new EdgeControls.Dwell();
@@ -75,7 +74,6 @@ public final class WindowControls {
         hovered = null;
         hoveredPoint = null;
         laserToggleDown = false;
-        suggestion = null;
         clearCurve();
         discardEdge();
         edgeDwell.clear();
@@ -169,8 +167,10 @@ public final class WindowControls {
         if(pointer==null&&hit!=null&&hit.panel==edgeUi) {
             buttons.add(button);
             if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+                edgeUi.updateGroup(apps.windows);
                 int[] at=edgeUi.pixelAt(hit.point);int actionAt=edgeUi.action(at[0],at[1]);
                 if(actionAt==2){stopTyping();edgeUi.owner.close();discardEdge();}
+                else if(actionAt==6){stopTyping();edgeUi.joinGroup();edgeUi.touch(System.nanoTime());}
                 else if(actionAt==5){stopTyping();edgeUi.streamClick(at[0],at[1]);}
                 else if(actionAt==3){WindowGroups.detach(edgeUi.owner);edgeUi.touch(System.nanoTime());}
                 else if(actionAt==1)beginMove(hit,c.gameRenderer.getMainCamera(),null);
@@ -197,10 +197,6 @@ public final class WindowControls {
             buttons.add(button); return true;
         }
         if (pointer == null && hit != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            int[] at = hit.panel.pixelAt(hit.point);
-            if (suggestion != null && suggestion.a()==hit.panel && suggestion.contains(at[0],at[1])) {
-                WindowGroups.join(suggestion.a(),suggestion.b(),suggestion.edge()); suggestion=null; buttons.add(button); return true;
-            }
             int corner = corner(hit.panel,hit.point);
             if (corner != 0) {
                 stopTyping();
@@ -332,7 +328,11 @@ public final class WindowControls {
             }
             return;
         }
-        if(edgeUi!=null)edgeUi.render(context);
+        if(edgeUi!=null) {
+            edgeUi.updateGroup(apps.windows);
+            edgeUi.render(context);
+            edgeUi.renderGroupPreview(context,hovered==edgeUi&&dragging==null&&resizing==null&&!curving);
+        }
         var panel = resizing != null ? resizing.panel : hovered==edgeUi&&edgeUi!=null?edgeUi.owner:hovered;
         if(panel!=null && panel!=curveUi) {
             boolean scaling=resizing!=null?resizing.scaling():scalingHeld();
@@ -348,12 +348,6 @@ public final class WindowControls {
                 canvas.rect(100,22,210*amount,4,.45f,0xFF51CFDF);
                 canvas.rect(96+210*amount,14,8,20,.5f,0xFFAAEDF5);
                 canvas.text(Integer.toString(Math.round(amount*100)),320,18,0xFFE1F2FA);
-            }
-        }
-        if (suggestion != null) try(var canvas=suggestion.a().canvas(context)) {
-            if(canvas!=null) {
-                canvas.rect(suggestion.x(),suggestion.y(),88,28,0.5f,0xEE386776);
-                canvas.text("Group",suggestion.x()+17,suggestion.y()+7,0xFFFFFFFF,1.5f);
             }
         }
     }
@@ -372,7 +366,7 @@ public final class WindowControls {
             Hit target=pick(c);
             if(target==null||target.panel!=pointer||fileStartRay.dot(direction(camera))<.99995
                     ||Math.abs(pointerX-fileStartX)>8||Math.abs(pointerY-fileStartY)>8)fileDragging=true;
-            if(fileDragging){suggestion=null;clearCurve();hoveredCorner=0;return;}
+            if(fileDragging){clearCurve();hoveredCorner=0;return;}
         }
         if(!curving && System.nanoTime()>curveUntil) clearCurve();
         if(curving && (curveUi!=null||edgeUi!=null)) {
@@ -384,7 +378,6 @@ public final class WindowControls {
             }
             hoveredCorner=0; return;
         }
-        if (suggestion != null && (!suggestion.a().isOpen() || !suggestion.b().isOpen() || WindowGroups.members(suggestion.a()).contains(suggestion.b()))) suggestion=null;
         if (dragging != null) {
             Vec3 oldPosition=dragging.position; Quaternionf oldRotation=new Quaternionf(dragging.orientation);
             dragging.orientation = PanelRotation.allowed(camera.rotation()).mul(relativeRotation);
@@ -398,7 +391,6 @@ public final class WindowControls {
         }
         apps.syncAttachments();
         hoveredCorner = 0;
-        if (dragging != null || resizing != null || pointer != null) suggestion=null;
         if(dragging!=null || resizing!=null) clearCurve();
         WorldPanel nextHover = null;
         if (resizing != null) {
@@ -441,14 +433,9 @@ public final class WindowControls {
                 nextHover = hit.panel;
                 hoveredPoint=hit.point;
                 hoveredCorner = corner(hit.panel,hit.point);
-                if (dragging==null) {
-                    int[] at=hit.panel.pixelAt(hit.point);
-                    if (suggestion==null || suggestion.a()!=hit.panel || !suggestion.contains(at[0],at[1]))
-                        suggestion=WindowGroups.suggest(hit.panel,hit.point,apps.windows);
-                }
                 int[] pixel = hit.panel.pixelAt(hit.point); hit.panel.pointerMoved(pixel[0], pixel[1]);
             }
-            else {suggestion=null;edgeDwell.clear();}
+            else {edgeDwell.clear();}
         }
         if (hovered != null && hovered != nextHover && hovered.isOpen()) hovered.pointerMoved(-1, -1);
         hovered = nextHover;

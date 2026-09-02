@@ -169,3 +169,5 @@ Disconnect cleanup is dispatched to the client/render thread because MCEF delete
 - [WaylandCraft resizing](https://github.com/EVV1E/waylandcraft/blob/main/src/main/java/dev/evvie/waylandcraft/grabs/ResizeGrab.java)
 
 Input behavior follows WaylandCraft's hover routing, press/release capture, separate keyboard capture, and separate window grabs, adapted to Minecraft 1.21.4 and CEF. No Wayland protocol/native code or WaylandCraft source blocks were copied. MCEF's Minecraft integration is included through the embedded compatibility runtime; users should not install a second MCEF JAR.
+
+To group nearby apps, hover their edge pill and click **Group**. Hovering that button previews the joining windows with slowly pulsing green dotted outlines. **Ungroup** remains beside it.
