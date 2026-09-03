@@ -54,7 +54,10 @@ Remove these flags only after upgrading to an ABI-matched CEF build containing t
 
 On Linux, `McefChromiumFlagsMixin` additionally:
 
-- Enables `VaapiVideoDecoder` and `VaapiVideoEncoder`.
+- Enables Chromium 151's `AcceleratedVideoDecoder` and disabled-by-default
+  `AcceleratedVideoEncoder` features. The older `VaapiVideoDecoder` and
+  `VaapiVideoEncoder` strings are not feature names in this runtime and are
+  silently ignored by Chromium.
 - Overrides Chromium's GPU blocklist.
 - Selects ANGLE backed by desktop OpenGL unless another GL backend is already configured.
 - Disables Vulkan when running under Wayland, avoiding Chromium's unsupported Vulkan path in the current runtime.

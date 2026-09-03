@@ -254,6 +254,17 @@ tasks.register('verifyMixinPackaging') {
                 def mcefClass = config.package.replace('.', '/') + '/' + mcefMixin
                 if (zip.getEntry(mcefClass + '.class') == null) throw new GradleException("Missing class: ${mcefClass}")
             }
+            def chromiumFlagsClass = config.package.replace('.', '/') + '/McefChromiumFlagsMixin.class'
+            def chromiumFlagsBytes = zip.getInputStream(zip.getEntry(chromiumFlagsClass)).withCloseable { it.readAllBytes() }
+            def chromiumFlagsConstants = new String(chromiumFlagsBytes, java.nio.charset.StandardCharsets.ISO_8859_1)
+            ['AcceleratedVideoDecoder', 'AcceleratedVideoEncoder'].each { feature ->
+                if (!chromiumFlagsConstants.contains(feature))
+                    throw new GradleException("Missing Chromium 151 Linux feature flag: ${feature}")
+            }
+            ['VaapiVideoDecoder', 'VaapiVideoEncoder'].each { obsoleteFeature ->
+                if (chromiumFlagsConstants.contains(obsoleteFeature))
+                    throw new GradleException("Obsolete Chromium feature flag must not be packaged: ${obsoleteFeature}")
+            }
             def nested = zip.entries().find { it.name.startsWith('META-INF/jars/winlandcraft-mcef-') && it.name.endsWith('.jar') }
             if (nested == null) throw new GradleException('Missing embedded Chromium 151 MCEF runtime')
             if (zip.entries().find { it.name.startsWith('META-INF/winlandcraft/cef/') } != null)

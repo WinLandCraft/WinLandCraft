@@ -57,8 +57,10 @@ public abstract class McefChromiumFlagsMixin {
         disabledFeatures.add("SoftNavigationDetection");
 
         if (linux) {
-            features.add("VaapiVideoDecoder");
-            features.add("VaapiVideoEncoder");
+            // Chromium 151 gates its Linux VA-API paths behind these public
+            // feature names. The older VaapiVideo* names are silently ignored.
+            features.add("AcceleratedVideoDecoder");
+            features.add("AcceleratedVideoEncoder");
             if (!ignoresBlocklist) result.add("--ignore-gpu-blocklist");
             if (!selectsGl) {
                 result.add("--use-gl=angle");
@@ -76,7 +78,7 @@ public abstract class McefChromiumFlagsMixin {
         if (WINLANDCRAFT$LOGGED.compareAndSet(false, true)) {
             WinLandCraftClient.LOGGER.info(
                     "Applied Chromium CEF compatibility flags: disabled unsafe Alloy soft-navigation observer{}",
-                    linux ? "; enabled Linux VA-API video acceleration" : "");
+                    linux ? "; enabled Chromium 151 Linux accelerated video decode/encode" : "");
         }
         return result.toArray(String[]::new);
     }
