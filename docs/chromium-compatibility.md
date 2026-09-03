@@ -64,6 +64,35 @@ On Linux, `McefChromiumFlagsMixin` additionally:
 
 These are preferences, not guarantees. WebCodecs still probes each H.264/VP9 encoder and decoder configuration and can fall back to software. Log fields report Chromium's requested acceleration preference, not proof that a vendor engine accepted every frame.
 
+### Linux VA-API input staging
+
+Chromium 151 initializes `VideoEncodeAcceleratorAdapter` before WebCodecs sends
+its first frame and unconditionally selects GPU-memory-buffer input on Linux.
+WinLandCraft's codec page creates CPU-owned RGBA `VideoFrame`s from the bounded
+loopback capture. Under CEF's off-screen ANGLE/Wayland configuration, Chromium
+cannot create the requested `VEA_READ_CAMERA_AND_CPU_READ_WRITE` mappable shared
+image. `chrome_debug.log` then reports `Unable to create a mappable shared
+image` and `Allocating a buffer failed`; WebCodecs closes the otherwise valid
+H.264 hardware encoder before its first output.
+
+The Linux runtime carries the reproducible
+`linux-vaapi-shmem-v1` patch in `tools/cef/patches`. It makes the adapter convert
+the CPU RGBA frame to NV12 in pooled shared memory. Chromium's
+`VaapiVideoEncodeAccelerator` then uploads that NV12 frame to a VA surface and
+still performs H.264 encoding in hardware. This does not enable software H.264
+or misreport software encoding as hardware; it replaces only the unavailable
+GPU-buffer staging allocation. Explicit GPU-buffer preferences remain intact.
+Every Linux runtime archive records the patchset in
+`WINLANDCRAFT-CODEC-BUILD.properties`, and packaging rejects an unpatched Linux
+archive.
+
+WebCodecs reports fatal encoder errors asynchronously and closes the codec
+before calling its error callback. The stream worker records that first native
+failure and checks the codec state immediately before `encode()`. Auto mode
+blocks the failed candidate and probes the next one; an explicit codec choice
+stops with the original failure. Never replace that diagnostic with the later,
+generic `encode on a closed codec` exception.
+
 ## Opaque origin on codec status POSTs
 
 Chromium 151 serializes the `Origin` header of `fetch` POSTs from MCEF's off-screen codec page as the literal value `null` on both Linux and Windows, even though the displayed page and request URLs use the same loopback origin. GET requests from the same page do not carry that header. Rejecting the literal value first prevents worker heartbeats from making the Java endpoint ready; if only heartbeats are exempted, encoded `/packet` uploads are still rejected with HTTP 403 while `videoOut` rises and every frame is dropped.
@@ -72,7 +101,7 @@ Chromium 151 serializes the `Origin` header of `fetch` POSTs from MCEF's off-scr
 
 ## Runtime downloads and upgrades
 
-Release builds produce a small main mod and a client-only `winlandcraft-chromium-<version>.jar`. The companion is a resource-only Fabric mod and carries the native archives under `META-INF/winlandcraft/cef`; placing both JARs in `mods/` makes those resources visible through Fabric's shared class loader. Dedicated servers install only the main JAR and never load or extract Chromium. The archives are built from CEF commit `89cd5813e47d84c68e56ced336c2c01b7dc77b8d` with the Chromium version and JCEF Java commit pinned in `gradle.properties`. The codec-critical GN arguments are:
+Release builds produce a small main mod and a client-only `winlandcraft-chromium-<runtime-version>.jar`. The companion is a resource-only Fabric mod and carries the native archives under `META-INF/winlandcraft/cef`; placing both JARs in `mods/` makes those resources visible through Fabric's shared class loader. Dedicated servers install only the main JAR and never load or extract Chromium. `chromium_version` pins the upstream browser while `chromium_runtime_version` identifies WinLandCraft's native patch revision, so a new main mod rejects an older companion containing the same upstream Chromium binary. The archives are built from CEF commit `89cd5813e47d84c68e56ced336c2c01b7dc77b8d` with the Chromium version and JCEF Java commit pinned in `gradle.properties`. The codec-critical GN arguments are:
 
 ```text
 proprietary_codecs=true
@@ -88,7 +117,9 @@ The native bundle directory is supplied at package time with `-PcefRuntimeBundle
 For an upgrade:
 
 1. Select a JCEF Java JAR and CEF native build from the same API and source revision.
-2. Update `cef_commit`, `jcef_commit`, and `chromium_version` together.
+2. Update `cef_commit`, `jcef_commit`, and `chromium_version` together for an
+   upstream upgrade; bump `chromium_runtime_version` whenever any native patch
+   or archive changes.
 3. Review upstream CEF changes between the old and new branches for Alloy, OSR, audio, and external-message-pump behavior.
 4. Build with `./dev.sh clean check build -PcefRuntimeBundleDir=<directory>` and verify both the main mod and Chromium companion JARs are present.
 5. Test with a fresh native runtime directory or confirm the downloader selected the new commit.

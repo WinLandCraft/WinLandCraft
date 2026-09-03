@@ -119,7 +119,7 @@
   async function encoder() {
     metrics.phase='checking-encoders';
     if(!self.VideoEncoder||!self.AudioEncoder)throw Error('This Chromium build does not expose WebCodecs encoders');
-    let video,audio,videoSignature='',videoMode='',videoCodec=VP9,videoBroken=false,audioBitrate=0;
+    let video,audio,videoSignature='',videoMode='',videoCodec=VP9,videoBroken=false,videoFailure='',audioBitrate=0;
     let width=0,height=0,keyAt=-Infinity,keyGeneration=-1;
     const blockedVideoModes=new Set();
     const outputQueue=[];let posting=false,keyNeeded=true;
@@ -147,7 +147,8 @@
       error:error=>{
         if(videoMode)blockedVideoModes.add(videoMode);
         videoBroken=true;keyNeeded=true;metrics.videoDrop++;metrics.resets++;
-        note(`${codecName(videoCodec)} ${metrics.videoAcceleration} encoder failed; falling back: ${message(error)}`);
+        videoFailure=`${codecName(videoCodec)} ${metrics.videoAcceleration} encoder failed: ${message(error)}`;
+        note(videoFailure);
       }
     });}
     video=makeVideo();
@@ -159,8 +160,9 @@
     (async()=>{while(!failed){
       const current=await settings();
       if(videoBroken||video.state==='closed'){
+        if(current.codecMode)throw Error(`${videoFailure||`${codecName(videoCodec)} encoder closed unexpectedly`}. Choose another codec in the pill.`);
         try{if(video.state!=='closed')video.close();}catch(_){}
-        video=makeVideo();videoSignature='';videoBroken=false;keyNeeded=true;
+        video=makeVideo();videoSignature='';videoMode='';videoBroken=false;videoFailure='';keyNeeded=true;
       }
       if(video.encodeQueueSize>2)await video.flush();
       const response=await fetch('video');
@@ -183,7 +185,13 @@
       const key=keyNeeded||timestamp-keyAt>=1000000;
       const frame=new VideoFrame(data,{format:'RGBA',codedWidth:width,codedHeight:height,timestamp,
         layout:[{offset:0,stride:width*4}]});
-      try{video.encode(frame,{keyFrame:key});}finally{frame.close();}
+      try{
+        // WebCodecs closes an encoder before dispatching its asynchronous error
+        // callback. Do not race that callback and replace the native failure
+        // with the generic exception from encode() on an already closed codec.
+        if(videoBroken||video.state==='closed')continue;
+        video.encode(frame,{keyFrame:key});
+      }catch(error){throw Error(videoFailure||message(error));}finally{frame.close();}
       if(key){keyAt=timestamp;keyNeeded=false;}
     }})().catch(fail);
     (async()=>{while(!failed){

@@ -21,7 +21,7 @@
   },
   "suggests": {
     "iris": "*",
-    "winlandcraft_chromium": "=${chromiumVersion}"
+    "winlandcraft_chromium": "=${chromiumRuntimeVersion}"
   },
   "breaks": { "mcef": "*" }
 }

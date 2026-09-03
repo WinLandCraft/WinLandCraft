@@ -1,0 +1,26 @@
+diff --git a/media/video/video_encode_accelerator_adapter.cc b/media/video/video_encode_accelerator_adapter.cc
+--- a/media/video/video_encode_accelerator_adapter.cc
++++ b/media/video/video_encode_accelerator_adapter.cc
+@@ -516,13 +516,19 @@ void VideoEncodeAcceleratorAdapter::InitializeOnAcceleratorThread(
+   auto storage_type = VideoEncodeAccelerator::Config::StorageType::kShmem;
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+   // Linux/ChromeOS require a special configuration to use dmabuf storage.
+-  // We need to keep sending frames with the same storage type.
++  // We need to keep sending frames with the same storage type. WinLandCraft's
++  // CEF OSR WebCodecs source supplies CPU-owned RGBA frames, and its ANGLE
++  // setup cannot allocate VEA_READ_CAMERA_AND_CPU_READ_WRITE shared images.
++  // Keep those frames in shared memory; VaapiVideoEncodeAccelerator uploads
++  // the converted NV12 frame to a VA surface while retaining hardware encode.
+   // Other platforms will happily mix GpuMemoryBuffer storage with shared-mem
+   // storage, so we don't care about mismatches on other platforms.
+   if (input_buffer_preference_ == InputBufferKind::Any) {
+-    input_buffer_preference_ = InputBufferKind::GpuMemBuf;
++    input_buffer_preference_ = InputBufferKind::CpuMemBuf;
++  }
++  if (input_buffer_preference_ == InputBufferKind::GpuMemBuf) {
++    storage_type = VideoEncodeAccelerator::Config::StorageType::kGpuMemoryBuffer;
+   }
+-  storage_type = VideoEncodeAccelerator::Config::StorageType::kGpuMemoryBuffer;
+ #endif
+ 
+   auto vea_config =

@@ -6,9 +6,18 @@ readonly cef_commit=89cd5813e47d84c68e56ced336c2c01b7dc77b8d
 readonly chromium_version=151.0.7922.34
 readonly checkout="$work_root/linux"
 readonly chromium="$checkout/chromium/src"
+readonly script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+readonly codec_patch="$script_dir/patches/chromium-151-linux-vaapi-shmem.patch"
 
 test "$(git -C "$checkout/cef" rev-parse HEAD)" = "$cef_commit"
 test "$(awk -F= '/^MAJOR=/{a=$2}/^MINOR=/{b=$2}/^BUILD=/{c=$2}/^PATCH=/{d=$2}END{print a"."b"."c"."d}' "$chromium/chrome/VERSION")" = "$chromium_version"
+
+if git -C "$chromium" apply --check "$codec_patch"; then
+  git -C "$chromium" apply "$codec_patch"
+elif ! git -C "$chromium" apply --reverse --check "$codec_patch"; then
+  echo "Chromium VA-API shared-memory patch does not match the pinned source" >&2
+  exit 1
+fi
 
 "$chromium/build/install-build-deps.sh" --no-prompt --no-arm --no-chromeos-fonts
 
@@ -31,3 +40,5 @@ python3 "$work_root/tools/automate-git.py" \
   --build-target=cefsimple \
   --no-distrib-docs \
   --no-distrib-symbols
+
+printf '%s\n' 'linux-vaapi-shmem-v1' > "$chromium/out/Release_GN_x64/WINLANDCRAFT-CODEC-PATCHSET"

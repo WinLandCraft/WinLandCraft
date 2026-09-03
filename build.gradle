@@ -76,6 +76,8 @@ def stageCefRuntimes = tasks.register('stageCefRuntimes', Sync) {
                     'chromium.version': project.chromium_version,
                     'gn.proprietary_codecs': 'true',
                     'gn.ffmpeg_branding': 'Chrome']
+            if (platform.startsWith('linux_'))
+                required['winlandcraft.patchset'] = 'linux-vaapi-shmem-v1'
             required.each { key, value ->
                 if (codecManifest.getProperty(key) != value)
                     throw new GradleException("CEF runtime ${archive.name} has invalid ${key}")
@@ -88,14 +90,15 @@ def stageCefRuntimes = tasks.register('stageCefRuntimes', Sync) {
 def cefRuntimeJar = tasks.register('cefRuntimeJar', Jar) {
     dependsOn stageCefRuntimes
     archiveBaseName = 'winlandcraft-chromium'
-    archiveVersion = project.chromium_version
+    archiveVersion = project.chromium_runtime_version
     archiveClassifier = ''
     entryCompression = org.gradle.api.tasks.bundling.ZipEntryCompression.STORED
     from(stagedCefRuntimes)
     from('src/chromiumRuntime/resources') {
-        expand chromiumVersion: project.chromium_version,
+        expand chromiumVersion: project.chromium_runtime_version,
                 cefCommit: project.cef_commit,
-                jcefCommit: project.jcef_commit
+                jcefCommit: project.jcef_commit,
+                runtimePatchset: 'linux-vaapi-shmem-v1'
     }
     onlyIf { cefRuntimeBundleDir.isPresent() }
 }
@@ -127,8 +130,10 @@ processResources {
     dependsOn stageAdblockNative
     inputs.property 'version', modVersion
     inputs.property 'chromiumVersion', project.chromium_version
+    inputs.property 'chromiumRuntimeVersion', project.chromium_runtime_version
     filesMatching('fabric.mod.json') {
-        expand version: modVersion, chromiumVersion: project.chromium_version
+        expand version: modVersion, chromiumVersion: project.chromium_version,
+                chromiumRuntimeVersion: project.chromium_runtime_version
     }
     from(stagedAdblock)
 }
@@ -173,6 +178,10 @@ tasks.register('verifyStreaming', JavaExec) {
     mainClass = 'dev.winlandcraft.StreamChecks'
 }
 check.dependsOn verifyStreaming
+tasks.register('verifyCodecSelection', Exec) {
+    commandLine 'node', file('src/geometryCheck/codec-selection-check.cjs')
+}
+check.dependsOn verifyCodecSelection
 tasks.register('verifyFavicons', JavaExec) {
     dependsOn geometryCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath
@@ -322,9 +331,11 @@ tasks.register('verifyMixinPackaging') {
                 def metadataEntry = zip.getEntry('fabric.mod.json')
                 if (metadataEntry == null) throw new GradleException('Chromium runtime JAR has no Fabric metadata')
                 def metadata = zip.getInputStream(metadataEntry).withCloseable { parser.parse(it) }
-                if (metadata.id != 'winlandcraft_chromium' || metadata.version != project.chromium_version
+                if (metadata.id != 'winlandcraft_chromium' || metadata.version != project.chromium_runtime_version
                         || metadata.environment != 'client')
                     throw new GradleException('Chromium runtime JAR has invalid Fabric identity, version, or environment')
+                if (metadata.custom?.get('winlandcraft:patchset') != 'linux-vaapi-shmem-v1')
+                    throw new GradleException('Chromium runtime JAR has the wrong WinLandCraft patchset')
                 def names = fileTree(file(cefRuntimeBundleDir.get())) { include '*.tar.gz' }.files.collect { it.name }
                 names.each { name ->
                     if (zip.getEntry("META-INF/winlandcraft/cef/${name}") == null

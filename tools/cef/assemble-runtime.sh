@@ -14,6 +14,9 @@ readonly output_dir=$5
 readonly cef_commit=89cd5813e47d84c68e56ced336c2c01b7dc77b8d
 readonly jcef_commit=2eb4ca2648bda91d1dfed81e9a37ba92e757aff9
 readonly chromium_version=151.0.7922.34
+codec_patchset=none
+[[ "$platform" == linux_* ]] && codec_patchset=linux-vaapi-shmem-v1
+readonly codec_patchset
 
 case "$platform" in
   linux_*) libcef=libcef.so ;;
@@ -24,6 +27,9 @@ esac
 
 grep -Eq '^[[:space:]]*proprietary_codecs[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$args_file"
 grep -Eq '^[[:space:]]*ffmpeg_branding[[:space:]]*=[[:space:]]*"Chrome"[[:space:]]*$' "$args_file"
+if [[ "$platform" == linux_* ]]; then
+  test "$(cat "$(dirname "$args_file")/WINLANDCRAFT-CODEC-PATCHSET")" = "$codec_patchset"
+fi
 
 temp_root=$(mktemp -d)
 trap 'rm -rf -- "$temp_root"' EXIT
@@ -54,13 +60,15 @@ jcef.commit=$jcef_commit
 chromium.version=$chromium_version
 gn.proprietary_codecs=true
 gn.ffmpeg_branding=Chrome
+winlandcraft.patchset=$codec_patchset
 libcef.sha256=$libcef_sha
 EOF
 
-python3 - "$runtime" "$platform" <<'PY'
+python3 - "$runtime" "$platform" "$codec_patchset" <<'PY'
 import hashlib, json, os, pathlib, sys
 root = pathlib.Path(sys.argv[1])
 platform = sys.argv[2]
+patchset = sys.argv[3]
 manifest = root / 'DISTRIBUTION-MANIFEST.json'
 manifest.unlink(missing_ok=True)
 files = []
@@ -73,6 +81,7 @@ manifest.write_text(json.dumps({'archive_root': platform,
                                 'cef_commit': '89cd5813e47d84c68e56ced336c2c01b7dc77b8d',
                                 'jcef_commit': '2eb4ca2648bda91d1dfed81e9a37ba92e757aff9',
                                 'chromium_version': '151.0.7922.34',
+                                'winlandcraft_patchset': patchset,
                                 'distribution_files': files}, indent=2) + '\n')
 PY
 

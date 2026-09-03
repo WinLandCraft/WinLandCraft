@@ -2,7 +2,7 @@ plugins {
     id 'base'
 }
 
-version = rootProject.chromium_version
+version = rootProject.chromium_runtime_version
 group = 'dev.winlandcraft'
 
 repositories {

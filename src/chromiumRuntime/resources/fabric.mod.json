@@ -18,6 +18,7 @@
   },
   "custom": {
     "winlandcraft:cef_commit": "${cefCommit}",
-    "winlandcraft:jcef_commit": "${jcefCommit}"
+    "winlandcraft:jcef_commit": "${jcefCommit}",
+    "winlandcraft:patchset": "${runtimePatchset}"
   }
 }

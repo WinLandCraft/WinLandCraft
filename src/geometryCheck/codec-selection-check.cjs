@@ -6,11 +6,71 @@ const section=worker.slice(worker.indexOf('  const VP9='),worker.indexOf('  asyn
 let supported=true,probes=[];
 const context=vm.createContext({message:String,VideoEncoder:{isConfigSupported:async config=>{probes.push(config);return {supported};}},VideoDecoder:{isConfigSupported:async()=>({supported:true})}});
 vm.runInContext(section+';globalThis.select=selectEncoderConfig;',context);
+
+async function exerciseAsyncEncoderFailure(codecMode){
+  const configured=[],statuses=[];let videoRequests=0,completed=false;
+  class VideoEncoder {
+    static async isConfigSupported(config){return {supported:true,config};}
+    constructor(callbacks){this.callbacks=callbacks;this.state='unconfigured';this.encodeQueueSize=0;}
+    configure(config){this.config=config;this.state='configured';configured.push(config.codec);}
+    encode(frame){
+      if(this.config.codec.startsWith('avc1')){
+        this.state='closed';
+        queueMicrotask(()=>this.callbacks.error(Error('Unable to create a mappable shared image')));
+      }else{
+        completed=true;
+        this.callbacks.output({byteLength:1,type:'key',timestamp:frame.timestamp,copyTo:bytes=>{bytes[0]=1;}});
+      }
+    }
+    async flush(){}
+    close(){this.state='closed';}
+  }
+  class AudioEncoder {
+    static async isConfigSupported(config){return {supported:true,config};}
+    constructor(){this.state='unconfigured';this.encodeQueueSize=0;}
+    configure(){this.state='configured';}
+    async flush(){}
+    close(){this.state='closed';}
+  }
+  class VideoFrame {
+    constructor(_data,config){this.timestamp=config.timestamp;}
+    close(){}
+  }
+  const response=(status,extra={})=>({status,ok:status>=200&&status<300,...extra});
+  const sandbox={message:String,VideoEncoder,AudioEncoder,VideoFrame,AudioData:class{},queueMicrotask,
+    performance:require('node:perf_hooks').performance,setInterval:()=>0,addEventListener:()=>{},
+    document:{getElementById:()=>({getContext:()=>({})}),addEventListener:()=>{}},
+    fetch:async(route,options={})=>{
+      if(route==='status'){
+        statuses.push(JSON.parse(options.body));return response(200);
+      }
+      if(route==='config')return response(200,{json:async()=>({encode:true,audio:false,audioBitrate:96000,
+        bitrate:2000000,fps:30,codecMode,forceKey:0})});
+      if(route==='packet')return response(200);
+      if(route==='audio')return response(204);
+      if(route==='video'){
+        videoRequests++;
+        if(videoRequests<=2&&!completed)return response(200,{headers:{get:name=>name==='X-Width'||name==='X-Height'?'2':'1000'},
+          arrayBuffer:async()=>new Uint8Array(16).buffer});
+        throw Error('mock stream complete');
+      }
+      throw Error(`Unexpected route ${route}`);
+    }};
+  const workerContext=vm.createContext(sandbox);workerContext.self=workerContext;
+  vm.runInContext(worker,workerContext);
+  for(let i=0;i<100&&!statuses.some(status=>status.phase==='failed');i++)await new Promise(resolve=>setTimeout(resolve,1));
+  return {configured,statuses};
+}
+
 (async()=>{
   const expected=['h264-hardware','h264-hardware','vp9-hardware','vp9-software'];
   for(let mode=0;mode<4;mode++){probes=[];const result=await context.select(1280,720,2000000,new Set(),mode);assert.equal(result.id,expected[mode]);assert.equal(probes.length,1);}
   assert.equal((await context.select(1280,720,2000000,new Set(['h264-hardware']),0)).id,'vp9-hardware');
   supported=false;probes=[];await assert.rejects(context.select(1280,720,2000000,new Set(),3));assert.equal(probes.length,1);assert.equal(probes[0].codec,'vp09.00.10.08');assert.equal(probes[0].hardwareAcceleration,'prefer-software');
   supported=true;probes=[];await assert.rejects(context.select(1280,720,2000000,new Set(['vp9-software']),3));assert.equal(probes.length,0);
-  console.log('Codec selection: explicit modes, unchanged Auto order, unsupported/blocked modes and no silent fallback passed.');
+  const explicit=await exerciseAsyncEncoderFailure(1),failure=explicit.statuses.find(status=>status.phase==='failed');
+  assert.ok(failure.error.includes('Unable to create a mappable shared image'));assert.ok(!failure.error.includes('closed codec'));
+  const automatic=await exerciseAsyncEncoderFailure(0);
+  assert.deepEqual(automatic.configured.slice(0,2),['avc1.42E02A','vp09.00.10.08']);
+  console.log('Codec selection: explicit modes, Auto fallback, and asynchronous native error preservation passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
