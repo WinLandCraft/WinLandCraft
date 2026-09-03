@@ -30,7 +30,7 @@ Browser, webapp, and remote-stream panels can project their changing colors onto
 
 Right-click an app in **Apps**, then choose **Stream**. This opens it if necessary and shares its content: Browser, custom webapps, Notepad, File Manager, Task Manager, and Laser Calibration all use the same capture path. **Browser(streamable)** remains a purple-compass shortcut. The relay allows one outgoing app per player; starting another switches the source. Starting a grouped app detaches that app; shared/private grouping stays disabled while streaming, but individual curvature remains available.
 
-Hover the app's floating pill to reveal **Stream quality** and **Stop streaming**. These controls stay local to the owner and are not included in the video. Stopping a stream leaves the app open. Other modded players in the same dimension see its content at the same world position. Only the creator can move, resize, scale, curve, close, or change stream settings. Native apps are view-only; browsers retain the opt-in **Allow remote control** toggle.
+Hover the app's floating pill to reveal **Stream quality** and **Stop streaming**. These controls stay local to the owner and are not included in the video. Stopping a stream leaves the app open. Other modded players in the same dimension see its content at the same world position. Only the creator can move, resize, scale, curve, close, or change stream settings. All app types support the opt-in **Allow remote control** toggle.
 
 Use the pill's minus/plus buttons to change:
 
@@ -39,7 +39,7 @@ Use the pill's minus/plus buttons to change:
 - Maximum resolution: 360p, 480p, 720p (default), or 1080p. The full panel fits inside the selected 16:9 bounds without changing its aspect ratio or upscaling its internal resolution.
 - Broadcast audio: ON (default) or OFF.
 - Opus audio bitrate: 64, 96 (default), 128, or 192 kbps.
-- Allow remote control: OFF by default. When checked, other players in the same dimension can operate the shared browser until it is unchecked or the stream ends.
+- Allow remote control: OFF by default. When checked, other players in the same dimension can operate the shared app until it is unchecked or the stream ends.
 
 Settings apply live and persist in `config/winlandcraft.json`. Remote input is relayed only while the checkbox is enabled, is bound to the active stream and dimension, and cannot reposition or close the replica. Controller identity, packet bounds, and rate are validated by the server; held keys/buttons are released on timeout, disconnect, or permission changes. System-modifier shortcuts are not forwarded, so a remote player cannot invoke the creator's clipboard shortcuts. Video selection tries hardware-preferred Annex-B H.264 first, hardware-preferred VP9 second, and software VP9 as the compatibility fallback; the receiver independently prefers hardware decoding for the selected codec. One-second keyframes support late joins and recovery. Audio is stereo 48 kHz Opus. The selected tab of the currently shared browser supplies audio through CEF's browser-scoped audio handler. Desktop audio, microphone input, private browsers, and inactive tabs are not broadcast. Because CEF capture replaces native audio output, each browser tab has a bounded Java Sound playback queue for local playback, including private and background tabs. Only the active tab of the published app feeds the encoder; native apps have no audio source.
 
@@ -215,3 +215,12 @@ changing the option restarts the stream session and reconnects viewers without
 reopening or moving the app. Encoder failures keep the pill available for another
 selection. Viewers have no codec controls. HW/SW are WebCodecs acceleration
 preferences, not a guarantee of the implementation selected by the driver.
+
+
+**Allow remote control** in the sender pill now applies to all app types, including
+native apps, image/video viewers and plugin native/CEF/hybrid/GPU windows. Remote
+input operates the owner's app through its normal callbacks. Native/plugin apps
+share one logical input focus: another viewer's click takes over with held inputs
+released; owner clicks take back control. Disabling permission or ending a stream
+releases remote keys/buttons. Viewer window movement, resize and owner stream
+settings remain unavailable. Existing network key/modifier restrictions remain.

@@ -10,7 +10,6 @@ final class VideoPlayerPanel extends BrowserPanel {
     VideoPlayerPanel(){super("about:blank");setAppName("Video Player");}
     @Override public String windowTitle(){return file==null?"Video Player":file.getFileName()+" - Video Player";}
     @Override protected boolean showBrowserMenu(){return false;}
-    @Override boolean remoteControlAllowed(){return false;}
     @Override public boolean acceptsFileDrop(){return true;}
     @Override public void dropFile(Path path){file=path;ensureServer();if(server!=null){server.select(path);if(managedBrowser()!=null)managedBrowser().loadURL(server.url());}}
     private void ensureServer(){if(server!=null||!error.isEmpty())return;try{server=new VideoFileServer();server.select(file);}catch(IOException failure){error="Could not start Video Player. Close and reopen to retry.";WinLandCraftClient.LOGGER.error("Video Player endpoint failed",failure);}}

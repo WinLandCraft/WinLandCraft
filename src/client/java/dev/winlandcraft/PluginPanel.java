@@ -23,7 +23,7 @@ final class PluginPanel extends BrowserPanel {
     @Override protected String initialUrl(){return url;}
     @Override protected int browserWidth(){return fullBrowser?pixelWidth():Math.max(1,Math.min(bw,pixelWidth()-bx));}
     @Override protected int browserHeight(){return fullBrowser?pixelHeight():Math.max(1,Math.min(bh,pixelHeight()-by));}
-    @Override boolean remoteControlAllowed(){return false;}
+    @Override void remoteControl(StreamProtocol.Control input){remoteInput.accept(this,input);}
     @Override protected boolean showBrowserMenu(){return false;}
     @Override protected void managedLoaded(){if(app!=null)call(app::onBrowserLoaded); }
     @Override protected boolean projectsLight(){return true;}

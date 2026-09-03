@@ -10,7 +10,7 @@ Registered apps appear in Apps, with their own icon, and running windows appear 
 
 File extensions and exact names integrate with File Manager's double-click placement overlay and file drops. If several apps support a file, clicking **Open with** cycles through the candidates. Choosing an arrow creates a separate app window beside File Manager with the standard gap and fold; it does not move another open instance. Notepad retains its built-in associations and is the initial choice for its supported files; plugin candidates follow in app-ID order. A plugin never silently replaces another handler.
 
-`NATIVE` apps draw Java UI without creating Chromium. `CHROMIUM` apps get a managed full-window browser. `HYBRID` apps combine a browser rectangle with native controls. There is currently one browser view per plugin window, using the host's shared Chromium runtime. Host-native browser menus and remote stream control are not enabled for plugin windows; HTML/DOM menus still work. Streaming viewers see the composed app without installing the plugin, but the owner needs it; the usual WinLandCraft server/codec requirements still apply. Browser audio uses the same capture path as built-in apps.
+`NATIVE` apps draw Java UI without creating Chromium. `CHROMIUM` apps get a managed full-window browser. `HYBRID` apps combine a browser rectangle with native controls. There is currently one browser view per plugin window, using the host's shared Chromium runtime. Host-native browser menus are not enabled for plugin windows; HTML/DOM menus still work. Since host 0.1.89-dev, the owner can enable remote stream control through the normal input callbacks. Streaming viewers see the composed app without installing the plugin, but the owner needs it; the usual WinLandCraft server/codec requirements still apply. Browser audio uses the same capture path as built-in apps.
 
 ## Build and install
 
@@ -194,3 +194,14 @@ The repository's `verifyPluginApi` gate checks the frozen public-signature basel
 The installable example is maintained separately in **WLCP-Example-Plugin** (the local checkout is `D:/Repositories/WLCP-Example-Plugin`). It includes its own Gradle wrapper, README, API guide, source, and sample file. Copy one API JAR into that project's `libs/` and build there using its wrapper; it does not depend on a sibling checkout or the host build. Example source/build changes belong in that project.
 
 Before releasing a plugin, smoke-test all three relevant paths: open from Apps, double-click a supported file and choose each edge, and drag a file between windows. Check typing/Escape, pointer release outside the window, Ctrl-scaling versus resizing, groups/curves, taskbar close/reopen, and saving/quitting. Chromium/hybrid plugins additionally need navigation, resize, close/reopen, and audio/stream tests on the target operating systems. Automated checks do not validate native CEF or GPU behavior.
+
+
+### Remote app input (host 0.1.89-dev)
+
+When the owner enables stream remote control, viewers can use the same local-pixel
+mouse/scroll/key/character callbacks as the owner. This includes native, hybrid
+and GPU-surface apps; plugins need no new callbacks. The host owns permission,
+network validation, input focus and cancellation. Plugin keyboard-focus requests
+from remote callbacks do not lock the owner's keyboard. Remote actions affect the
+owner's app and files; window movement and stream settings remain owner-only.
+Existing relay key restrictions still apply (for example Ctrl/Alt/system keys).

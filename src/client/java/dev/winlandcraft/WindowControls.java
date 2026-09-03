@@ -87,6 +87,7 @@ public final class WindowControls {
     }
     private boolean stoppingTyping;
     void requestPluginKeyboard(WorldPanel panel,boolean requested){
+        if(panel.remoteInput.dispatching())return;
         if(stoppingTyping)return;
         if(focused!=panel)return;
         if(!requested){stopTyping();return;}
@@ -233,6 +234,7 @@ public final class WindowControls {
         }
         if (pointer != null) {
             if (buttons.add(button)) {
+                pointer.remoteInput.clear(pointer);
                 pointer.mouseDown(pointerX, pointerY, button);
                 if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT){draggedFile=pointer.dragFileAt(pointerX,pointerY);fileStartX=pointerX;fileStartY=pointerY;fileStartRay=direction(c.gameRenderer.getMainCamera());}
             }
@@ -285,6 +287,7 @@ public final class WindowControls {
         }
         if (key == GLFW.GLFW_KEY_ESCAPE) { stopTyping(); message("Minecraft controls restored."); return true; }
         if (action == GLFW.GLFW_PRESS) {
+            focused.remoteInput.clear(focused);
             keys.put(key, scan); focused.key(key, scan, action, modifiers);
         } else if (action == GLFW.GLFW_REPEAT && keys.containsKey(key)) focused.key(key, scan, action, modifiers);
         else if (action == GLFW.GLFW_RELEASE && keys.remove(key) != null) focused.key(key, scan, action, modifiers);

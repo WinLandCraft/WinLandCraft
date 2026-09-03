@@ -32,6 +32,7 @@ public class BrowserPanel extends WorldPanel {
         }
     }
     void clearRemoteControls(){
+        super.clearRemoteControls();
         if(remoteControllers.isEmpty())return;
         for(var controller:java.util.Set.copyOf(remoteControllers))releaseInputSource(controller);
         remoteControllers.clear();

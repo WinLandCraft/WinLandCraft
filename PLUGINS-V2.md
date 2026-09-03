@@ -217,3 +217,14 @@ Validation: automated tests cover old v2 signatures/default compatibility,
 API-only GPU producer compilation, and acquire/release on success, no-frame, and
 failure. In-game checks must cover orientation, color/alpha, resize, source switch,
 close/reopen, shader composition, and your native synchronization on each target OS.
+
+
+### Remote app input (host 0.1.89-dev)
+
+When the owner enables stream remote control, viewers can use the same local-pixel
+mouse/scroll/key/character callbacks as the owner. This includes native, hybrid
+and GPU-surface apps; plugins need no new callbacks. The host owns permission,
+network validation, input focus and cancellation. Plugin keyboard-focus requests
+from remote callbacks do not lock the owner's keyboard. Remote actions affect the
+owner's app and files; window movement and stream settings remain owner-only.
+Existing relay key restrictions still apply (for example Ctrl/Alt/system keys).

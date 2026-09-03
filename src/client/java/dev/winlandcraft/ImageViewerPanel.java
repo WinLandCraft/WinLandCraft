@@ -10,7 +10,6 @@ final class ImageViewerPanel extends BrowserPanel {
     ImageViewerPanel(){super("about:blank");setAppName("Image Viewer");}
     @Override public String windowTitle(){return file==null?"Image Viewer":file.getFileName()+" - Image Viewer";}
     @Override protected boolean showBrowserMenu(){return false;}
-    @Override boolean remoteControlAllowed(){return false;}
     @Override public boolean acceptsFileDrop(){return true;}
     @Override public void dropFile(Path path){file=path;ensureServer();if(server!=null){server.select(path);if(managedBrowser()!=null)managedBrowser().loadURL(server.url());}}
     private void ensureServer(){if(server!=null||!error.isEmpty())return;try{server=new VideoFileServer(true);server.select(file);}catch(IOException failure){error="Could not start Image Viewer. Close and reopen to retry.";WinLandCraftClient.LOGGER.error("Image Viewer endpoint failed",failure);}}

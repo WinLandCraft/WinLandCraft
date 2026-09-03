@@ -9,7 +9,7 @@ import org.joml.Quaternionf;
 public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
-        packets();media();bridgeOrigins();placement();MediaBridgeChecks.run();
+        RemoteAppInputChecks.run();packets();media();bridgeOrigins();placement();MediaBridgeChecks.run();
         System.out.println("Streaming: bounded media/control codecs, viewer demand, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, immutable replicas, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {
@@ -115,7 +115,7 @@ public final class StreamChecks {
                 nativePanel.position=new Vec3(0,80,0);nativePanel.orientation=new Quaternionf();
                 nativePanel.broadcastSession=SESSION;
                 var state=StreamClient.snapshot(nativePanel,OWNER,SESSION);
-                check(state.valid()&&!state.remoteControl(),"native streams remain view-only even with browser remote control enabled");
+                check(state.valid()&&state.remoteControl(),"native streams advertise owner-granted remote control");
                 check(!nativePanel.canGroup(),"published native apps cannot join private groups");
                 check(state.pixelsWide()==nativePanel.pixelWidth()&&state.pixelsHigh()==nativePanel.pixelHeight(),"native capture keeps app resolution");
                 nativePanel.broadcastSession=null;

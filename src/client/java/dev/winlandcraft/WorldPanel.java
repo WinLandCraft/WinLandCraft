@@ -39,6 +39,10 @@ public abstract class WorldPanel {
     }
     public int pixelWidth() { return 400; }
     public int pixelHeight() { return 48; }
+    final RemoteAppInput remoteInput=new RemoteAppInput();
+    boolean remoteControlAllowed(){return true;}
+    void remoteControl(StreamProtocol.Control input){remoteInput.accept(this,input);}
+    void clearRemoteControls(){remoteInput.clear(this);}
     public void mouseDown(int x, int y, int button) { }
     public void mouseUp(int x, int y, int button) { }
     public java.nio.file.Path dragFileAt(int x,int y){return null;}

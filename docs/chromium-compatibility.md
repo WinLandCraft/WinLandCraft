@@ -115,7 +115,7 @@ In-game checks required on Windows and Linux: start Stream on an already playing
 
 ## Plugin-managed views
 
-API v1 Chromium/hybrid apps share BrowserPanel's MCEF runtime, texture registration, BrowserEvents dispatch, resize tick, audio capture, and render-thread cleanup. The internal PluginPanel adapter hosts one standalone view with a configurable pixel rectangle; native plugin apps never create a view. `closeViews` can dispose a failed plugin's browser without deleting its visible error panel. Plugin callbacks receive no JCEF handles or native buffers. Main-frame load callbacks are marshalled through BrowserEvents before reaching plugins. Plugin views have no host-native browser context menu (page DOM context menus still work), and plugin stream replicas are view-only. Final native-plus-browser composition continues through PanelSurface and Fabric world consumers. No codec or runtime flags change.
+API v1 Chromium/hybrid apps share BrowserPanel's MCEF runtime, texture registration, BrowserEvents dispatch, resize tick, audio capture, and render-thread cleanup. The internal PluginPanel adapter hosts one standalone view with a configurable pixel rectangle; native plugin apps never create a view. `closeViews` can dispose a failed plugin's browser without deleting its visible error panel. Plugin callbacks receive no JCEF handles or native buffers. Main-frame load callbacks are marshalled through BrowserEvents before reaching plugins. Plugin views have no host-native browser context menu (page DOM context menus still work), and plugin stream replicas support owner-permitted input since 0.1.89-dev. Final native-plus-browser composition continues through PanelSurface and Fabric world consumers. No codec or runtime flags change.
 
 API v2 SURFACE apps do not create CEF views. Submitted 48 kHz stereo PCM uses the existing bounded local-monitor and encoder packet paths with copied, reference-counted data. Requesting a plugin's custom AudioOutput selects that source for its stream instead of browser audio; Chromium local playback is unaffected. No codec/runtime flags change. Native audio-device output and GL-uploaded surfaces still require platform smoke tests.
 
@@ -136,7 +136,7 @@ A restrictive page CSP permits only local media and the embedded UI script/style
 Old selection URLs expire immediately. Two workers and eight queued requests per
 player bound file serving; 64 KiB chunks and HTTP byte ranges avoid whole-file
 buffering and support seeking. Closing stops the server and workers after closing
-CEF on the render thread. Video replicas remain view-only.
+CEF on the render thread. Video replicas support the owner permission toggle since 0.1.89-dev.
 
 Smoke-test on each OS: empty launch; File Manager placement and drag/drop; H.264/AAC
 MP4 and VP9/Opus WebM playback/audio; seek, pause, resize and replace; unreadable or
@@ -180,3 +180,18 @@ Windows and Linux. HTTP regression checks verify sender configuration and unchan
 decoder policy; pill geometry checks cover the extra row on all four edges.
 
 Run the optional worker-selection regression with: node src/geometryCheck/codec-selection-check.cjs. It mocks capability probes against the production selection functions; native codec support still needs in-game testing.
+
+
+## Remote control for all apps (0.1.89-dev)
+
+The existing permission/relay validation now gates WorldPanel input rather than
+only BrowserPanel. Browser windows retain per-controller CEF input ownership.
+PluginPanel explicitly dispatches through its public app input methods so native
+widgets and hybrid browser bounds are respected. RemoteAppInput balances native/
+plugin keys, buttons and focus on controller handoff, revoke, cancel and stop.
+Remote plugin keyboard requests cannot capture the owner's Minecraft keyboard.
+No public plugin ABI or wire format changes; existing safe-key restrictions apply.
+Test native text editing, file-manager navigation, image zoom, video controls,
+hybrid/native plugins, permission revocation while dragging/typing, owner takeover,
+viewer disconnect and world exit with two clients. HTTP/native-free tests cannot
+verify CEF focus and event forwarding.

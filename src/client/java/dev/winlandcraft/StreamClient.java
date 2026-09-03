@@ -43,7 +43,7 @@ final class StreamClient {
     void stop(WorldPanel panel) {
         if(source!=panel)return;
         stopPublishing();panel.broadcastSession=null;panel.encoder=null;
-        if(panel instanceof BrowserPanel browser)browser.clearRemoteControls();
+        panel.clearRemoteControls();
         source=null;
     }
     void register() {
@@ -69,9 +69,9 @@ final class StreamClient {
         });
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Control.TYPE,(p,c)->{
             var client=Minecraft.getInstance();var panel=source;
-            if(!(panel instanceof BrowserPanel browser)||client.player==null||!p.owner().equals(client.player.getUUID())||published==null
+            if(panel==null||!panel.remoteControlAllowed()||client.player==null||!p.owner().equals(client.player.getUUID())||published==null
                     ||!published.session().equals(p.session())||!p.valid(published))return;
-            if(p.event()==StreamProtocol.Control.CANCEL||ModSettings.streamRemoteControl&&published.remoteControl())browser.remoteControl(p);
+            if(p.event()==StreamProtocol.Control.CANCEL||ModSettings.streamRemoteControl&&published.remoteControl())panel.remoteControl(p);
         });
     }
     private void receive(StreamProtocol.State state) {
@@ -146,7 +146,7 @@ final class StreamClient {
         var up=new Vector3f(0,title/2,0).rotate(rotation);center=center.add(up.x,up.y,up.z);
         return new StreamProtocol.State(owner,session,panel.level==null?net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"):panel.level.dimension().location(),
                 center.x,center.y,center.z,rotation.x,rotation.y,rotation.z,rotation.w,panel.worldWidth(),panel.worldHeight()+title,
-                panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),panel.titlebarHeight(),amount,facing,panel instanceof BrowserPanel browser&&browser.remoteControlAllowed()&&ModSettings.streamRemoteControl);
+                panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),panel.titlebarHeight(),amount,facing,panel.remoteControlAllowed()&&ModSettings.streamRemoteControl);
     }
     void renderCapture() {
         var client=Minecraft.getInstance();var panel=source;

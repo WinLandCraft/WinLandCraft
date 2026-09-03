@@ -42,7 +42,7 @@ public final class PluginApiChecks {
         var field=PluginPanel.class.getDeclaredField("app");field.setAccessible(true);field.set(panel,receiver);
         panel.mouseDown(50,50,0);panel.mouseUp(-10,-10,0);panel.key(65,0,1,0);panel.character('a',0);
         check(Arrays.equals(events,new int[]{1,1,1,1}),"native local pointer and keyboard routing");
-        check(!panel.browserEnabled()&&!panel.remoteControlAllowed(),"native plugin creates no CEF and no remote input");
+        check(!panel.browserEnabled()&&panel.remoteControlAllowed(),"native plugin creates no CEF and supports permission-gated remote input");
         System.out.println("Plugin API: v1 ABI, API-only native/Chromium/hybrid compilation, registration rollback, file association, geometry and local input passed.");
     }
     private static void check(boolean v,String message){if(!v)throw new AssertionError(message);}

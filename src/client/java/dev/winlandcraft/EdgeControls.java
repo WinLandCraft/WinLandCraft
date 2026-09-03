@@ -165,9 +165,9 @@ final class EdgeControls extends WorldPanel {
         if(!expanded||!owner.streaming())return;
         int local=y-streamY();
         if(local>=208&&local<236&&x>=12&&x<348){owner.streamClient.stop(owner);sync();return;}
-        if(local>=168&&local<192&&owner instanceof BrowserPanel browser&&browser.remoteControlAllowed()&&x>=292&&x<348) {
+        if(local>=168&&local<192&&owner.remoteControlAllowed()&&x>=292&&x<348) {
             ModSettings.streamRemoteControl=!ModSettings.streamRemoteControl;
-            if(!ModSettings.streamRemoteControl)browser.clearRemoteControls();
+            if(!ModSettings.streamRemoteControl)owner.clearRemoteControls();
         } else {
             if(local<24||local>=168||x<292||x>=348||(local-24)%24>=22)return;
             int row=(local-24)/24,step=x<320?-1:1;
@@ -191,7 +191,7 @@ final class EdgeControls extends WorldPanel {
             for(int j=0;j<2;j++){int x=292+j*28;c.rect(x,y,28,22,.4f,hoverColor(x,y,28,22,0xFF624389,0xFF8059AE));(j==0?PixelIcon.MINUS:PixelIcon.PLUS).draw(c,x+6,y+3,16,.5f,-1);}
         }
         int y=top+168;
-        if(owner instanceof BrowserPanel browser&&browser.remoteControlAllowed()) {
+        if(owner.remoteControlAllowed()) {
             c.text("Allow remote control",18,y+7,-1,1.2f);
             c.rect(292,y,56,22,.4f,hoverColor(292,y,56,22,0xFF624389,0xFF8059AE));
             c.text(ModSettings.streamRemoteControl?"ON":"OFF",306,y+7,-1);
