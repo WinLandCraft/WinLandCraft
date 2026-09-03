@@ -22,7 +22,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Properties;
 
-/** Installs the ABI-matched native runtime embedded in release builds. */
+/** Installs the ABI-matched native runtime from the client-only companion mod. */
 @Mixin(value = MCEFDownloader.class, remap = false)
 public abstract class McefRuntimeMixin {
     private static final String RELEASES = "https://github.com/Keksuccino/jcef-rinku/releases/download/java-cef-";
@@ -70,7 +70,7 @@ public abstract class McefRuntimeMixin {
             } finally {
                 Files.deleteIfExists(temporary);
             }
-            MCEF.getLogger().info("Installed embedded WinLandCraft codec runtime archive for {}", name);
+            MCEF.getLogger().info("Installed WinLandCraft Chromium companion runtime archive for {}", name);
             callback.cancel();
         }
     }
@@ -112,7 +112,7 @@ public abstract class McefRuntimeMixin {
         }
         String expectedArchive = checksum(resourceBytes(name + ".tar.gz.sha256"));
         writeAtomically(runtime.resolve(INSTALL_MARKER), (expectedArchive + '\n').getBytes(StandardCharsets.US_ASCII));
-        MCEF.getLogger().info("Verified embedded WinLandCraft codec runtime for {}", name);
+        MCEF.getLogger().info("Verified WinLandCraft Chromium companion runtime for {}", name);
     }
 
     private String releaseAsset(String suffix) {
@@ -145,7 +145,7 @@ public abstract class McefRuntimeMixin {
     }
 
     private static String checksum(byte[] bytes) throws IOException {
-        if (bytes == null) throw new IOException("Embedded codec runtime checksum is missing");
+        if (bytes == null) throw new IOException("WinLandCraft Chromium runtime checksum is missing");
         String value = new String(bytes, StandardCharsets.US_ASCII).strip().split("\\s+", 2)[0];
         if (!value.matches("[0-9a-fA-F]{64}")) throw new IOException("Embedded codec runtime checksum is invalid");
         return value.toLowerCase(java.util.Locale.ROOT);
@@ -156,7 +156,7 @@ public abstract class McefRuntimeMixin {
         String actual = sha256(archive);
         if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII),
                 actual.getBytes(StandardCharsets.US_ASCII))) {
-            throw new IOException("Embedded JCEF archive failed SHA-256 verification");
+            throw new IOException("WinLandCraft Chromium archive failed SHA-256 verification");
         }
     }
 

@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "winlandcraft_mcef",
   "version": "151.0.7922.34",
-  "name": "WinLandCraft Chromium Runtime",
-  "description": "WinLandCraft's MCEF-compatible JCEF/Chromium 151 runtime.",
+  "name": "WinLandCraft MCEF Bridge",
+  "description": "WinLandCraft's MCEF-compatible Java bridge for its separate Chromium runtime.",
   "authors": ["WinLandCraft", "CinemaMod Group", "Keksuccino"],
   "contact": {
     "sources": "https://github.com/Keksuccino/jcef-rinku"

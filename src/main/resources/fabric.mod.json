@@ -19,6 +19,9 @@
     "java": ">=21",
     "fabric-api": "*"
   },
-  "suggests": { "iris": "*" },
+  "suggests": {
+    "iris": "*",
+    "winlandcraft_chromium": "=${chromiumVersion}"
+  },
   "breaks": { "mcef": "*" }
 }

@@ -69,7 +69,7 @@ Chromium 151 serializes the `Origin` header of `fetch` POSTs from MCEF's off-scr
 
 ## Runtime downloads and upgrades
 
-Release artifacts embed the native archives under `META-INF/winlandcraft/cef`. They are built from CEF commit `89cd5813e47d84c68e56ced336c2c01b7dc77b8d` with the Chromium version and JCEF Java commit pinned in `gradle.properties`. The codec-critical GN arguments are:
+Release builds produce a small main mod and a client-only `winlandcraft-chromium-<version>.jar`. The companion is a resource-only Fabric mod and carries the native archives under `META-INF/winlandcraft/cef`; placing both JARs in `mods/` makes those resources visible through Fabric's shared class loader. Dedicated servers install only the main JAR and never load or extract Chromium. The archives are built from CEF commit `89cd5813e47d84c68e56ced336c2c01b7dc77b8d` with the Chromium version and JCEF Java commit pinned in `gradle.properties`. The codec-critical GN arguments are:
 
 ```text
 proprietary_codecs=true
@@ -78,16 +78,16 @@ ffmpeg_branding=Chrome
 
 Those arguments select Chromium's Chrome FFmpeg configuration (including H.264 and AAC decode, MP4 demuxing, and the ordinary MP3/Opus/Vorbis/FLAC paths) and compile OpenH264 software encoding. Chromium's normal platform paths remain enabled for hardware H.264 and HEVC where the OS and driver expose them. A runtime cannot claim support merely because WebCodecs accepts an encoder configuration: sender and receiver capability must both be tested.
 
-`McefRuntimeMixin` copies the current platform archive out of the mod instead of contacting a release server. It verifies the archive before extraction, verifies the extracted `libcef` against `WINLANDCRAFT-CODEC-BUILD.properties`, and writes an installation marker only after both checks succeed. A stock or partially extracted runtime has no marker and is replaced on the next launch. Development builds without an embedded platform archive retain the checksum-verified JCEF/Rinku download fallback.
+`WinLandCraftClient` requires the companion on normal client launches, checks that its version matches the nested MCEF bridge, and confirms that it contains the current platform archive and checksum. `McefRuntimeMixin` then copies that archive out of the companion instead of contacting a release server. It verifies the archive before extraction, verifies the extracted `libcef` against `WINLANDCRAFT-CODEC-BUILD.properties`, and writes an installation marker only after both checks succeed. A stock or partially extracted runtime has no marker and is replaced on the next launch. Development environments without the companion retain the checksum-verified JCEF/Rinku download fallback.
 
-The native bundle directory is supplied at package time with `-PcefRuntimeBundleDir=<directory>`. Each `<platform>.tar.gz` must have a matching `.sha256` sidecar and embedded codec-build manifest. `stageCefRuntimes` rejects a mismatched CEF/JCEF/Chromium revision, missing `libcef`, invalid checksum, or builds that do not record both codec arguments. Never update only `chromium_version`, only the Java classes, or only the native archive.
+The native bundle directory is supplied at package time with `-PcefRuntimeBundleDir=<directory>`. Each `<platform>.tar.gz` must have a matching `.sha256` sidecar and embedded codec-build manifest. `stageCefRuntimes` rejects a mismatched CEF/JCEF/Chromium revision, missing `libcef`, invalid checksum, or builds that do not record both codec arguments. `cefRuntimeJar` stores the already-compressed archives without recompression. `verifyMixinPackaging` rejects native archives in the main mod and separately validates the companion metadata and every supplied archive/sidecar pair. Never update only `chromium_version`, only the Java classes, or only the native archive.
 
 For an upgrade:
 
 1. Select a JCEF Java JAR and CEF native build from the same API and source revision.
 2. Update `cef_commit`, `jcef_commit`, and `chromium_version` together.
 3. Review upstream CEF changes between the old and new branches for Alloy, OSR, audio, and external-message-pump behavior.
-4. Build with `./dev.sh clean check build` and verify the embedded compatibility JAR is present.
+4. Build with `./dev.sh clean check build -PcefRuntimeBundleDir=<directory>` and verify both the main mod and Chromium companion JARs are present.
 5. Test with a fresh native runtime directory or confirm the downloader selected the new commit.
 6. Run the native smoke-test matrix from `AGENTS.md` on Linux and Windows before removing compatibility flags.
 

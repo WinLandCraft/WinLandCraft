@@ -8,15 +8,15 @@ Other Fabric mods can register native, Chromium, and hybrid apps through the ver
 
 ## Setup and build
 
-- JDK 21 (Temurin), Fabric Loader 0.16.9+, and Fabric API 0.119.4+1.21.4. The ABI-matched MCEF/JCEF runtime is embedded in WinLandCraft.
+- JDK 21 (Temurin), Fabric Loader 0.16.9+, and Fabric API 0.119.4+1.21.4. Clients install both the small WinLandCraft mod JAR and the matching `winlandcraft-chromium-<version>.jar` in `mods/`. The Chromium companion is client-only; dedicated servers need only the main mod JAR.
 - Gradle 8.12 and Loom 1.9.2 are pinned; use the included wrapper.
 - Linux build: `./dev.sh build`; development client: `./dev.sh runClient`. The helper locates JDK 21, keeps Gradle caches inside the checkout, and works even if the wrapper's executable bit was not preserved.
 - macOS or direct wrapper use: `sh gradlew build` with `JAVA_HOME` pointing to JDK 21.
 - Build: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 build`
 - Separate development client: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 runClient`
 - The helper scripts discover JDK 21 and store Gradle caches locally. An IDE can import build.gradle with JDK 21.
-- Replace the old Prism mod JAR with the new `build/libs/winlandcraft-*.jar`. Keep only one WinLandCraft version installed, alongside Fabric API; remove any separate MCEF JAR.
-- MCEF downloads native browser files on its first launch. Online websites need an internet connection.
+- Replace the old Prism mod JAR with the new `build/libs/winlandcraft-<version>.jar`, then place `build/libs/winlandcraft-chromium-<chromium-version>.jar` beside it. Keep one of each installed alongside Fabric API; remove any separate stock MCEF JAR.
+- The first client launch verifies and extracts its native browser from the Chromium companion. It does not download or silently substitute a stock codec-limited runtime. Online websites still need an internet connection.
 
 Browser requests and page cosmetics are filtered by a pinned build of Brave's `adblock-rust` engine, including redirect resources and trusted scriptlets used by current YouTube rules. Filter assets are checksum-verified and cached under `config/winlandcraft/adblock`. A local JAR contains the adblock native for the OS that built it; release/CI artifacts combine Linux, Windows, and Intel macOS natives. Implementation and update constraints are documented in [docs/adblocking.md](docs/adblocking.md).
 
@@ -51,7 +51,7 @@ Audio capture follows [CEF's audio-handler API](https://cef-builds.spotifycdn.co
 
 Decoded video is painted directly from WebCodecs output callbacks. It does not use short JavaScript intervals, because Chromium throttles timers in hidden off-screen browser views. The server sends a demand signal when the first compatible player enters the stream's dimension and when the last one leaves; sender-side capture and WebCodecs stay closed at zero viewers while the lightweight placement heartbeat remains active. Active loopback media endpoints use bounded long-polling, so empty queues do not spin and new frames wake the codec worker immediately. Capture FPS is not passed as a WebCodecs capability constraint: cadence is already enforced before encoding, and this keeps an available hardware encoder selected across live FPS changes.
 
-Install this same build on **all clients and the world host/server**: stream protocol v5 adds opt-in remote-control packets and intentionally does not interoperate with older builds. Clients require Fabric API and MCEF; dedicated servers require only Fabric API and WinLandCraft. Essential/LAN still use the integrated server's existing Minecraft connection. The server validates ownership, media envelopes, and controller permission, then forwards bounded data; it never runs Chromium or encodes/decodes media. This remains a TCP Minecraft relay, not WebRTC. Bitrate increases also increase the world's host/relay bandwidth usage for every viewer.
+Install the same main mod build on **all clients and the world host/server**: stream protocol v5 adds opt-in remote-control packets and intentionally does not interoperate with older builds. Each client also needs the matching WinLandCraft Chromium companion; dedicated servers require only Fabric API and the small main WinLandCraft JAR. Essential/LAN still use the integrated server's existing Minecraft connection. The server validates ownership, media envelopes, and controller permission, then forwards bounded data; it never runs Chromium or encodes/decodes media. This remains a TCP Minecraft relay, not WebRTC. Bitrate increases also increase the world's host/relay bandwidth usage for every viewer.
 
 The audio handler retains the sample rate from `getAudioParameters`, because MCEF 2.1.6's native adapter passes null parameters to `onAudioStreamStarted`. Unknown parameters disable capture instead of guessing a sample rate. Raw PCM crosses the loopback bridge in timestamp-preserving batches, avoiding dozens of sequential HTTP round trips per second; Opus backpressure is drained rather than converted into audible holes. Receiver audio uses a recoverable clock: a timestamp discontinuity or late packet re-anchors playback instead of leaving all later Opus packets permanently outside the scheduling window.
 
@@ -172,7 +172,7 @@ Disconnect cleanup is dispatched to the client/render thread because MCEF delete
 - [WaylandCraft pointer grabs](https://github.com/EVV1E/waylandcraft/blob/main/src/main/java/dev/evvie/waylandcraft/grabs/PointerGrabMap.java)
 - [WaylandCraft resizing](https://github.com/EVV1E/waylandcraft/blob/main/src/main/java/dev/evvie/waylandcraft/grabs/ResizeGrab.java)
 
-Input behavior follows WaylandCraft's hover routing, press/release capture, separate keyboard capture, and separate window grabs, adapted to Minecraft 1.21.4 and CEF. No Wayland protocol/native code or WaylandCraft source blocks were copied. MCEF's Minecraft integration is included through the embedded compatibility runtime; users should not install a second MCEF JAR.
+Input behavior follows WaylandCraft's hover routing, press/release capture, separate keyboard capture, and separate window grabs, adapted to Minecraft 1.21.4 and CEF. No Wayland protocol/native code or WaylandCraft source blocks were copied. MCEF's Minecraft integration remains nested in the main mod; the separate WinLandCraft Chromium JAR contains only native browser resources, so users should not install a stock MCEF JAR.
 
 To group nearby apps, hover their edge pill and click **Group**. Hovering that button previews the joining windows with slowly pulsing green dotted outlines. **Ungroup** remains beside it.
 
