@@ -29,17 +29,26 @@ $env:GYP_MSVS_VERSION = '2022'
 $env:NINJA_CORE_MULTIPLIER = if ($env:NINJA_CORE_MULTIPLIER) { $env:NINJA_CORE_MULTIPLIER } else { '0.50' }
 $env:GN_DEFINES = 'is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome chrome_pgo_phase=0 use_thin_lto=false is_cfi=false symbol_level=0 blink_symbol_level=0 v8_symbol_level=0 cef_api_version=15100'
 
-& $Python (Join-Path $WorkRoot 'tools\automate-git.py') `
-    "--download-dir=$Checkout" `
-    "--depot-tools-dir=$(Join-Path $WorkRoot 'depot_tools')" `
-    '--branch=7922' `
-    "--checkout=$CefCommit" `
-    '--no-update' `
-    '--force-build' `
-    '--force-distrib' `
-    '--x64-build' `
-    '--no-debug-build' `
-    '--build-target=cefsimple' `
-    '--no-distrib-docs' `
-    '--no-distrib-symbols'
-if ($LASTEXITCODE -ne 0) { throw "CEF build failed with exit code $LASTEXITCODE" }
+# Siso prints informational messages such as "offline mode" on stderr. Windows
+# PowerShell otherwise promotes those messages to NativeCommandError under Stop.
+$PreviousErrorActionPreference = $ErrorActionPreference
+try {
+    $ErrorActionPreference = 'Continue'
+    & $Python (Join-Path $WorkRoot 'tools\automate-git.py') `
+        "--download-dir=$Checkout" `
+        "--depot-tools-dir=$(Join-Path $WorkRoot 'depot_tools')" `
+        '--branch=7922' `
+        "--checkout=$CefCommit" `
+        '--no-update' `
+        '--force-build' `
+        '--force-distrib' `
+        '--x64-build' `
+        '--no-debug-build' `
+        '--build-target=cefsimple' `
+        '--no-distrib-docs' `
+        '--no-distrib-symbols' 2>&1
+    $ExitCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $PreviousErrorActionPreference
+}
+if ($ExitCode -ne 0) { throw "CEF build failed with exit code $ExitCode" }

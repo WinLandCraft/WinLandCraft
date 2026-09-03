@@ -22,8 +22,8 @@ case "$platform" in
   *) echo "unsupported platform: $platform" >&2; exit 2 ;;
 esac
 
-grep -Eq '^proprietary_codecs = true$' "$args_file"
-grep -Eq '^ffmpeg_branding = "Chrome"$' "$args_file"
+grep -Eq '^[[:space:]]*proprietary_codecs[[:space:]]*=[[:space:]]*true[[:space:]]*$' "$args_file"
+grep -Eq '^[[:space:]]*ffmpeg_branding[[:space:]]*=[[:space:]]*"Chrome"[[:space:]]*$' "$args_file"
 
 temp_root=$(mktemp -d)
 trap 'rm -rf -- "$temp_root"' EXIT
