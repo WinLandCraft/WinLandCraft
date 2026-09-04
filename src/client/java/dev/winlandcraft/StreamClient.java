@@ -153,7 +153,8 @@ final class StreamClient {
         if(panel==null||published==null||encoder==null||!encoder.wantsVideo()||!panel.isOpen()||!published.session().equals(panel.broadcastSession)||client.isPaused()||System.nanoTime()<nextFrame)return;
         nextFrame=System.nanoTime()+1_000_000_000L/encoder.quality.fps();
         try {
-            encoder.video(capture.capture(panel,encoder.quality));
+            var pixels=capture.capture(panel,encoder.quality,encoder.elapsedTimeUs());
+            if(pixels!=null)encoder.video(pixels);
         } catch(RuntimeException|LinkageError error) {
             WinLandCraftClient.LOGGER.error("Stream capture failed",error);fail("Stream capture failed; see latest.log.");
         }

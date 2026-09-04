@@ -117,7 +117,7 @@ final class MediaBridge implements AutoCloseable {
         synchronized void video(StreamCapture.Pixels pixels){
             if(closed||!encode){pixels.close();return;}
             rawVideoFrames.incrementAndGet();
-            var previous=video.getAndSet(new RawVideo(pixels,elapsedTimeUs()));
+            var previous=video.getAndSet(new RawVideo(pixels,pixels.timeUs()));
             if(previous!=null){previous.pixels().close();rawVideoReplaced.incrementAndGet();}
             notifyAll();
         }

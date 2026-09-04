@@ -7,8 +7,11 @@ import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.renderer.*;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL15;
 import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL21;
 import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.GL32;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
 import java.nio.ByteBuffer;
@@ -17,19 +20,22 @@ import java.util.concurrent.ArrayBlockingQueue;
 
 /** Renders just the app surface into a small FBO; never captures the desktop or game screen. */
 final class StreamCapture implements AutoCloseable {
+    private static final int READBACK_SLOTS=3;
     /** A pooled top-down RGBA frame. Ownership passes to the codec bridge. */
     static final class Pixels implements AutoCloseable {
         private StreamCapture owner;
         private final byte[] rgba;
         private final int width,height;
-        private Pixels(StreamCapture owner,byte[] rgba,int width,int height){this.owner=owner;this.rgba=rgba;this.width=width;this.height=height;}
+        private final long timeUs;
+        private Pixels(StreamCapture owner,byte[] rgba,int width,int height,long timeUs){this.owner=owner;this.rgba=rgba;this.width=width;this.height=height;this.timeUs=timeUs;}
         byte[] rgba(){return rgba;}
         int width(){return width;}
         int height(){return height;}
+        long timeUs(){return timeUs;}
         @Override public void close(){var recycler=owner;owner=null;if(recycler!=null)recycler.recycle(rgba);}
     }
     private TextureTarget target,topDownTarget;
-    private ByteBuffer readback;
+    private ByteBuffer diagnosticReadback;
     private ByteBufferBuilder vertices;
     private MultiBufferSource.BufferSource buffers;
     private final IdentityHashMap<RenderType,RenderType> redirectedTypes=new IdentityHashMap<>();
@@ -37,12 +43,18 @@ final class StreamCapture implements AutoCloseable {
             new RenderType("stream_capture",type.format(),type.mode(),type.bufferSize(),type.affectsCrumbling(),type.sortOnUpload(),
                     ()->{type.setupRenderState();target.bindWrite(true);GL11.glDrawBuffer(GL30.GL_COLOR_ATTACHMENT0);GL11.glColorMask(true,true,true,true);},type::clearRenderState){}));
     private final ArrayBlockingQueue<byte[]> freeFrames=new ArrayBlockingQueue<>(4);
+    private final ReadbackSlot[] readbacks={new ReadbackSlot(),new ReadbackSlot(),new ReadbackSlot()};
+    private long issueSequence,receiveSequence,readbackIssues,readbackReaps,readbackSkipped,readbackIssueNanos,readbackReapNanos;
+    private int readbackCursor;
     private long captures,nextDiagnostic;
     private boolean inspectedFailure,loggedOpenGl;
     Pixels capture(WorldPanel panel) {
-        return capture(panel,StreamQuality.current());
+        return capture(panel,StreamQuality.current(),0);
     }
     Pixels capture(WorldPanel panel,StreamQuality quality) {
+        return capture(panel,quality,0);
+    }
+    Pixels capture(WorldPanel panel,StreamQuality quality,long timeUs) {
         RenderSystem.assertOnRenderThread();
         int logicalWidth=panel.pixelWidth(),logicalHeight=panel.pixelHeight()+panel.titlebarHeight();
         int maxHeight=quality.height(),maxWidth=maxHeight*16/9;
@@ -69,7 +81,7 @@ final class StreamCapture implements AutoCloseable {
             try {
                 if(target==null||target.width!=w||target.height!=h){
                     if(target!=null)target.destroyBuffers();if(topDownTarget!=null)topDownTarget.destroyBuffers();
-                    target=new TextureTarget(w,h,true);topDownTarget=new TextureTarget(w,h,false);inspectedFailure=false;
+                    deleteReadbacks();target=new TextureTarget(w,h,true);topDownTarget=new TextureTarget(w,h,false);inspectedFailure=false;
                 }
                 if(vertices==null){vertices=new ByteBufferBuilder(256*1024);buffers=MultiBufferSource.immediate(vertices);}
                 RenderSystem.disableScissor();target.setClearColor(.09f,.12f,.17f,1);target.bindWrite(true);
@@ -108,16 +120,17 @@ final class StreamCapture implements AutoCloseable {
                 GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,topDownTarget.frameBufferId);GL11.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
                 RenderSystem.pixelStore(GL11.GL_PACK_ALIGNMENT,1);RenderSystem.pixelStore(GL11.GL_PACK_ROW_LENGTH,0);
                 RenderSystem.pixelStore(GL11.GL_PACK_SKIP_ROWS,0);RenderSystem.pixelStore(GL11.GL_PACK_SKIP_PIXELS,0);
-                RenderSystem.glBindBuffer(org.lwjgl.opengl.GL21.GL_PIXEL_PACK_BUFFER,0);
                 int size=w*h*4;
-                if(readback==null||readback.capacity()<size){if(readback!=null)MemoryUtil.memFree(readback);readback=MemoryUtil.memAlloc(size);}
-                readback.clear();readback.limit(size);RenderSystem.readPixels(0,0,w,h,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,readback);
-                byte[] bytes=acquire(size);readback.get(bytes);
-                var stats=statistics(bytes);String failureDetail=null;
-                // A single failure-only read of the primary target distinguishes panel
-                // rendering failures from flip-target failures without taxing healthy streams.
-                if(stats.solid()&&!inspectedFailure){inspectedFailure=true;failureDetail=inspectPrimaryFailure(stack,w,h,size,depthMask);}
-                diagnose(stats,w,h,"off-screen panel, GPU-flipped",failureDetail);return new Pixels(this,bytes,w,h);
+                Pixels ready=pollReadback();
+                issueReadback(w,h,size,timeUs);
+                if(ready!=null) {
+                    var stats=statistics(ready.rgba());String failureDetail=null;
+                    // A single failure-only read of the primary target distinguishes panel
+                    // rendering failures from flip-target failures without taxing healthy streams.
+                    if(stats.solid()&&!inspectedFailure){inspectedFailure=true;failureDetail=inspectPrimaryFailure(stack,w,h,size,depthMask);}
+                    diagnose(stats,ready.width(),ready.height(),"off-screen panel, GPU-flipped",failureDetail);
+                }
+                return ready;
             } finally {
                 modelView.popMatrix();RenderSystem.setProjectionMatrix(projection,projectionType);RenderSystem.setShaderFog(fog);
                 RenderSystem.setShader(shader);RenderSystem.setShaderColor(red,green,blue,alpha);
@@ -138,12 +151,66 @@ final class StreamCapture implements AutoCloseable {
             }
         }
     }
+    private Pixels pollReadback() {
+        ReadbackSlot slot=null;
+        for(var candidate:readbacks)if(candidate.fence!=0&&candidate.sequence==receiveSequence){slot=candidate;break;}
+        if(slot==null)return null;
+        int state=GL32.glClientWaitSync(slot.fence,0,0);
+        if(state==GL32.GL_WAIT_FAILED) {
+            release(slot);receiveSequence++;readbackSkipped++;return null;
+        }
+        if(state!=GL32.GL_ALREADY_SIGNALED&&state!=GL32.GL_CONDITION_SATISFIED)return null;
+        long started=System.nanoTime();byte[] bytes=acquire(slot.bytes);boolean mapped=false;
+        GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,slot.id);
+        ByteBuffer pixels=GL30.glMapBufferRange(GL21.GL_PIXEL_PACK_BUFFER,0,slot.bytes,GL30.GL_MAP_READ_BIT);
+        try {
+            if(pixels==null)throw new IllegalStateException("Could not map completed stream readback PBO");
+            mapped=true;pixels.get(bytes);
+            boolean valid=GL15.glUnmapBuffer(GL21.GL_PIXEL_PACK_BUFFER);mapped=false;
+            if(!valid)throw new IllegalStateException("Stream readback PBO contents became invalid");
+        } catch(RuntimeException|LinkageError failure) {
+            recycle(bytes);throw failure;
+        } finally {
+            if(mapped)GL15.glUnmapBuffer(GL21.GL_PIXEL_PACK_BUFFER);
+            release(slot);receiveSequence++;
+        }
+        readbackReaps++;readbackReapNanos+=System.nanoTime()-started;
+        return new Pixels(this,bytes,slot.width,slot.height,slot.timeUs);
+    }
+    private void issueReadback(int width,int height,int bytes,long timeUs) {
+        ReadbackSlot slot=null;
+        for(int offset=0;offset<READBACK_SLOTS;offset++) {
+            var candidate=readbacks[(readbackCursor+offset)%READBACK_SLOTS];
+            if(candidate.fence==0){slot=candidate;readbackCursor=(readbackCursor+offset+1)%READBACK_SLOTS;break;}
+        }
+        if(slot==null){readbackSkipped++;return;}
+        if(slot.id==0)slot.id=GL15.glGenBuffers();
+        GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,slot.id);
+        if(slot.capacity!=bytes){GL15.glBufferData(GL21.GL_PIXEL_PACK_BUFFER,bytes,GL15.GL_STREAM_READ);slot.capacity=bytes;}
+        long started=System.nanoTime();GL11.glReadPixels(0,0,width,height,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,0L);
+        slot.fence=GL32.glFenceSync(GL32.GL_SYNC_GPU_COMMANDS_COMPLETE,0);
+        if(slot.fence==0)throw new IllegalStateException("Could not create stream readback fence");
+        readbackIssueNanos+=System.nanoTime()-started;readbackIssues++;
+        slot.width=width;slot.height=height;slot.bytes=bytes;slot.timeUs=timeUs;slot.sequence=issueSequence++;
+    }
+    private void release(ReadbackSlot slot){GL32.glDeleteSync(slot.fence);slot.fence=0;}
+    private void deleteReadbacks() {
+        for(var slot:readbacks) {
+            if(slot.fence!=0)release(slot);
+            if(slot.id!=0){GL15.glDeleteBuffers(slot.id);slot.id=0;}
+            slot.capacity=0;
+        }
+        issueSequence=receiveSequence=0;readbackCursor=0;
+    }
+    private int pendingReadbacks(){int pending=0;for(var slot:readbacks)if(slot.fence!=0)pending++;return pending;}
     private byte[] acquire(int size){byte[] bytes;while((bytes=freeFrames.poll())!=null)if(bytes.length==size)return bytes;return new byte[size];}
     private void recycle(byte[] bytes){freeFrames.offer(bytes);}
     private String inspectPrimaryFailure(MemoryStack stack,int width,int height,int size,boolean inheritedDepthMask) {
         GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,target.frameBufferId);GL11.glReadBuffer(GL30.GL_COLOR_ATTACHMENT0);
-        readback.clear();readback.limit(size);RenderSystem.readPixels(0,0,width,height,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,readback);
-        byte[] primary=acquire(size);readback.get(primary);var primaryStats=statistics(primary);recycle(primary);
+        GL15.glBindBuffer(GL21.GL_PIXEL_PACK_BUFFER,0);
+        if(diagnosticReadback==null||diagnosticReadback.capacity()<size){if(diagnosticReadback!=null)MemoryUtil.memFree(diagnosticReadback);diagnosticReadback=MemoryUtil.memAlloc(size);}
+        diagnosticReadback.clear();diagnosticReadback.limit(size);RenderSystem.readPixels(0,0,width,height,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,diagnosticReadback);
+        byte[] primary=acquire(size);diagnosticReadback.get(primary);var primaryStats=statistics(primary);recycle(primary);
         var depthSample=stack.mallocFloat(1);
         GL11.glReadPixels(width/2,height/2,1,1,GL11.GL_DEPTH_COMPONENT,GL11.GL_FLOAT,depthSample);
         return "primarySolid="+primaryStats.solid()+", primaryRgb="+primaryStats.redMin+".."+primaryStats.redMax+','+
@@ -160,9 +227,13 @@ final class StreamCapture implements AutoCloseable {
         }
         if(captures!=1&&now<nextDiagnostic)return;
         nextDiagnostic=now+10_000;
+        long issueUs=readbackIssues==0?0:readbackIssueNanos/readbackIssues/1_000;
+        long reapUs=readbackReaps==0?0:readbackReapNanos/readbackReaps/1_000;
         String summary="source="+source+", frame="+width+'x'+height+", sampled="+stats.samples+", rgb-range="+
                 stats.redMin+".."+stats.redMax+','+stats.greenMin+".."+stats.greenMax+','+stats.blueMin+".."+stats.blueMax+
-                ", mean="+stats.redMean+','+stats.greenMean+','+stats.blueMean+", hash="+Long.toUnsignedString(stats.hash,16);
+                ", mean="+stats.redMean+','+stats.greenMean+','+stats.blueMean+", hash="+Long.toUnsignedString(stats.hash,16)+
+                ", readback=async-pbo, pending="+pendingReadbacks()+", skipped="+readbackSkipped+", submitUs="+issueUs+", reapUs="+reapUs;
+        readbackIssues=readbackReaps=readbackSkipped=readbackIssueNanos=readbackReapNanos=0;
         if(stats.solid())WinLandCraftClient.LOGGER.warn("Stream capture is solid-colored; the receiver will see a blank frame ({}{})",
                 summary,failureDetail==null?"":"; "+failureDetail);
         else WinLandCraftClient.LOGGER.info("Stream capture health: {}",summary);
@@ -183,10 +254,16 @@ final class StreamCapture implements AutoCloseable {
         boolean solid(){return redMax-redMin<=2&&greenMax-greenMin<=2&&blueMax-blueMin<=2;}
     }
     @Override public void close(){
+        RenderSystem.assertOnRenderThread();
         if(target!=null){target.destroyBuffers();target=null;}
         if(topDownTarget!=null){topDownTarget.destroyBuffers();topDownTarget=null;}
-        if(readback!=null){MemoryUtil.memFree(readback);readback=null;}
+        deleteReadbacks();
+        if(diagnosticReadback!=null){MemoryUtil.memFree(diagnosticReadback);diagnosticReadback=null;}
         if(vertices!=null){vertices.close();vertices=null;buffers=null;redirectedTypes.clear();}
         freeFrames.clear();captures=nextDiagnostic=0;inspectedFailure=false;
+    }
+    private static final class ReadbackSlot {
+        int id,capacity,width,height,bytes;
+        long fence,sequence,timeUs;
     }
 }
