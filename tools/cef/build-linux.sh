@@ -7,17 +7,22 @@ readonly chromium_version=151.0.7922.34
 readonly checkout="$work_root/linux"
 readonly chromium="$checkout/chromium/src"
 readonly script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-readonly codec_patch="$script_dir/patches/chromium-151-linux-vaapi-shmem.patch"
+readonly codec_patches=(
+  "$script_dir/patches/chromium-151-linux-vaapi-shmem.patch"
+  "$script_dir/patches/chromium-151-linux-vaapi-nv12-upload.patch"
+)
 
 test "$(git -C "$checkout/cef" rev-parse HEAD)" = "$cef_commit"
 test "$(awk -F= '/^MAJOR=/{a=$2}/^MINOR=/{b=$2}/^BUILD=/{c=$2}/^PATCH=/{d=$2}END{print a"."b"."c"."d}' "$chromium/chrome/VERSION")" = "$chromium_version"
 
-if git -C "$chromium" apply --check "$codec_patch"; then
-  git -C "$chromium" apply "$codec_patch"
-elif ! git -C "$chromium" apply --reverse --check "$codec_patch"; then
-  echo "Chromium VA-API shared-memory patch does not match the pinned source" >&2
-  exit 1
-fi
+for codec_patch in "${codec_patches[@]}"; do
+  if git -C "$chromium" apply --check "$codec_patch" 2>/dev/null; then
+    git -C "$chromium" apply "$codec_patch"
+  elif ! git -C "$chromium" apply --reverse --check "$codec_patch" 2>/dev/null; then
+    echo "Chromium VA-API patch does not match the pinned source: $codec_patch" >&2
+    exit 1
+  fi
+done
 
 "$chromium/build/install-build-deps.sh" --no-prompt --no-arm --no-chromeos-fonts
 
@@ -41,4 +46,4 @@ python3 "$work_root/tools/automate-git.py" \
   --no-distrib-docs \
   --no-distrib-symbols
 
-printf '%s\n' 'linux-vaapi-shmem-v1' > "$chromium/out/Release_GN_x64/WINLANDCRAFT-CODEC-PATCHSET"
+printf '%s\n' 'linux-vaapi-shmem-v2' > "$chromium/out/Release_GN_x64/WINLANDCRAFT-CODEC-PATCHSET"

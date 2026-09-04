@@ -33,12 +33,45 @@
     })();
     try{return await configRequest;}finally{configRequest=null;}
   }
+  function normalizeH264Keyframe(bytes) {
+    const units=[];
+    for(let offset=0;offset+3<bytes.length;){
+      let prefix=0;
+      if(bytes[offset]===0&&bytes[offset+1]===0){
+        if(bytes[offset+2]===1)prefix=3;
+        else if(offset+3<bytes.length&&bytes[offset+2]===0&&bytes[offset+3]===1)prefix=4;
+      }
+      if(prefix){units.push({start:offset,payload:offset+prefix});offset+=prefix;}else offset++;
+    }
+    if(units.length<2)return false;
+    const type=unit=>bytes[unit.payload]&31;
+    const firstVcl=units.findIndex(unit=>{const value=type(unit);return value>=1&&value<=5;});
+    if(firstVcl<0)return false;
+    const moved=[];
+    for(let index=firstVcl+1;index<units.length;index++)if(type(units[index])===7||type(units[index])===8)moved.push(index);
+    if(!moved.length)return false;
+    const movedSet=new Set(moved),order=[];
+    for(let index=0;index<firstVcl;index++)order.push(index);
+    order.push(...moved,firstVcl);
+    for(let index=firstVcl+1;index<units.length;index++)if(!movedSet.has(index))order.push(index);
+    const normalized=new Uint8Array(bytes.length);let write=0;
+    if(units[0].start){normalized.set(bytes.subarray(0,units[0].start),write);write+=units[0].start;}
+    for(const index of order){
+      const end=index+1<units.length?units[index+1].start:bytes.length,part=bytes.subarray(units[index].start,end);
+      normalized.set(part,write);write+=part.length;
+    }
+    bytes.set(normalized);return true;
+  }
   function pack(kind,chunk,width,height,codec=0) {
     const bytes=new Uint8Array(24+chunk.byteLength),header=new DataView(bytes.buffer);
     header.setUint32(0,0x574c5632);header.setUint8(4,kind);header.setUint8(5,chunk.type==='key'?1:0);
     header.setUint16(6,width);header.setUint16(8,height);header.setUint16(10,codec);
-    header.setBigInt64(12,BigInt(Math.max(0,chunk.timestamp)));
-    header.setUint32(20,chunk.byteLength);chunk.copyTo(bytes.subarray(24));return bytes;
+    header.setBigInt64(12,BigInt(Math.max(0,chunk.timestamp)));header.setUint32(20,chunk.byteLength);
+    const payload=bytes.subarray(24);chunk.copyTo(payload);
+    // Some VA-API drivers return an IDR slice before their packed SPS/PPS.
+    // Annex B decoders need those parameter sets first when joining a stream.
+    if(kind===0&&codec===1&&chunk.type==='key')normalizeH264Keyframe(payload);
+    return bytes;
   }
   function unpack(bytes) {
     const header=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);

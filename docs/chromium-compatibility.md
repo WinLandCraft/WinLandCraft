@@ -76,12 +76,16 @@ image` and `Allocating a buffer failed`; WebCodecs closes the otherwise valid
 H.264 hardware encoder before its first output.
 
 The Linux runtime carries the reproducible
-`linux-vaapi-shmem-v1` patch in `tools/cef/patches`. It makes the adapter convert
+`linux-vaapi-shmem-v2` patchset in `tools/cef/patches`. It makes the adapter convert
 the CPU RGBA frame to NV12 in pooled shared memory. Chromium's
 `VaapiVideoEncodeAccelerator` then uploads that NV12 frame to a VA surface and
 still performs H.264 encoding in hardware. This does not enable software H.264
 or misreport software encoding as hardware; it replaces only the unavailable
 GPU-buffer staging allocation. Explicit GPU-buffer preferences remain intact.
+Chromium 151's shared-memory VA-API upload accepted I420 despite the adapter's
+NV12 default, so the patchset also adds the missing direct NV12 plane copy into
+the VA surface. Without it the encoder initializes successfully and then fails
+its first frame with `Unsupported pixel format: PIXEL_FORMAT_NV12`.
 Every Linux runtime archive records the patchset in
 `WINLANDCRAFT-CODEC-BUILD.properties`, and packaging rejects an unpatched Linux
 archive.
@@ -92,6 +96,14 @@ failure and checks the codec state immediately before `encode()`. Auto mode
 blocks the failed candidate and probes the next one; an explicit codec choice
 stops with the original failure. Never replace that diagnostic with the later,
 generic `encode on a closed codec` exception.
+
+Mesa VA-API can return packed H.264 keyframes with the IDR slice before the SPS
+and PPS NAL units submitted by Chromium. That stream is valid only after a
+decoder has already learned the parameter sets, so a new viewer otherwise loses
+the first GOP. Before relaying an Annex B H.264 keyframe, the worker detects this
+ordering and moves only trailing SPS/PPS units ahead of the first VCL unit. It
+leaves already-correct H.264, VP9, audio, timestamps, and packet framing
+unchanged. The codec-selection regression locks this join-time invariant.
 
 ## Opaque origin on codec status POSTs
 

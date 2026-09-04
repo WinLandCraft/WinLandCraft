@@ -77,7 +77,7 @@ def stageCefRuntimes = tasks.register('stageCefRuntimes', Sync) {
                     'gn.proprietary_codecs': 'true',
                     'gn.ffmpeg_branding': 'Chrome']
             if (platform.startsWith('linux_'))
-                required['winlandcraft.patchset'] = 'linux-vaapi-shmem-v1'
+                required['winlandcraft.patchset'] = 'linux-vaapi-shmem-v2'
             required.each { key, value ->
                 if (codecManifest.getProperty(key) != value)
                     throw new GradleException("CEF runtime ${archive.name} has invalid ${key}")
@@ -98,7 +98,7 @@ def cefRuntimeJar = tasks.register('cefRuntimeJar', Jar) {
         expand chromiumVersion: project.chromium_runtime_version,
                 cefCommit: project.cef_commit,
                 jcefCommit: project.jcef_commit,
-                runtimePatchset: 'linux-vaapi-shmem-v1'
+                runtimePatchset: 'linux-vaapi-shmem-v2'
     }
     onlyIf { cefRuntimeBundleDir.isPresent() }
 }
@@ -334,7 +334,7 @@ tasks.register('verifyMixinPackaging') {
                 if (metadata.id != 'winlandcraft_chromium' || metadata.version != project.chromium_runtime_version
                         || metadata.environment != 'client')
                     throw new GradleException('Chromium runtime JAR has invalid Fabric identity, version, or environment')
-                if (metadata.custom?.get('winlandcraft:patchset') != 'linux-vaapi-shmem-v1')
+                if (metadata.custom?.get('winlandcraft:patchset') != 'linux-vaapi-shmem-v2')
                     throw new GradleException('Chromium runtime JAR has the wrong WinLandCraft patchset')
                 def names = fileTree(file(cefRuntimeBundleDir.get())) { include '*.tar.gz' }.files.collect { it.name }
                 names.each { name ->

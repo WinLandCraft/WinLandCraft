@@ -2,6 +2,9 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const worker=fs.readFileSync('src/main/resources/assets/winlandcraft/stream-worker.js','utf8');
 new vm.Script(worker);
+const normalizeSection=worker.slice(worker.indexOf('  function normalizeH264Keyframe'),worker.indexOf('  function pack('));
+const normalizeContext=vm.createContext({Uint8Array,Set});
+vm.runInContext(normalizeSection+';globalThis.normalize=normalizeH264Keyframe;',normalizeContext);
 const section=worker.slice(worker.indexOf('  const VP9='),worker.indexOf('  async function encoder()'));
 let supported=true,probes=[];
 const context=vm.createContext({message:String,VideoEncoder:{isConfigSupported:async config=>{probes.push(config);return {supported};}},VideoDecoder:{isConfigSupported:async()=>({supported:true})}});
@@ -63,6 +66,18 @@ async function exerciseAsyncEncoderFailure(codecMode){
 }
 
 (async()=>{
+  const nal=(type,value)=>Uint8Array.of(0,0,0,1,type,value),join=(...parts)=>{
+    const result=new Uint8Array(parts.reduce((size,part)=>size+part.length,0));let offset=0;
+    for(const part of parts){result.set(part,offset);offset+=part.length;}return result;
+  },types=bytes=>{
+    const result=[];for(let index=0;index+4<bytes.length;index++)if(bytes[index]===0&&bytes[index+1]===0&&bytes[index+2]===0&&bytes[index+3]===1)result.push(bytes[index+4]&31);
+    return result;
+  };
+  const broken=join(nal(5,1),nal(7,2),nal(8,3));
+  assert.equal(normalizeContext.normalize(broken),true);assert.deepEqual(types(broken),[7,8,5]);
+  const valid=join(nal(9,1),nal(7,2),nal(8,3),nal(5,4));
+  assert.equal(normalizeContext.normalize(valid),false);assert.deepEqual(types(valid),[9,7,8,5]);
+  const delta=join(nal(1,1));assert.equal(normalizeContext.normalize(delta),false);assert.deepEqual(types(delta),[1]);
   const expected=['h264-hardware','h264-hardware','vp9-hardware','vp9-software'];
   for(let mode=0;mode<4;mode++){probes=[];const result=await context.select(1280,720,2000000,new Set(),mode);assert.equal(result.id,expected[mode]);assert.equal(probes.length,1);}
   assert.equal((await context.select(1280,720,2000000,new Set(['h264-hardware']),0)).id,'vp9-hardware');
@@ -72,5 +87,5 @@ async function exerciseAsyncEncoderFailure(codecMode){
   assert.ok(failure.error.includes('Unable to create a mappable shared image'));assert.ok(!failure.error.includes('closed codec'));
   const automatic=await exerciseAsyncEncoderFailure(0);
   assert.deepEqual(automatic.configured.slice(0,2),['avc1.42E02A','vp09.00.10.08']);
-  console.log('Codec selection: explicit modes, Auto fallback, and asynchronous native error preservation passed.');
+  console.log('Codec selection: Annex B keyframes, explicit modes, Auto fallback, and asynchronous native error preservation passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

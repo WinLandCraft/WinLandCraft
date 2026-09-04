@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "winlandcraft_mcef",
-  "version": "151.0.7922.34-wlc.1",
+  "version": "151.0.7922.34-wlc.2",
   "name": "WinLandCraft MCEF Bridge",
   "description": "WinLandCraft's MCEF-compatible Java bridge for its separate Chromium runtime.",
   "authors": ["WinLandCraft", "CinemaMod Group", "Keksuccino"],

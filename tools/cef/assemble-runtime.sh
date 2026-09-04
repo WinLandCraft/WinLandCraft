@@ -15,7 +15,7 @@ readonly cef_commit=89cd5813e47d84c68e56ced336c2c01b7dc77b8d
 readonly jcef_commit=2eb4ca2648bda91d1dfed81e9a37ba92e757aff9
 readonly chromium_version=151.0.7922.34
 codec_patchset=none
-[[ "$platform" == linux_* ]] && codec_patchset=linux-vaapi-shmem-v1
+[[ "$platform" == linux_* ]] && codec_patchset=linux-vaapi-shmem-v2
 readonly codec_patchset
 
 case "$platform" in
