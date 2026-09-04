@@ -25,8 +25,9 @@ final class StreamAudio {
         synchronized void close(){closed=true;if(monitor!=null){monitor.close();monitor=null;}}
         volatile int rate,channels;
         final ArrayBlockingQueue<byte[]> freeBuffers=new ArrayBlockingQueue<>(32);
+        final StreamAudioResampler resampler=new StreamAudioResampler();
         MediaBridge.Endpoint clockEndpoint;
-        long lastPts=Long.MIN_VALUE,timeUs,packets,frames,invalid,nextLog,nextWarning;
+        long timeUs,clockFrames,packets,frames,invalid,nextLog,nextWarning;
         Source(CefBrowser browser,BrowserPanel panel){this.browser=browser;this.panel=panel;browserId=id(browser);}
         byte[] acquire(int size){byte[] bytes;while((bytes=freeBuffers.poll())!=null)if(bytes.length==size)return bytes;return new byte[size];}
         void recycle(byte[] bytes){freeBuffers.offer(bytes);}
@@ -95,7 +96,7 @@ final class StreamAudio {
             @Override public void onAudioStreamStarted(CefBrowser browser,CefAudioParameters params,int channels) {
                 var source=source(browser);if(source!=null){
                     if(params!=null)source.rate=params.sampleRate;
-                    source.channels=channels;source.clockEndpoint=null;source.lastPts=Long.MIN_VALUE;
+                    source.channels=channels;source.clockEndpoint=null;source.clockFrames=0;source.resampler.reset();
                     source.packets=source.frames=source.invalid=source.nextLog=source.nextWarning=0;
                     WinLandCraftClient.LOGGER.info("Stream audio capture started: {} Hz, {} channels",source.rate,channels);
                 }
@@ -113,35 +114,18 @@ final class StreamAudio {
                     long rightAddress=channels==1?leftAddress:MemoryUtil.memGetAddress(data.getAddress()+org.lwjgl.system.Pointer.POINTER_SIZE);
                     if(leftAddress==0||rightAddress==0)return;
                     var left=MemoryUtil.memFloatBuffer(leftAddress,frames);var right=MemoryUtil.memFloatBuffer(rightAddress,frames);
-                    int outputFrames=Math.max(1,(int)Math.round(frames*48000.0/rate));
-                    byte[] pcm=source.acquire(outputFrames*8);
-                    var bytes=ByteBuffer.wrap(pcm).order(ByteOrder.LITTLE_ENDIAN);
-                    double step=rate/48000.0;
-                    for(int channel=0;channel<2;channel++) {
-                        FloatBuffer input=channel==0?left:right;double pos=0;
-                        for(int i=0;i<outputFrames;i++,pos+=step) {
-                            int a=Math.min(frames-1,(int)pos),b=Math.min(frames-1,a+1);float first=input.get(a);
-                            float value=first+(input.get(b)-first)*(float)(pos-a);
-                            bytes.putFloat(Float.isFinite(value)?Math.clamp(value,-1,1):0);
-                        }
-                    }
+                    var output=source.resampler.process(left,right,frames,rate,source::acquire);
+                    if(output==null)return;
+                    int outputFrames=output.frames();byte[] pcm=output.pcm();
                     var packet=new Packet(source,pcm);boolean monitorOwned=false,encoderOwned=false;
                     try {
                         source.monitor(packet);monitorOwned=true;
                         if(encoder!=null){
                             long current=encoder.elapsedTimeUs();
-                            if(source.clockEndpoint!=encoder){source.clockEndpoint=encoder;source.lastPts=pts;source.timeUs=current;}
-                            else {
-                                long delta=pts-source.lastPts;
-                                if(delta>=0&&delta<=1_000)source.timeUs+=delta*1000;else source.timeUs=current;
-                                source.lastPts=pts;
-                                if(source.timeUs<current-1_000_000||source.timeUs>current+1_000_000){
-                                    source.timeUs=current;
-                                    long now=System.currentTimeMillis();
-                                    if(now>=source.nextWarning){source.nextWarning=now+10_000;WinLandCraftClient.LOGGER.warn("Stream audio PTS drifted from the video clock; timeline was resynchronized (pts={})",pts);}
-                                }
-                            }
-                            encoder.audio(packet,outputFrames,source.timeUs);encoderOwned=true;
+                            if(source.clockEndpoint!=encoder){source.clockEndpoint=encoder;source.timeUs=current;source.clockFrames=0;}
+                            long packetTime=source.timeUs+source.clockFrames*1_000_000/StreamAudioResampler.OUTPUT_RATE;
+                            source.clockFrames+=outputFrames;
+                            encoder.audio(packet,outputFrames,packetTime);encoderOwned=true;
                         } else {packet.release();encoderOwned=true;}
                     } finally {
                         if(!monitorOwned)packet.release();
@@ -162,7 +146,7 @@ final class StreamAudio {
             @Override public void onAudioStreamStopped(CefBrowser browser) {
                 var source=source(browser);if(source!=null){
                     WinLandCraftClient.LOGGER.info("Stream audio capture stopped after {} packets / {} output frames",source.packets,source.frames);
-                    source.channels=0;source.clockEndpoint=null;source.lastPts=Long.MIN_VALUE;
+                    source.channels=0;source.clockEndpoint=null;source.clockFrames=0;source.resampler.reset();
                 }
             }
             @Override public void onAudioStreamError(CefBrowser browser,String message) {

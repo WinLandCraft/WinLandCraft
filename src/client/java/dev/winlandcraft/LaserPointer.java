@@ -45,7 +45,7 @@ public final class LaserPointer {
     }
 
     static boolean active(Minecraft client) {
-        return ModSettings.laserEnabled&&heldHand(client)!=null;
+        return ModSettings.laserPanelPointer()&&ModSettings.laserEnabled&&heldHand(client)!=null;
     }
 
     static int normalizeColor(int index) {

@@ -8,10 +8,10 @@ vm.runInContext(normalizeSection+';globalThis.normalize=normalizeH264Keyframe;',
 const section=worker.slice(worker.indexOf('  const VP9='),worker.indexOf('  async function encoder()'));
 let supported=true,probes=[];
 const context=vm.createContext({message:String,VideoEncoder:{isConfigSupported:async config=>{probes.push(config);return {supported};}},VideoDecoder:{isConfigSupported:async()=>({supported:true})}});
-vm.runInContext(section+';globalThis.select=selectEncoderConfig;',context);
+vm.runInContext(section+';globalThis.select=selectEncoderConfig;globalThis.AudioTimelineForTest=AudioTimeline;',context);
 
 async function exerciseAsyncEncoderFailure(codecMode){
-  const configured=[],statuses=[];let videoRequests=0,completed=false;
+  const configured=[],statuses=[],posted=[];let videoRequests=0,completed=false;
   class VideoEncoder {
     static async isConfigSupported(config){return {supported:true,config};}
     constructor(callbacks){this.callbacks=callbacks;this.state='unconfigured';this.encodeQueueSize=0;}
@@ -49,7 +49,7 @@ async function exerciseAsyncEncoderFailure(codecMode){
       }
       if(route==='config')return response(200,{json:async()=>({encode:true,audio:false,audioBitrate:96000,
         bitrate:2000000,fps:30,codecMode,forceKey:0})});
-      if(route==='packet')return response(200);
+      if(route==='packets'){posted.push({sequence:options.headers['X-WinLandCraft-Sequence'],body:new Uint8Array(options.body)});return response(200);}
       if(route==='audio')return response(204);
       if(route==='video'){
         videoRequests++;
@@ -62,10 +62,11 @@ async function exerciseAsyncEncoderFailure(codecMode){
   const workerContext=vm.createContext(sandbox);workerContext.self=workerContext;
   vm.runInContext(worker,workerContext);
   for(let i=0;i<100&&!statuses.some(status=>status.phase==='failed');i++)await new Promise(resolve=>setTimeout(resolve,1));
-  return {configured,statuses};
+  return {configured,statuses,posted};
 }
 
 (async()=>{
+  const near=(actual,expected)=>assert.ok(Math.abs(actual-expected)<1e-9,`${actual} != ${expected}`);
   const nal=(type,value)=>Uint8Array.of(0,0,0,1,type,value),join=(...parts)=>{
     const result=new Uint8Array(parts.reduce((size,part)=>size+part.length,0));let offset=0;
     for(const part of parts){result.set(part,offset);offset+=part.length;}return result;
@@ -83,9 +84,16 @@ async function exerciseAsyncEncoderFailure(codecMode){
   assert.equal((await context.select(1280,720,2000000,new Set(['h264-hardware']),0)).id,'vp9-hardware');
   supported=false;probes=[];await assert.rejects(context.select(1280,720,2000000,new Set(),3));assert.equal(probes.length,1);assert.equal(probes[0].codec,'vp09.00.10.08');assert.equal(probes[0].hardwareAcceleration,'prefer-software');
   supported=true;probes=[];await assert.rejects(context.select(1280,720,2000000,new Set(['vp9-software']),3));assert.equal(probes.length,0);
+  const timeline=new context.AudioTimelineForTest();
+  const first=timeline.plan(1_000_000,.02,10);near(first.when,10.15);assert.equal(first.underrun,false);
+  const second=timeline.plan(1_020_000,.02,10.01);near(second.when,10.17);assert.equal(second.underrun,false);
+  assert.equal(timeline.plan(1_020_000,.02,10.02).drop,true);
+  const recovered=timeline.plan(1_040_000,.02,10.3);assert.equal(recovered.underrun,true);near(recovered.when,10.45);
   const explicit=await exerciseAsyncEncoderFailure(1),failure=explicit.statuses.find(status=>status.phase==='failed');
   assert.ok(failure.error.includes('Unable to create a mappable shared image'));assert.ok(!failure.error.includes('closed codec'));
   const automatic=await exerciseAsyncEncoderFailure(0);
   assert.deepEqual(automatic.configured.slice(0,2),['avc1.42E02A','vp09.00.10.08']);
-  console.log('Codec selection: Annex B keyframes, explicit modes, Auto fallback, and asynchronous native error preservation passed.');
+  assert.equal(automatic.posted[0].sequence,'0');
+  assert.equal(new DataView(automatic.posted[0].body.buffer).getUint32(0),25);
+  console.log('Codec selection: Annex B keyframes, explicit modes, Auto fallback, ordered batched transport, stable audio scheduling, and asynchronous native error preservation passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

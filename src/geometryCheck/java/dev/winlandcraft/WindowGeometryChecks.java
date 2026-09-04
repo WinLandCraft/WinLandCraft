@@ -51,6 +51,15 @@ public final class WindowGeometryChecks {
     }
 
     private static void laserPointer() {
+        ModSettings.panelPointerMode=ModSettings.POINTER_GAZE;
+        if(ModSettings.laserPanelPointer())throw new AssertionError("gaze pointer must be the default");
+        if(!WindowControls.panelPointerAvailable(false,false)||!WindowControls.panelPointerAvailable(false,true))
+            throw new AssertionError("gaze mode must route panel input without a laser");
+        ModSettings.panelPointerMode=ModSettings.POINTER_LASER;
+        if(!ModSettings.laserPanelPointer())throw new AssertionError("laser pointer mode selection");
+        if(WindowControls.panelPointerAvailable(true,false)||!WindowControls.panelPointerAvailable(true,true))
+            throw new AssertionError("laser mode must route panel input only through an active laser");
+        ModSettings.panelPointerMode=ModSettings.POINTER_GAZE;
         if(LaserPointer.normalizeColor(-1)!=4||LaserPointer.normalizeColor(5)!=0)
             throw new AssertionError("laser color wrapping");
         near(-1.5,ModSettings.DEFAULT_LASER_BEAM_X,"laser calibrated beam horizontal");

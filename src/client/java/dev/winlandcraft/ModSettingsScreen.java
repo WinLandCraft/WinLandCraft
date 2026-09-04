@@ -25,6 +25,7 @@ final class ModSettingsScreen extends Screen {
     }
     private Component sizingLabel(){return Component.literal("Remove sizing limitations: "+(ModSettings.removeSizingLimitations?"ON":"OFF"));}
     private Component rangeLabel(){return Component.literal("Extend interaction range: "+(ModSettings.extendInteractionRange?"ON":"OFF"));}
+    private Component pointerLabel(){return Component.literal("Panel pointer: "+(ModSettings.laserPanelPointer()?"Laser":"Gaze hover"));}
     private Component lightingLabel(){return Component.literal("Lighting "+(ModSettings.screenLighting?"ON":"OFF"));}
     private Component smoothingLabel(){return Component.literal("Panel smoothing: "+(ModSettings.panelSmoothing?"ON":"OFF"));}
     private Component lightPowerLabel(){return Component.literal(String.format(java.util.Locale.ROOT,"Power %.1fx",ModSettings.screenLightIntensity));}
@@ -67,19 +68,24 @@ final class ModSettingsScreen extends Screen {
             saveFailed=!ModSettings.save();button.setMessage(smoothingLabel());
         }).bounds(width/2-10,184,155,20)
                 .tooltip(Tooltip.create(Component.literal("OFF removes distance blur. Pixels stay sharp but may shimmer at a distance. Applies immediately."))).build());
+        addRenderableWidget(Button.builder(pointerLabel(),button->{
+            ModSettings.panelPointerMode=ModSettings.laserPanelPointer()?ModSettings.POINTER_GAZE:ModSettings.POINTER_LASER;
+            changed.run();saveFailed=!ModSettings.save();button.setMessage(pointerLabel());
+        }).bounds(width/2-125,216,250,20)
+                .tooltip(Tooltip.create(Component.literal("Gaze hover uses the screen cursor. Laser requires a powered laser pointer in either hand and uses its beam dot."))).build());
         addRenderableWidget(Button.builder(lightingLabel(),button->{
             ModSettings.screenLighting=!ModSettings.screenLighting;saveFailed=!ModSettings.save();button.setMessage(lightingLabel());
-        }).bounds(width/2-125,216,96,20).build());
+        }).bounds(width/2-125,252,96,20).build());
         addRenderableWidget(Button.builder(lightPowerLabel(),button->{
             ModSettings.screenLightIntensity=ModSettings.nextScreenLightIntensity(ModSettings.screenLightIntensity);
             saveFailed=!ModSettings.save();button.setMessage(lightPowerLabel());
-        }).bounds(width/2-24,216,72,20).build());
+        }).bounds(width/2-24,252,72,20).build());
         addRenderableWidget(Button.builder(lightRangeLabel(),button->{
             ModSettings.screenLightRange=ModSettings.nextScreenLightRange(ModSettings.screenLightRange);
             saveFailed=!ModSettings.save();button.setMessage(lightRangeLabel());
-        }).bounds(width/2+53,216,72,20).build());
+        }).bounds(width/2+53,252,72,20).build());
         addRenderableWidget(Button.builder(Component.literal("Create Solas lighting-compatible copy"),button->patchSolas())
-                .bounds(width/2-125,252,250,20).build());
+                .bounds(width/2-125,288,250,20).build());
         addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
                 .bounds(width / 2 - 100, height - 30, 200, 20).build());
     }
@@ -94,8 +100,9 @@ final class ModSettingsScreen extends Screen {
                 ? "Enter a distance above 0, up to 4096 blocks."
                 : "Blocks (max 4096). OFF uses normal Minecraft reach.", width / 2, 168,
                 invalidRange && ModSettings.extendInteractionRange ? 0xFFFF5555 : 0xFF9BAABD);
-        graphics.drawCenteredString(font,"Power is linear; range is a minimum that grows with panel size.",width/2,240,0xFFB8CBDE);
-        if(!patchStatus.isEmpty())graphics.drawCenteredString(font,font.plainSubstrByWidth(patchStatus,width-20),width/2,278,
+        graphics.drawCenteredString(font,"Choose exactly one pointer source; Laser mode requires the powered item.",width/2,240,0xFFB8CBDE);
+        graphics.drawCenteredString(font,"Power is linear; range is a minimum that grows with panel size.",width/2,276,0xFFB8CBDE);
+        if(!patchStatus.isEmpty())graphics.drawCenteredString(font,font.plainSubstrByWidth(patchStatus,width-20),width/2,314,
                 patching?0xFFB8CBDE:patchStatus.startsWith("Created")?0xFF80E6AE:0xFFFF8888);
         if (saveFailed) graphics.drawCenteredString(font, "Could not save settings. See latest.log.", width / 2, 30, 0xFFFF8888);
     }

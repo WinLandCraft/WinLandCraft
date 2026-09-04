@@ -146,7 +146,7 @@ public final class WindowControls {
         if (action == GLFW.GLFW_RELEASE && buttons.remove(button)) {
             if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                 if(fileDragging&&draggedFile!=null&&active(c)) {
-                    Hit target=pick(c);
+                    Hit target=interactionPick(c);
                     if(target!=null&&target.panel.acceptsFileDrop()) {target.panel.dropFile(draggedFile);message("Opening "+draggedFile.getFileName()+" in "+target.panel.windowTitle()+".");}
                     else message("File drop canceled. Drop onto an open Notepad panel.");
                 }
@@ -162,8 +162,8 @@ public final class WindowControls {
         if (!active(c)) return false;
         if (action != GLFW.GLFW_PRESS) return false;
         if (resizing != null || dragging != null || curving) { buttons.add(button); return true; }
-        Hit hit=pointer==null?pick(c):null;
-        boolean laserHeld=LaserPointer.heldHand(c)!=null;
+        Hit hit=pointer==null?interactionPick(c):null;
+        boolean laserHeld=ModSettings.laserPanelPointer()&&LaserPointer.heldHand(c)!=null;
         // The laser yields to panel input; its controls only apply when this raycast missed.
         if (pointer == null && button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
                 && (WinLandCraft.isControl(c.player.getMainHandItem())
@@ -255,7 +255,7 @@ public final class WindowControls {
         if (dragging != null) { distance = moveDistance(distance, amount); return true; }
         if (resizing != null) return true;
 
-        Hit hit = pick(c);
+        Hit hit = interactionPick(c);
         if (hit != null) {
             if(hit.panel==curveUi||hit.panel==edgeUi) return true;
             if (corner(hit.panel,hit.point) != 0) return true;
@@ -275,7 +275,7 @@ public final class WindowControls {
         }
         if (!typing) {
             if (action == GLFW.GLFW_PRESS && typingKey.matches(key, scan)) {
-                Hit hit = pick(c);
+                Hit hit = interactionPick(c);
                 if (hit != null && hit.panel.acceptsKeyboard()) focused = hit.panel;
                 if (focused != null && focused.isOpen() && focused.acceptsKeyboard()) {
                     KeyMapping.releaseAll(); typing = true; activationKey = key;focused.keyboardStarted();
@@ -303,17 +303,17 @@ public final class WindowControls {
     static double moveDistance(double current, double wheel) { return Math.clamp(current + wheel * Math.max(.25,(current-32)*.05), 0.5, MOVE_RANGE); }
     public boolean blocksWorldActions() {
         var client = Minecraft.getInstance();
-        return active(client) && (pointer != null || resizing != null || dragging != null || curving || pick(client) != null);
+        return active(client) && (pointer != null || resizing != null || dragging != null || curving || interactionPick(client) != null);
     }
     public int cursor() {
         var client = Minecraft.getInstance();
         if (!active(client) || client.options.hideGui) return 0;
+        if(ModSettings.laserPanelPointer()&&LaserPointer.active(client)&&!fileDragging)return -1;
         int corner = resizing != null ? resizing.corner : hoveredCorner;
         if (corner != 0) {
             int diagonal=((corner&1)!=0)==((corner&4)!=0)?3:2;
             return (resizing!=null?resizing.scaling():scalingHeld())?diagonal+2:diagonal;
         }
-        if((hovered!=null||pointer!=null)&&hoveredPoint!=null&&LaserPointer.active(client)&&!fileDragging)return -1;
         return hovered != null || pointer != null || dragging != null || curving ? 1 : 0;
     }
     public void renderResizeHint(net.minecraft.client.gui.GuiGraphics graphics) {
@@ -333,7 +333,7 @@ public final class WindowControls {
     }
     public void renderHandles(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
         if(fileDragging&&draggedFile!=null) {
-            var client=Minecraft.getInstance();Hit target=pick(client);boolean accepted=target!=null&&target.panel.acceptsFileDrop();
+            var client=Minecraft.getInstance();Hit target=interactionPick(client);boolean accepted=target!=null&&target.panel.acceptsFileDrop();
             var camera=context.camera();
             Vec3 position=camera.getPosition().add(direction(camera).scale(.65));
             try(var badge=new PanelCanvas(context,position,camera.rotation(),.0015f,.0015f,260,32)) {
@@ -377,7 +377,7 @@ public final class WindowControls {
         if(edgeUi!=null&&!curving&&dragging==null&&edgeUi.expired(System.nanoTime()))discardEdge();
         hoveredPoint=null;
         if(draggedFile!=null&&pointer!=null) {
-            Hit target=pick(c);
+            Hit target=interactionPick(c);
             if(target==null||target.panel!=pointer||fileStartRay.dot(direction(camera))<.99995
                     ||Math.abs(pointerX-fileStartX)>8||Math.abs(pointerY-fileStartY)>8)fileDragging=true;
             if(fileDragging){clearCurve();hoveredCorner=0;return;}
@@ -421,7 +421,7 @@ public final class WindowControls {
             }
             nextHover = pointer;
         } else {
-            Hit hit = pick(c);
+            Hit hit = interactionPick(c);
             if (hit != null) {
                 if(hit.panel==edgeUi&&edgeUi!=null) {
                     edgeDwell.clear();
@@ -456,6 +456,12 @@ public final class WindowControls {
     }
     private Hit pick(Minecraft c) {
         return pick(c,ModSettings.interactionRange(c.player.blockInteractionRange()));
+    }
+    static boolean panelPointerAvailable(boolean laserMode,boolean activeLaser) {
+        return !laserMode||activeLaser;
+    }
+    private Hit interactionPick(Minecraft c) {
+        return panelPointerAvailable(ModSettings.laserPanelPointer(),LaserPointer.active(c))?pick(c):null;
     }
     private Hit pick(Minecraft c,double range) {
         if (c.options.hideGui) return null;

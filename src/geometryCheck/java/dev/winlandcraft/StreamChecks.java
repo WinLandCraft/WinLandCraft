@@ -9,8 +9,8 @@ import org.joml.Quaternionf;
 public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
-        RemoteAppInputChecks.run();packets();media();bridgeOrigins();placement();MediaBridgeChecks.run();
-        System.out.println("Streaming: bounded media/control codecs, viewer demand, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, batched bridge and keyframe queue limits, immutable replicas, scaled and curved replica geometry passed.");
+        RemoteAppInputChecks.run();packets();media();bridgeOrigins();timing();audioResampling();placement();MediaBridgeChecks.run();
+        System.out.println("Streaming: bounded media/control codecs, viewer demand, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, ordered batched bridge, audio-preserving queue limits, stable frame cadence and continuous resampling, immutable replicas, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {
         return state(owner,false);
@@ -87,11 +87,20 @@ public final class StreamChecks {
         check(queue.offer(audio.pack()),"audio follows video clock");
         check(StreamMedia.read(queue.poll()).kind()==StreamMedia.VIDEO,"ordered video");
         check(StreamMedia.read(queue.poll()).kind()==StreamMedia.AUDIO,"ordered audio");
-        queue.clear();check(!queue.offer(audio.pack()),"reset waits for a new video clock");
+        queue.clear();check(queue.offer(audio.pack()),"audio continues while video waits for a keyframe");
+        check(StreamMedia.read(queue.poll()).kind()==StreamMedia.AUDIO,"audio is not coupled to video recovery");
         var batched=new MediaBridge.Queue();check(batched.offer(key.pack()),"batch starts with keyframe");
         for(int i=0;i<80;i++)check(batched.offer(audio.pack()),"audio accepted into batch");
         check(batchCount(batched.pollBatch())==64,"bridge batch is capped at 64 packets");
         check(batchCount(batched.pollBatch())==17&&batched.stats().queued()==0,"bridge batch drains remaining packets");
+        var overflow=new MediaBridge.Queue();
+        byte[] large=new byte[700_000];
+        check(overflow.offer(new StreamMedia(StreamMedia.VIDEO,true,1,1280,720,large).pack()),"overflow queue starts with keyframe");
+        check(overflow.offer(audio.pack()),"overflow queue contains continuity-sensitive audio");
+        check(overflow.offer(new StreamMedia(StreamMedia.VIDEO,false,2,1280,720,large).pack()),"first video delta fits");
+        check(!overflow.offer(new StreamMedia(StreamMedia.VIDEO,false,3,1280,720,large).pack()),"overflow delta waits for replacement keyframe");
+        check(StreamMedia.read(overflow.poll()).kind()==StreamMedia.AUDIO&&overflow.poll()==null,"video overflow preserves queued audio");
+        check(overflow.offer(new StreamMedia(StreamMedia.VIDEO,true,4,1280,720,new byte[]{1}).pack()),"queue recovers on replacement keyframe");
     }
     private static int batchCount(MediaBridge.Queue.Batch batch) {
         int bytes=0;for(var packet:batch.packets()){check(StreamMedia.header(packet)!=null,"valid batched media packet");bytes+=Integer.BYTES+packet.length;}
@@ -103,9 +112,44 @@ public final class StreamChecks {
         check(MediaBridge.acceptsOrigin(origin,origin,"POST","status"),"matching status origin accepted");
         check(MediaBridge.acceptsOrigin(origin,"null","POST","status"),"CEF opaque status origin accepted");
         check(MediaBridge.acceptsOrigin(origin,"null","POST","packet"),"CEF opaque media origin accepted");
+        check(MediaBridge.acceptsOrigin(origin,"null","POST","packets"),"CEF opaque batched media origin accepted");
         check(!MediaBridge.acceptsOrigin(origin,"null","POST","unknown"),"opaque unknown POST rejected");
         check(!MediaBridge.acceptsOrigin(origin,"null","GET","config"),"opaque GET origin rejected");
         check(!MediaBridge.acceptsOrigin(origin,"https://example.com","POST","status"),"foreign origin rejected");
+    }
+    private static void timing() {
+        long now=1_000_000_000L,period=1_000_000_000L/30;
+        long first=StreamClient.advanceFrameDeadline(0,now,30);
+        check(first==now+period,"first frame deadline starts one period ahead");
+        check(StreamClient.advanceFrameDeadline(first,first-1,30)==first,"early render keeps its deadline");
+        long delayed=StreamClient.advanceFrameDeadline(first,first+period*4+period/2,30);
+        check(delayed>first+period*4+period/2&&delayed<=first+period*5+period/2,"late render advances to the next deadline");
+        check((delayed-first)%period==0,"late render preserves cadence phase");
+    }
+    private static void audioResampling() {
+        int samples=44_101;float[] left=new float[samples],right=new float[samples];
+        for(int i=0;i<samples;i++){left[i]=(float)Math.sin(i*.013);right[i]=(float)Math.cos(i*.009);}
+        float[][] whole=resample(left,right,new int[]{samples},44_100),split=resample(left,right,new int[]{1,17,1024,333,4096,8192,12000,18438},44_100);
+        check(whole[0].length==48_001&&split[0].length==whole[0].length,"44.1 kHz resampling has exact cumulative length");
+        for(int channel=0;channel<2;channel++)for(int i=0;i<whole[channel].length;i++)
+            if(Math.abs(whole[channel][i]-split[channel][i])>1.0e-6f)throw new AssertionError("resampling changed at packet boundary");
+        float[][] nativeRate=resample(new float[480],new float[480],new int[]{1,31,128,320},48_000);
+        check(nativeRate[0].length==480,"48 kHz input remains one-to-one");
+    }
+    private static float[][] resample(float[] left,float[] right,int[] chunks,int rate) {
+        var resampler=new StreamAudioResampler();List<ArrayList<Float>> channels=List.of(new ArrayList<>(),new ArrayList<>());int offset=0;
+        for(int size:chunks) {
+            check(size>0&&offset+size<=left.length,"valid resampler fixture chunk");
+            var l=java.nio.FloatBuffer.wrap(left,offset,size).slice();var r=java.nio.FloatBuffer.wrap(right,offset,size).slice();
+            var output=resampler.process(l,r,size,rate,byte[]::new);offset+=size;
+            if(output==null)continue;
+            var samples=ByteBuffer.wrap(output.pcm()).order(java.nio.ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+            for(int channel=0;channel<2;channel++)for(int frame=0;frame<output.frames();frame++)channels.get(channel).add(samples.get(channel*output.frames()+frame));
+        }
+        check(offset==left.length,"resampler fixture consumes all input");
+        var result=new float[2][];
+        for(int channel=0;channel<2;channel++){result[channel]=new float[channels.get(channel).size()];for(int i=0;i<result[channel].length;i++)result[channel][i]=channels.get(channel).get(i);}
+        return result;
     }
     private static void placement() {
         boolean remoteControl=ModSettings.streamRemoteControl;

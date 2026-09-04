@@ -4,6 +4,7 @@ import com.cinemamod.mcef.*;
 import com.sun.net.httpserver.*;
 import java.io.*;
 import java.net.*;
+import java.nio.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
@@ -12,6 +13,8 @@ import java.util.concurrent.atomic.*;
 /** Private loopback binary bridge to Chromium's WebCodecs. No external service or executable. */
 final class MediaBridge implements AutoCloseable {
     private static final long LONG_POLL_MILLIS=1_000;
+    static final int MAX_BRIDGE_BATCH_PACKETS=64,MAX_BRIDGE_BATCH_BYTES=1_500_000;
+    private static final int MAX_PENDING_BRIDGE_BATCHES=8,MAX_PENDING_BRIDGE_BYTES=6_000_000;
     private static final AtomicInteger NEXT_ENDPOINT=new AtomicInteger();
     private final HttpServer server;
     private final ExecutorService http=Executors.newVirtualThreadPerTaskExecutor();
@@ -26,23 +29,35 @@ final class MediaBridge implements AutoCloseable {
                 System.getProperty("os.name"),System.getProperty("os.arch"),System.getProperty("java.version"));
     }
     static final class Queue {
+        private static final int MAX_PACKETS=128,MAX_BYTES=2_000_000;
         record Batch(byte[][] packets,int bytes){}
         private final ArrayDeque<byte[]> packets=new ArrayDeque<>();
         private int bytes;
         private boolean needKey=true;
         private long offered,accepted,invalid,rejectedForKey,dropped,resets;
         synchronized boolean offer(byte[] packet) {
-            offered++;
             var media=StreamMedia.header(packet);if(media==null){invalid++;return false;}
             return offer(packet,media);
         }
-        private synchronized boolean offer(byte[] packet,StreamMedia.Header media) {
-            if(bytes+packet.length>2_000_000||packets.size()>=128){dropped+=packets.size();packets.clear();bytes=0;needKey=true;resets++;}
-            if(needKey) {
-                if(media.kind()!=StreamMedia.VIDEO||!media.key()){rejectedForKey++;return false;}
+        synchronized boolean offer(byte[] packet,StreamMedia.Header media) {
+            offered++;
+            if(bytes+packet.length>MAX_BYTES||packets.size()>=MAX_PACKETS)makeRoom(packet.length);
+            if(media.kind()==StreamMedia.VIDEO&&needKey) {
+                if(!media.key()){rejectedForKey++;return false;}
                 needKey=false;
             }
             packets.add(packet);bytes+=packet.length;accepted++;notifyAll();return true;
+        }
+        private void makeRoom(int incomingBytes) {
+            int removedVideo=0;
+            for(var iterator=packets.iterator();iterator.hasNext();) {
+                byte[] packet=iterator.next();var media=StreamMedia.header(packet);
+                if(media!=null&&media.kind()==StreamMedia.VIDEO){iterator.remove();bytes-=packet.length;removedVideo++;}
+            }
+            if(removedVideo>0){dropped+=removedVideo;needKey=true;resets++;}
+            while(!packets.isEmpty()&&(bytes+incomingBytes>MAX_BYTES||packets.size()>=MAX_PACKETS)) {
+                byte[] packet=packets.remove();bytes-=packet.length;dropped++;
+            }
         }
         synchronized byte[] poll(){var packet=packets.poll();if(packet!=null)bytes-=packet.length;return packet;}
         synchronized Batch pollBatch() {
@@ -61,7 +76,7 @@ final class MediaBridge implements AutoCloseable {
             int count=0,total=0;
             for(var packet:packets) {
                 int next=total+Integer.BYTES+packet.length;
-                if(count>0&&(count>=64||next>1_500_000))break;
+                if(count>0&&(count>=MAX_BRIDGE_BATCH_PACKETS||next>MAX_BRIDGE_BATCH_BYTES))break;
                 total=next;count++;
             }
             var batch=new byte[count][];
@@ -89,9 +104,13 @@ final class MediaBridge implements AutoCloseable {
         final AtomicReference<RawVideo> video=new AtomicReference<>();
         final ArrayBlockingQueue<RawAudio> rawAudio=new ArrayBlockingQueue<>(32);
         final Queue encoded=new Queue(),incoming=new Queue();
+        private final TreeMap<Long,PostedBatch> postedBatches=new TreeMap<>();
+        private long nextPostedBatch;
+        private int postedBatchBytes;
         final AtomicLong rawVideoFrames=new AtomicLong(),rawVideoReplaced=new AtomicLong(),rawAudioPackets=new AtomicLong(),rawAudioDropped=new AtomicLong();
         final AtomicLong rawAudioBatches=new AtomicLong(),rawAudioBatchPackets=new AtomicLong(),rawAudioBatchMax=new AtomicLong();
         final AtomicLong indexRequests=new AtomicLong(),scriptRequests=new AtomicLong(),configRequests=new AtomicLong(),statusRequests=new AtomicLong();
+        final AtomicLong mediaRequests=new AtomicLong(),mediaRequestPackets=new AtomicLong(),mediaRequestMax=new AtomicLong(),mediaRequestReordered=new AtomicLong();
         final int codecMode;
         volatile StreamQuality quality=StreamQuality.current();
         volatile boolean ready,closed;
@@ -99,6 +118,7 @@ final class MediaBridge implements AutoCloseable {
         volatile String error="",phase="created",audioState="n/a",videoCodec="n/a",videoAcceleration="n/a",workerNote="";
         volatile long workerVideoIn,workerVideoOut,workerVideoDrop,workerAudioIn,workerAudioOut,workerAudioDrop,workerBytes,workerResets,workerRendered;
         volatile long workerBatches,workerBatchPackets,workerBatchMax;
+        volatile long workerPosts,workerPostPackets,workerPostMax,workerPostQueue,workerPostInFlight,workerAudioLeadMs,workerAudioUnderruns;
         volatile long lastRequest=System.currentTimeMillis(),lastStatus=lastRequest,forceKey;
         MCEFBrowser browser;
         private int width=2,height=2;
@@ -156,6 +176,22 @@ final class MediaBridge implements AutoCloseable {
             }
             incoming.offer(packet,media);return media;
         }
+        synchronized boolean post(long sequence,byte[][] packets,int bodyBytes) {
+            mediaRequests.incrementAndGet();mediaRequestPackets.addAndGet(packets.length);mediaRequestMax.accumulateAndGet(packets.length,Math::max);
+            if(sequence<nextPostedBatch||sequence-nextPostedBatch>=MAX_PENDING_BRIDGE_BATCHES||postedBatches.containsKey(sequence)
+                    ||postedBatchBytes+bodyBytes>MAX_PENDING_BRIDGE_BYTES)return false;
+            if(sequence!=nextPostedBatch)mediaRequestReordered.incrementAndGet();
+            postedBatches.put(sequence,new PostedBatch(packets,bodyBytes));postedBatchBytes+=bodyBytes;
+            PostedBatch batch;
+            while((batch=postedBatches.remove(nextPostedBatch))!=null) {
+                postedBatchBytes-=batch.bytes();nextPostedBatch++;
+                for(byte[] packet:batch.packets()) {
+                    var media=StreamMedia.header(packet);
+                    if(!encoded.offer(packet,media)&&media.kind()==StreamMedia.VIDEO)forceKey++;
+                }
+            }
+            return true;
+        }
         void updateStatus(com.google.gson.JsonObject json) {
             lastStatus=lastRequest=System.currentTimeMillis();ready=readBoolean(json,"ready");
             phase=readString(json,"phase",phase);audioState=readString(json,"audioState",audioState);
@@ -165,6 +201,9 @@ final class MediaBridge implements AutoCloseable {
             workerAudioIn=readLong(json,"audioIn");workerAudioOut=readLong(json,"audioOut");workerAudioDrop=readLong(json,"audioDrop");
             workerBytes=readLong(json,"bytes");workerResets=readLong(json,"resets");workerRendered=readLong(json,"rendered");renderedVideo=workerRendered>0;
             workerBatches=readLong(json,"batches");workerBatchPackets=readLong(json,"batchPackets");workerBatchMax=readLong(json,"batchMax");
+            workerPosts=readLong(json,"posts");workerPostPackets=readLong(json,"postPackets");workerPostMax=readLong(json,"postMax");
+            workerPostQueue=readLong(json,"postQueue");workerPostInFlight=readLong(json,"postInFlight");
+            workerAudioLeadMs=readLong(json,"audioLeadMs");workerAudioUnderruns=readLong(json,"audioUnderruns");
             if(json.has("error"))error=readString(json,"error","Unknown codec worker error");
         }
         private static boolean readBoolean(com.google.gson.JsonObject json,String name) {
@@ -196,15 +235,17 @@ final class MediaBridge implements AutoCloseable {
         }
         void logHealth(String event) {
             var output=encoded.stats();var input=incoming.stats();
-            WinLandCraftClient.LOGGER.info("Stream codec {} #{} ({}): ready={}, phase={}, codec={}, acceleration={}, audio={}, bridge requests={}/{}/{}/{} index/script/config/status, worker video={}/{} drop={}, audio={}/{} drop={}, rendered={}, bytes={}, resets={}, receive batches={}/{} packets max={}, raw video={} replaced={}, raw audio={} drop={} batches={}/{} max={}, outgoing={} queued/{} accepted/{} dropped/{} key-wait/{} reset, incoming={} queued/{} accepted/{} dropped/{} key-wait/{} reset{}",
+            WinLandCraftClient.LOGGER.info("Stream codec {} #{} ({}): ready={}, phase={}, codec={}, acceleration={}, audio={}, bridge requests={}/{}/{}/{}/{} index/script/config/status/media, worker video={}/{} drop={}, audio={}/{} drop={} lead={}ms underruns={}, rendered={}, bytes={}, resets={}, receive batches={}/{} packets max={}, output posts={}/{} packets max={} queued={} in-flight={}, raw video={} replaced={}, raw audio={} drop={} batches={}/{} max={}, outgoing={} queued/{} accepted/{} dropped/{} key-wait/{} reset, incoming={} queued/{} accepted/{} dropped/{} key-wait/{} reset, media posts packets/max/reordered={}/{}/{}/{}{}",
                     event,id,label,ready,phase,videoCodec,videoAcceleration,audioState,
-                    indexRequests.get(),scriptRequests.get(),configRequests.get(),statusRequests.get(),
+                    indexRequests.get(),scriptRequests.get(),configRequests.get(),statusRequests.get(),mediaRequests.get(),
                     workerVideoIn,workerVideoOut,workerVideoDrop,workerAudioIn,workerAudioOut,workerAudioDrop,
-                    workerRendered,workerBytes,workerResets,workerBatches,workerBatchPackets,workerBatchMax,
+                    workerAudioLeadMs,workerAudioUnderruns,workerRendered,workerBytes,workerResets,workerBatches,workerBatchPackets,workerBatchMax,
+                    workerPosts,workerPostPackets,workerPostMax,workerPostQueue,workerPostInFlight,
                     rawVideoFrames.get(),rawVideoReplaced.get(),rawAudioPackets.get(),rawAudioDropped.get(),
                     rawAudioBatches.get(),rawAudioBatchPackets.get(),rawAudioBatchMax.get(),
                     output.queued(),output.accepted(),output.dropped(),output.rejectedForKey(),output.resets(),
                     input.queued(),input.accepted(),input.dropped(),input.rejectedForKey(),input.resets(),
+                    mediaRequests.get(),mediaRequestPackets.get(),mediaRequestMax.get(),mediaRequestReordered.get(),
                     workerNote.isEmpty()?"":", note="+workerNote);
         }
         @Override public void close() {
@@ -213,6 +254,7 @@ final class MediaBridge implements AutoCloseable {
                 if(closed)return;logHealth("closing");closed=true;endpoints.remove(token);
                 var pendingVideo=video.getAndSet(null);if(pendingVideo!=null)pendingVideo.pixels().close();notifyAll();
                 RawAudio audio;while((audio=rawAudio.poll())!=null)audio.packet().release();encoded.clear();incoming.clear();
+                postedBatches.clear();postedBatchBytes=0;
                 closingBrowser=browser;browser=null;
             }
             if(closingBrowser!=null)closingBrowser.close();
@@ -277,12 +319,17 @@ final class MediaBridge implements AutoCloseable {
                 default -> reply(exchange,404,null);
             }
             else if(method.equals("POST")) {
-                int limit=route.equals("packet")?StreamProtocol.MAX_FRAME_BYTES:2048;
+                int limit=route.equals("packets")?MAX_BRIDGE_BATCH_BYTES:route.equals("packet")?StreamProtocol.MAX_FRAME_BYTES:2048;
                 byte[] body=exchange.getRequestBody().readNBytes(limit+1);
                 if(body.length>limit){reply(exchange,413,null);return;}
                 if(route.equals("packet")&&endpoint.encode) {
                     boolean accepted=endpoint.encoded.offer(body);
                     if(!accepted)endpoint.forceKey++;
+                    reply(exchange,accepted?200:429,null);
+                } else if(route.equals("packets")&&endpoint.encode) {
+                    long sequence=number(exchange.getRequestHeaders().getFirst("X-WinLandCraft-Sequence"));
+                    byte[][] packets=unpack(body);
+                    boolean accepted=sequence>=0&&packets!=null&&endpoint.post(sequence,packets,body.length);
                     reply(exchange,accepted?200:429,null);
                 } else if(route.equals("status")) {
                     endpoint.statusRequests.incrementAndGet();
@@ -301,7 +348,20 @@ final class MediaBridge implements AutoCloseable {
         // Chromium 151 gives MCEF's off-screen page an opaque origin for fetch POSTs.
         // The exact host, loopback peer and 256-bit endpoint token were validated first.
         return "null".equals(provided)&&"POST".equals(method)
-                &&("status".equals(route)||"packet".equals(route));
+                &&("status".equals(route)||"packet".equals(route)||"packets".equals(route));
+    }
+    private static long number(String value){try{return value==null?-1:Long.parseLong(value);}catch(NumberFormatException ignored){return -1;}}
+    static byte[][] unpack(byte[] body) {
+        var packets=new ArrayList<byte[]>();var input=ByteBuffer.wrap(body).order(ByteOrder.BIG_ENDIAN);
+        while(input.hasRemaining()) {
+            if(input.remaining()<Integer.BYTES||packets.size()>=MAX_BRIDGE_BATCH_PACKETS)return null;
+            int length=input.getInt();
+            if(length<=24||length>StreamProtocol.MAX_FRAME_BYTES||input.remaining()<length)return null;
+            byte[] packet=new byte[length];input.get(packet);
+            if(StreamMedia.header(packet)==null)return null;
+            packets.add(packet);
+        }
+        return packets.isEmpty()?null:packets.toArray(byte[][]::new);
     }
     private static void reply(HttpExchange exchange,int status,byte[] bytes)throws IOException {
         exchange.sendResponseHeaders(status,bytes==null?-1:bytes.length);
@@ -320,4 +380,5 @@ final class MediaBridge implements AutoCloseable {
         }
     }
     @Override public void close(){for(var endpoint:List.copyOf(endpoints.values()))endpoint.close();server.stop(0);http.shutdownNow();}
+    private record PostedBatch(byte[][] packets,int bytes){}
 }

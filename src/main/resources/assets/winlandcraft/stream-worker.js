@@ -4,7 +4,8 @@
   const canvas=document.getElementById('view'),context=canvas.getContext('2d',{alpha:false});
   const metrics={phase:'boot',audioState:'n/a',note:'',videoIn:0,videoOut:0,videoDrop:0,
     videoCodec:'n/a',videoAcceleration:'n/a',audioIn:0,audioOut:0,audioDrop:0,rendered:0,bytes:0,
-    resets:0,batches:0,batchPackets:0,batchMax:0};
+    resets:0,batches:0,batchPackets:0,batchMax:0,posts:0,postPackets:0,postMax:0,postQueue:0,
+    postInFlight:0,audioLeadMs:0,audioUnderruns:0};
   let failed=false,ready=false,config,configRequest,configAt=0;
   const message=error=>String(error&&error.message||error||'Unknown codec error').slice(0,240);
   function note(value){metrics.note=message(value);}
@@ -15,7 +16,9 @@
         videoCodec:metrics.videoCodec,videoAcceleration:metrics.videoAcceleration,
         audioIn:metrics.audioIn,audioOut:metrics.audioOut,audioDrop:metrics.audioDrop,rendered:metrics.rendered,
         bytes:metrics.bytes,resets:metrics.resets,batches:metrics.batches,batchPackets:metrics.batchPackets,
-        batchMax:metrics.batchMax,...(error?{error:message(error)}:{})})});
+        batchMax:metrics.batchMax,posts:metrics.posts,postPackets:metrics.postPackets,postMax:metrics.postMax,
+        postQueue:metrics.postQueue,postInFlight:metrics.postInFlight,audioLeadMs:metrics.audioLeadMs,
+        audioUnderruns:metrics.audioUnderruns,...(error?{error:message(error)}:{})})});
     } catch (_) {}
   }
   function fail(error) {
@@ -102,6 +105,20 @@
   }
   const VP9=0,H264=1;
   const codecName=codec=>codec===H264?'H.264':'VP9';
+  // Three Minecraft relay ticks absorb ordinary packet batching without a
+  // large conversational delay. Rebuffer before less than one tick remains.
+  const AUDIO_TARGET_LEAD_SECONDS=.15,AUDIO_UNDERRUN_GUARD_SECONDS=.05;
+  class AudioTimeline {
+    constructor(){this.clear();}
+    clear(){this.nextClock=0;this.lastTimestamp=null;}
+    plan(timestamp,duration,now) {
+      if(this.lastTimestamp!==null&&timestamp<=this.lastTimestamp)return {drop:true};
+      const underrun=this.nextClock!==0&&this.nextClock<now+AUDIO_UNDERRUN_GUARD_SECONDS;
+      if(this.nextClock===0||underrun)this.nextClock=now+AUDIO_TARGET_LEAD_SECONDS;
+      const when=this.nextClock;this.nextClock+=duration;this.lastTimestamp=timestamp;
+      return {drop:false,underrun,when,leadSeconds:this.nextClock-now};
+    }
+  }
   function encoderConfig(codec,width,height,bitrate,hardwareAcceleration) {
     // Capture cadence is controlled before frames reach WebCodecs. Leaving the
     // optional framerate hint unset avoids excluding otherwise valid hardware
@@ -155,25 +172,62 @@
     let video,audio,videoSignature='',videoMode='',videoCodec=VP9,videoBroken=false,videoFailure='',audioBitrate=0;
     let width=0,height=0,keyAt=-Infinity,keyGeneration=-1;
     const blockedVideoModes=new Set();
-    const outputQueue=[];let posting=false,keyNeeded=true;
+    // Multiple ordered loopback requests remove head-of-line blocking when CEF
+    // pauses one fetch. Java reorders batches by sequence before exposing media.
+    const MAX_POSTS_IN_FLIGHT=4,MAX_OUTPUT_PACKETS=256,MAX_OUTPUT_BYTES=4_000_000;
+    const MAX_POST_PACKETS=64,MAX_POST_BYTES=1_500_000;
+    const outputQueue=[];let outputBytes=0,postsInFlight=0,nextPostSequence=0,pumpQueued=false,keyNeeded=true;
     function countOutputDrop(packet){if(packet[4]===0)metrics.videoDrop++;else metrics.audioDrop++;}
-    function clearOutputQueue(){while(outputQueue.length)countOutputDrop(outputQueue.shift());}
-    async function drain() {
-      if(posting)return;posting=true;
-      try {
-        while(outputQueue.length&&!failed){
-          const packet=outputQueue.shift(),response=await fetch('packet',{method:'POST',body:packet});
-          if(!response.ok){
-            countOutputDrop(packet);clearOutputQueue();keyNeeded=true;note(`Bridge rejected encoded packet (HTTP ${response.status})`);
-          }
-        }
-      } catch(error){fail(error);} finally {posting=false;}
+    function removeOutput(index) {
+      const [packet]=outputQueue.splice(index,1);outputBytes-=packet.length;countOutputDrop(packet);return packet;
+    }
+    function discardQueuedVideo() {
+      let removed=0;
+      for(let index=outputQueue.length-1;index>=0;index--)if(outputQueue[index][4]===0){removeOutput(index);removed++;}
+      if(removed){keyNeeded=true;note(`Discarded ${removed} stale queued video packet${removed===1?'':'s'}; requesting a new keyframe`);}
+      return removed;
+    }
+    function makeOutputRoom(packet) {
+      if(outputQueue.length<MAX_OUTPUT_PACKETS&&outputBytes+packet.length<=MAX_OUTPUT_BYTES)return true;
+      discardQueuedVideo();
+      // A delta after discarded video is unusable. Preserve audio and wait for
+      // the keyframe already requested from the encoder.
+      if(packet[4]===0&&packet[5]===0){countOutputDrop(packet);keyNeeded=true;return false;}
+      while(outputQueue.length&&(outputQueue.length>=MAX_OUTPUT_PACKETS||outputBytes+packet.length>MAX_OUTPUT_BYTES))removeOutput(0);
+      return outputQueue.length<MAX_OUTPUT_PACKETS&&outputBytes+packet.length<=MAX_OUTPUT_BYTES;
+    }
+    function takePostBatch() {
+      const packets=[];let bytes=0;
+      while(outputQueue.length&&packets.length<MAX_POST_PACKETS) {
+        const packet=outputQueue[0],next=bytes+4+packet.length;
+        if(packets.length&&next>MAX_POST_BYTES)break;
+        outputQueue.shift();outputBytes-=packet.length;packets.push(packet);bytes=next;
+      }
+      const body=new Uint8Array(bytes),view=new DataView(body.buffer);let offset=0;
+      for(const packet of packets){view.setUint32(offset,packet.length);offset+=4;body.set(packet,offset);offset+=packet.length;}
+      metrics.postQueue=outputQueue.length;return {packets,body};
+    }
+    function queuePump() {
+      if(pumpQueued)return;pumpQueued=true;
+      queueMicrotask(()=>{pumpQueued=false;pump();});
+    }
+    function pump() {
+      while(!failed&&postsInFlight<MAX_POSTS_IN_FLIGHT&&outputQueue.length) {
+        const batch=takePostBatch(),sequence=nextPostSequence++;postsInFlight++;
+        metrics.posts++;metrics.postPackets+=batch.packets.length;metrics.postMax=Math.max(metrics.postMax,batch.packets.length);
+        metrics.postInFlight=postsInFlight;
+        fetch('packets',{method:'POST',headers:{'X-WinLandCraft-Sequence':String(sequence)},body:batch.body}).then(response=>{
+          if(!response.ok)throw Error(`Bridge rejected encoded batch ${sequence} (HTTP ${response.status})`);
+        }).catch(fail).finally(()=>{postsInFlight--;metrics.postInFlight=postsInFlight;queuePump();});
+      }
     }
     function output(packet) {
-      if(packet.length>768000||outputQueue.length>=96){
-        countOutputDrop(packet);clearOutputQueue();keyNeeded=true;note('Encoded output queue overflow; requesting a new keyframe');return;
+      if(packet.length>768000||!makeOutputRoom(packet)){
+        if(packet.length>768000)countOutputDrop(packet);
+        if(packet[4]===0)keyNeeded=true;
+        note(packet.length>768000?'Encoded packet exceeds the relay limit':'Encoded output queue reached its bounded latency limit');return;
       }
-      metrics.bytes+=packet.length;outputQueue.push(packet);drain();
+      metrics.bytes+=packet.length;outputQueue.push(packet);outputBytes+=packet.length;metrics.postQueue=outputQueue.length;queuePump();
     }
     function makeVideo(){return new VideoEncoder({
       output:chunk=>{metrics.videoOut++;output(pack(0,chunk,width,height,videoCodec));},
@@ -256,10 +310,10 @@
     } else {metrics.audioState='unavailable';note('This Chromium build does not expose Opus/Web Audio playback');}
     let video,audio=null,audioBroken=false,videoBroken=false,videoMode='',videoCodec=VP9;
     let needKey=true,shape='',lastVideo=0;
-    let audioBaseTime=null,audioBaseClock=0,lastAudio=0;
+    const audioTimeline=new AudioTimeline();
     const playing=new Set(),blockedVideoModes=new Set();
     function clearAudio() {
-      audioBaseTime=null;lastAudio=0;
+      audioTimeline.clear();metrics.audioLeadMs=0;
       for(const node of playing){try{node.stop();}catch(_){}playing.delete(node);try{node.disconnect();}catch(_){}}
     }
     function makeVideo() {return new VideoDecoder({output:frame=>{
@@ -279,21 +333,18 @@
     }});}
     function makeAudio() {return new AudioDecoder({output:samples=>{
       try {
-        if(!sound||sound.state!=='running'){metrics.audioDrop++;audioBaseTime=null;return;}
+        if(!sound||sound.state!=='running'){metrics.audioDrop++;audioTimeline.clear();return;}
         const timestamp=samples.timestamp;
-        if(audioBaseTime===null){audioBaseTime=timestamp;audioBaseClock=sound.currentTime+.12;lastAudio=timestamp;}
-        let when=audioBaseClock+(timestamp-audioBaseTime)/1000000;
-        if(timestamp<lastAudio||when<sound.currentTime-.12||when>sound.currentTime+1){
-          metrics.resets++;note(`Audio clock resynchronized by ${Math.round((when-sound.currentTime)*1000)} ms`);
-          clearAudio();audioBaseTime=timestamp;audioBaseClock=sound.currentTime+.12;lastAudio=timestamp;when=audioBaseClock;
-        }
+        const plan=audioTimeline.plan(timestamp,samples.numberOfFrames/samples.sampleRate,sound.currentTime);
+        if(plan.drop){metrics.audioDrop++;note('Discarded duplicate or out-of-order audio packet');return;}
+        if(plan.underrun){metrics.resets++;metrics.audioUnderruns++;note('Audio underrun; rebuilt the playback cushion without stopping queued audio');}
+        metrics.audioLeadMs=Math.max(0,Math.round(plan.leadSeconds*1000));
         const buffer=sound.createBuffer(samples.numberOfChannels,samples.numberOfFrames,samples.sampleRate);
         for(let channel=0;channel<samples.numberOfChannels;channel++)
           samples.copyTo(buffer.getChannelData(channel),{planeIndex:channel,format:'f32-planar'});
         const source=sound.createBufferSource();source.buffer=buffer;source.connect(sound.destination);playing.add(source);
-        source.onended=()=>{playing.delete(source);source.disconnect();};source.start(Math.max(sound.currentTime,when));
-        lastAudio=timestamp;metrics.audioOut++;
-      } catch(error){metrics.audioDrop++;note(`Audio output failed: ${message(error)}`);} finally {samples.close();}
+        source.onended=()=>{playing.delete(source);source.disconnect();};source.start(plan.when);metrics.audioOut++;
+      } catch(error){metrics.audioDrop++;audioTimeline.clear();note(`Audio output failed: ${message(error)}`);} finally {samples.close();}
     },error:error=>{audioBroken=true;metrics.audioDrop++;metrics.resets++;note(`Opus decoder reset: ${message(error)}`);}});}
     video=makeVideo();
     if(sound){audio=makeAudio();audio.configure({codec:'opus',sampleRate:48000,numberOfChannels:2});}

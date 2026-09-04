@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 final class ModSettings {
+    static final int POINTER_GAZE=0,POINTER_LASER=1;
     static final float DEFAULT_SCREEN_LIGHT_INTENSITY=3.5f,MIN_SCREEN_LIGHT_RANGE=24.0f;
     static final float DEFAULT_LASER_PITCH=28.9f,DEFAULT_LASER_YAW=-18f,DEFAULT_LASER_ROLL=123.3f;
     static final float DEFAULT_LASER_X=.064f,DEFAULT_LASER_Y=.158f,DEFAULT_LASER_Z=.003f,DEFAULT_LASER_SCALE=1.252f;
@@ -20,6 +21,7 @@ final class ModSettings {
     static boolean removeSizingLimitations = false;
     static boolean extendInteractionRange = false;
     static double interactionRange = 16;
+    static int panelPointerMode=POINTER_GAZE;
     static int streamCodecMode=0;
     static int streamFps=30,streamKbps=2000,streamHeight=720,streamAudioKbps=96;
     static boolean streamAudio=true,streamRemoteControl=false;
@@ -42,6 +44,7 @@ final class ModSettings {
         removeSizingLimitations = false;
         extendInteractionRange = false;
         interactionRange = 16;
+        panelPointerMode = POINTER_GAZE;
         streamRemoteControl = false;
         screenLighting = true;
         panelSmoothing = true;
@@ -58,6 +61,7 @@ final class ModSettings {
             if (Files.exists(path())) {
                 var json = JsonParser.parseString(Files.readString(path())).getAsJsonObject();
                 if(json.has("streamCodecMode"))streamCodecMode=Math.clamp(json.get("streamCodecMode").getAsInt(),0,StreamQuality.CODECS.length-1);
+                if(json.has("panelPointerMode"))panelPointerMode=Math.clamp(json.get("panelPointerMode").getAsInt(),POINTER_GAZE,POINTER_LASER);
                 if(json.has("streamFps"))streamFps=StreamQuality.nearest(json.get("streamFps").getAsInt(),StreamQuality.FPS);
                 if(json.has("streamKbps"))streamKbps=StreamQuality.nearest(json.get("streamKbps").getAsInt(),StreamQuality.BITRATES);
                 if(json.has("streamHeight"))streamHeight=StreamQuality.nearest(json.get("streamHeight").getAsInt(),StreamQuality.HEIGHTS);
@@ -112,12 +116,14 @@ final class ModSettings {
         float value=json.get(name).getAsFloat();
         return Float.isFinite(value)?Math.clamp(value,minimum,maximum):fallback;
     }
+    static boolean laserPanelPointer(){return panelPointerMode==POINTER_LASER;}
     static boolean save() {
         try {
             var json = new JsonObject(); json.addProperty("freePanelRotation", freePanelRotation);
             json.addProperty("removeSizingLimitations", removeSizingLimitations);
             json.addProperty("extendInteractionRange", extendInteractionRange);
             json.addProperty("interactionRange", interactionRange);
+            json.addProperty("panelPointerMode",panelPointerMode);
             json.addProperty("streamCodecMode",streamCodecMode);
             json.addProperty("streamFps",streamFps);json.addProperty("streamKbps",streamKbps);json.addProperty("streamHeight",streamHeight);
             json.addProperty("streamAudio",streamAudio);json.addProperty("streamAudioKbps",streamAudioKbps);

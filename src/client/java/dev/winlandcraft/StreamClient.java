@@ -10,6 +10,8 @@ import org.joml.Vector3f;
 
 /** Owner-side capture and timestamped H.264/VP9/Opus relay. Chromium handles media codecs. */
 final class StreamClient {
+    private static final int MAX_MEDIA_PER_RENDER=32;
+    private static final long RENDER_DRAIN_FALLBACK_NANOS=100_000_000L;
     private final AppWindows apps;
     private WorldPanel source;
     private final StreamCapture capture=new StreamCapture();
@@ -20,7 +22,7 @@ final class StreamClient {
     private boolean demand;
     private int codecMode;
     private String reportedCodecError="";
-    private long lastState,nextFrame,sequence;
+    private long lastState,nextFrame,lastRenderDrain,sequence;
     private long sentUnits,sentParts,sentBytes,sentVideo,sentAudio,nextSenderHealth;
     StreamClient(AppWindows apps){this.apps=apps;apps.streams=this;apps.streamBrowser.streamClient=this;}
     boolean start(WorldPanel panel) {
@@ -114,17 +116,21 @@ final class StreamClient {
                 client.player.displayClientMessage(Component.literal("Stream codec error: "+reason+". Choose another codec in the pill."),false);}
             return;
         }
-        if(published!=null)for(int i=0;i<128;i++) {
+        if(System.nanoTime()-lastRenderDrain>=RENDER_DRAIN_FALLBACK_NANOS)drainEncoded();
+        if(published!=null&&now>=nextSenderHealth) {
+            nextSenderHealth=now+10_000;
+            WinLandCraftClient.LOGGER.info("Stream sender network health: session={}, media={} (video={}, audio={}), parts={}, payloadBytes={}, sequence={}",
+                    shortId(published.session()),sentUnits,sentVideo,sentAudio,sentParts,sentBytes,sequence);
+        }
+    }
+    private void drainEncoded() {
+        if(published==null||encoder==null)return;
+        for(int i=0;i<MAX_MEDIA_PER_RENDER;i++) {
             byte[] packet=encoder.encoded.poll();if(packet==null)break;
             if((packet[4]&255)==StreamMedia.VIDEO)sentVideo++;else sentAudio++;
             var parts=StreamProtocol.split(published.owner(),published.session(),sequence++,packet);
             for(var part:parts){ClientPlayNetworking.send(part);sentParts++;sentBytes+=part.bytes().length;}
             sentUnits++;
-        }
-        if(published!=null&&now>=nextSenderHealth) {
-            nextSenderHealth=now+10_000;
-            WinLandCraftClient.LOGGER.info("Stream sender network health: session={}, media={} (video={}, audio={}), parts={}, payloadBytes={}, sequence={}",
-                    shortId(published.session()),sentUnits,sentVideo,sentAudio,sentParts,sentBytes,sequence);
         }
     }
     private boolean publishState(WorldPanel panel,Minecraft client,long now) {
@@ -150,14 +156,22 @@ final class StreamClient {
     }
     void renderCapture() {
         var client=Minecraft.getInstance();var panel=source;
-        if(panel==null||published==null||encoder==null||!encoder.wantsVideo()||!panel.isOpen()||!published.session().equals(panel.broadcastSession)||client.isPaused()||System.nanoTime()<nextFrame)return;
-        nextFrame=System.nanoTime()+1_000_000_000L/encoder.quality.fps();
+        long now=System.nanoTime();
+        if(encoder!=null){drainEncoded();lastRenderDrain=now;}
+        if(panel==null||published==null||encoder==null||!encoder.wantsVideo()||!panel.isOpen()||!published.session().equals(panel.broadcastSession)||client.isPaused()||now<nextFrame)return;
+        nextFrame=advanceFrameDeadline(nextFrame,now,encoder.quality.fps());
         try {
             var pixels=capture.capture(panel,encoder.quality,encoder.elapsedTimeUs());
             if(pixels!=null)encoder.video(pixels);
         } catch(RuntimeException|LinkageError error) {
             WinLandCraftClient.LOGGER.error("Stream capture failed",error);fail("Stream capture failed; see latest.log.");
         }
+    }
+    static long advanceFrameDeadline(long deadline,long now,int fps) {
+        long interval=Math.max(1,1_000_000_000L/Math.max(1,fps));
+        if(deadline<=0||deadline>now+interval)return now+interval;
+        if(now<deadline)return deadline;
+        return deadline+(Math.floorDiv(now-deadline,interval)+1)*interval;
     }
     private void fail(String message) {
         if(source!=null)stop(source);else stopPublishing();
@@ -169,7 +183,7 @@ final class StreamClient {
         published=null;demand=false;lastState=sequence=0;stopEncoder();
     }
     private void stopEncoder() {
-        nextFrame=0;capture.close();
+        nextFrame=lastRenderDrain=0;capture.close();
         if(source!=null)source.encoder=null;
         if(encoder!=null){encoder.close();encoder=null;}
     }
