@@ -45,6 +45,7 @@ public final class WindowGeometryChecks {
         FilePlacementChecks.run();
         titlebars();
         browserCloseThread();
+        FileMediaChecks.run();
         laserPointer();
         GroupChecks.run();
         CurveChecks.run();
