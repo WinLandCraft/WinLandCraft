@@ -12,6 +12,7 @@ final class GroupChecks {
         @Override public int titlebarHeight(){return 32;}
     }
     static void run() {
+        denseGroups();
         var a=new App(0,0); var b=new App(2.1f,0); var c=new App(4.1f,0); var d=new App(6.1f,0); var e=new App(8.1f,0);
         check(WindowGroups.suggest(a,new Vec3(.99,0,-3),List.of(a,b))!=null,"side suggestion");
         check(WindowGroups.suggest(a,new Vec3(0,0,-3),List.of(a,b))==null,"no content hint");
@@ -84,6 +85,31 @@ final class GroupChecks {
         near(1.3,browser.worldWidth(),"browser minimum width"); near(.8,browser.worldHeight(),"browser minimum height");
         check(a.worldWidth()>=a.minimumWidth()&&a.worldHeight()>=a.minimumHeight(),"all members respect minimums");
         System.out.println("Window groups: edge hints, chain splits, singleton cleanup, shared transforms, all resize corners and anchors passed.");
+    }
+    private static void denseGroups() {
+        int[] visits={0};var group=new java.util.ArrayList<CountingPanel>();
+        for(int i=0;i<12;i++)group.add(new CountingPanel(i*2,visits));
+        for(var a:group)for(var b:group)if(a!=b)a.glued.add(b);
+        var root=group.getFirst();
+        check(WindowGroups.members(root).getFirst()==root,"group traversal starts with requested member");
+        check(java.util.Set.copyOf(WindowGroups.members(root)).equals(java.util.Set.copyOf(group)),"cyclic graph visits each member once");
+        var candidates=new java.util.ArrayList<WorldPanel>(group);
+        for(int i=0;i<64;i++)candidates.add(new CountingPanel(20+i*2,visits));
+        var nearest=new CountingPanel(2.05f,visits);candidates.add(nearest);
+        visits[0]=0;
+        var suggestion=WindowGroups.suggest(root,new Vec3(1,0,-3),candidates);
+        int queryVisits=visits[0];
+        check(suggestion!=null&&suggestion.b()==nearest,"nearest external candidate wins over group members");
+        check(queryVisits<=3*(group.size()*group.size()+candidates.size()),"suggestion work must scale with edges plus candidates, not their product");
+        var closed=group.get(1);closed.position=null;
+        check(WindowGroups.members(root).size()==group.size()-1&&!WindowGroups.members(root).contains(closed),"closed members excluded from cyclic graph");
+        System.out.println("Dense group picking: "+group.size()+" members / "+candidates.size()+" candidates, "+queryVisits+" open-state checks.");
+    }
+    private static final class CountingPanel extends WorldPanel {
+        private final int[] visits;
+        CountingPanel(float x,int[] visits){super(2,1);this.visits=visits;position=new Vec3(x,0,-3);orientation=new Quaternionf();}
+        @Override public boolean isOpen(){visits[0]++;return super.isOpen();}
+        @Override public boolean floatingControls(){return true;}
     }
     static void check(boolean result,String name){if(!result)throw new AssertionError(name);}
     static void near(double expected,double actual,String name){if(Math.abs(expected-actual)>.001)throw new AssertionError(name+": "+actual+" != "+expected);}

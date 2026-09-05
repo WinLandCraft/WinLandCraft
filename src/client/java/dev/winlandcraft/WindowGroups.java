@@ -7,19 +7,20 @@ import org.joml.Vector3f;
 
 /** Edge graph: removing a bridge naturally leaves independent connected components. */
 final class WindowGroups {
-    static List<WorldPanel> members(WorldPanel root) {
-        var found = new LinkedHashSet<WorldPanel>();
+    static List<WorldPanel> members(WorldPanel root) { return List.copyOf(component(root)); }
+    private static Set<WorldPanel> component(WorldPanel root) {
+        var found = new LinkedHashSet<WorldPanel>(); found.add(root);
         var queue = new ArrayDeque<WorldPanel>(); queue.add(root);
         while (!queue.isEmpty()) {
             var p = queue.remove();
-            if (found.add(p)) for (var n : p.glued) if (n.isOpen()) queue.add(n);
+            for (var n : p.glued) if (n.isOpen() && found.add(n)) queue.add(n);
         }
-        return List.copyOf(found);
+        return found;
     }
     static void detach(WorldPanel panel) {
         var previous=GroupCurve.flatten(panel);
         var neighbors=List.copyOf(panel.glued);
-        for (var other : List.copyOf(panel.glued)) other.glued.remove(panel);
+        for (var other : neighbors) other.glued.remove(panel);
         panel.glued.clear();
         if(previous!=null) for(var other:neighbors) if(other.curve==null) GroupCurve.restore(other,previous);
     }
@@ -53,8 +54,9 @@ final class WindowGroups {
         Vec3 seam=edgePoint(a,point,edge);
         if (seam.distanceTo(point)>.25) return null;
         WorldPanel closest=null; double best=.4;
+        var group=component(a);
         for (var b : windows) {
-            if (b == a || !b.isOpen() || !b.canGroup() || b.level != a.level || !b.hasWindowControls() || members(a).contains(b)) continue;
+            if (b == a || !b.isOpen() || !b.canGroup() || b.level != a.level || !b.hasWindowControls() || group.contains(b)) continue;
             double distance=edgePoint(b,seam,nearestEdge(b,seam)).distanceTo(seam);
             if(distance<best) { best=distance; closest=b; }
         }
@@ -82,7 +84,7 @@ final class WindowGroups {
         join(a,b,nearestEdge(a,b.position));
     }
     static void join(WorldPanel a, WorldPanel b,int edge) {
-        if (!a.isOpen() || !b.isOpen() || !a.canGroup() || !b.canGroup() || !a.hasWindowControls() || !b.hasWindowControls() || members(a).contains(b)) return;
+        if (!a.isOpen() || !b.isOpen() || !a.canGroup() || !b.canGroup() || !a.hasWindowControls() || !b.hasWindowControls() || component(a).contains(b)) return;
         var previous=GroupCurve.flatten(a);
         var incoming=GroupCurve.flatten(b);
         if (edge<2) matchHeight(a,b);
