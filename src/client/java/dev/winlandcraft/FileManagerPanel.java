@@ -7,6 +7,7 @@ import org.lwjgl.glfw.GLFW;
 
 /** Native, read-only directory browser; no CEF view and no shell/file launching. */
 public final class FileManagerPanel extends NativePanel {
+    private static final int LIST_LEFT=240,LIST_TOP=112,ROW_HEIGHT=34,LIST_RIGHT_MARGIN=20,LIST_BOTTOM_MARGIN=64;
     private Path directory;
     private volatile FileDirectory.Listing result;
     private final List<Path> history=new ArrayList<>();
@@ -51,8 +52,12 @@ public final class FileManagerPanel extends NativePanel {
         int x=pixelWidth()/2-50,y=pixelHeight()/2+38;
         c.rect(x,y,100,34,.2f,hoverColor(x,y,100,34,0xFF30473F,0xFF4A675A));c.text("Cancel",x+20,y+10,-1,1.5f);
     }
-    int visibleRows(){return Math.max(1,(pixelHeight()-176)/34);}
-    int listBottom(){return 112+visibleRows()*34;}
+    int visibleRows(){return Math.max(1,(pixelHeight()-LIST_TOP-LIST_BOTTOM_MARGIN)/ROW_HEIGHT);}
+    int listBottom(){return LIST_TOP+visibleRows()*ROW_HEIGHT;}
+    private int fileRowAt(int x,int y) {
+        if(x<LIST_LEFT||x>=pixelWidth()-LIST_RIGHT_MARGIN||y<LIST_TOP||y>=listBottom())return -1;
+        return first+(y-LIST_TOP)/ROW_HEIGHT;
+    }
     private int modifiedX(){return pixelWidth()-500;}
     private boolean details(){return pixelWidth()>=1000;}
     @Override protected void layoutChanged(){var r=result;if(r!=null){first=Math.clamp(first,0,Math.max(0,r.entries().size()-visibleRows()));sideFirst=Math.clamp(sideFirst,0,Math.max(0,r.locations().size()-visibleRows()));}}
@@ -88,13 +93,13 @@ public final class FileManagerPanel extends NativePanel {
             Path path=Path.of(address);navigate(path.isAbsolute()?path:directory.resolve(path),true);
         }catch(InvalidPathException error){notice="Invalid folder path.";}
     }
-    @Override public void hover(int x,int y){hoverRow=x>=240&&x<pixelWidth()-20&&y>=112&&y<listBottom()?(y-112)/34+first:-1;}
+    @Override public void hover(int x,int y){hoverRow=fileRowAt(x,y);}
     @Override public Path dragFileAt(int x,int y){
-        var r=result;if(suppressFileDrag||placementFile!=null||r==null||x<240||x>=pixelWidth()-20||y<112||y>=listBottom())return null;
-        int row=(y-112)/34+first;
-        return row<r.entries().size()&&!r.entries().get(row).directory()?r.entries().get(row).path():null;
+        var r=result;if(suppressFileDrag||placementFile!=null||r==null)return null;
+        int row=fileRowAt(x,y);
+        return row>=0&&row<r.entries().size()&&!r.entries().get(row).directory()?r.entries().get(row).path():null;
     }
-    @Override public void scroll(int x,int y,double amount){var r=result;if(placementFile!=null||r==null||y<0)return;if(x<240)sideFirst=Math.clamp(sideFirst-(int)Math.signum(amount),0,Math.max(0,r.locations().size()-visibleRows()));else first=Math.clamp(first-(int)Math.signum(amount)*3,0,Math.max(0,r.entries().size()-visibleRows()));}
+    @Override public void scroll(int x,int y,double amount){var r=result;if(placementFile!=null||r==null||y<0)return;if(x<LIST_LEFT)sideFirst=Math.clamp(sideFirst-(int)Math.signum(amount),0,Math.max(0,r.locations().size()-visibleRows()));else first=Math.clamp(first-(int)Math.signum(amount)*3,0,Math.max(0,r.entries().size()-visibleRows()));}
     @Override public void mouseDown(int x,int y,int button) {
         suppressFileDrag=false;
         if(button!=0||y<0)return;
@@ -117,9 +122,10 @@ public final class FileManagerPanel extends NativePanel {
             return;
         }
         var r=result;if(r==null)return;
-        if(x>=12&&x<228&&y>=112&&y<listBottom()){int row=(y-112)/34+sideFirst;if(row<r.locations().size())navigate(r.locations().get(row).path(),true);return;}
-        if(x>=240&&x<pixelWidth()-20&&y>=112&&y<listBottom()) {
-            int row=(y-112)/34+first;if(row>=r.entries().size())return;
+        if(x>=12&&x<228&&y>=LIST_TOP&&y<listBottom()){int row=(y-LIST_TOP)/ROW_HEIGHT+sideFirst;if(row<r.locations().size())navigate(r.locations().get(row).path(),true);return;}
+        int row=fileRowAt(x,y);
+        if(row>=0) {
+            if(row>=r.entries().size())return;
             selected=row;var entry=r.entries().get(row);long now=System.nanoTime();
             if(row==lastRow&&now-lastClick<450_000_000L) {
                 lastRow=-1;lastClick=0;
@@ -151,13 +157,13 @@ public final class FileManagerPanel extends NativePanel {
         var r=result;
         if(r==null){c.text("Reading folder...",260,124,0xFFB8CBDE,1.5f);return;}
         for(int i=0;i<visibleRows()&&sideFirst+i<r.locations().size();i++) {
-            var loc=r.locations().get(sideFirst+i);int y=112+i*34;
+            var loc=r.locations().get(sideFirst+i);int y=LIST_TOP+i*ROW_HEIGHT;
             if(loc.path().equals(directory)||hovered(12,y,216,32))c.rect(12,y,216,32,.3f,loc.path().equals(directory)?0xFF395269:0xFF2B4052);
             folder(c,16,y+8,22);c.text(fit(loc.name(),172,1.5f),46,y+9,-1,1.5f);
         }
         var date=java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
         for(int i=0;i<visibleRows()&&first+i<r.entries().size();i++) {
-            int index=first+i,y=112+i*34;var entry=r.entries().get(index);
+            int index=first+i,y=LIST_TOP+i*ROW_HEIGHT;var entry=r.entries().get(index);
             if(index==selected||index==hoverRow)c.rect(242,y,Math.max(1,pixelWidth()-262),32,.3f,index==selected?0xFF39566F:0xFF283B4D);
             if(entry.directory())folder(c,252,y+7,22);else PixelIcon.FILE_TEXT.draw(c,252,y+5,24,.45f,0xFFB6C9DC);
             c.text(fit(entry.name(),Math.max(1,(details()?modifiedX():pixelWidth()-20)-300),1.5f),284,y+9,-1,1.5f);
@@ -167,7 +173,7 @@ public final class FileManagerPanel extends NativePanel {
         }
         if(!r.error().isEmpty())c.text(r.error(),260,124,0xFFFFA5A5,1.5f);
         else if(r.entries().isEmpty())c.text("This folder is empty.",260,124,0xFFB8CBDE,1.5f);
-        if(r.entries().size()>visibleRows()){float track=visibleRows()*34f,h=Math.max(16,track*visibleRows()/r.entries().size());c.rect(pixelWidth()-14,112,5,track,.3f,0xFF283B4D);c.rect(pixelWidth()-14,112+(track-h)*first/(r.entries().size()-visibleRows()),5,h,.4f,0xFF8AA6BD);}
+        if(r.entries().size()>visibleRows()){float track=visibleRows()*(float)ROW_HEIGHT,h=Math.max(16,track*visibleRows()/r.entries().size());c.rect(pixelWidth()-14,LIST_TOP,5,track,.3f,0xFF283B4D);c.rect(pixelWidth()-14,LIST_TOP+(track-h)*first/(r.entries().size()-visibleRows()),5,h,.4f,0xFF8AA6BD);}
         c.text(fit(r.entries().size()+" items"+(r.truncated()?" (first 10,000 shown)":"")+" | Scroll to browse",pixelWidth()-32,1.25f),16,pixelHeight()-31,0xFF9BADBF,1.25f);
         if(pixelWidth()>900)c.text(fit(notice,pixelWidth()-490,1.25f),470,pixelHeight()-31,0xFFB8CBDE,1.25f);
     }
