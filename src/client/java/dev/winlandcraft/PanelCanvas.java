@@ -147,16 +147,13 @@ public final class PanelCanvas implements AutoCloseable {
     }
     /** Cyan compass mark for the Browser app, independent of any website's branding. */
     public void browserIcon(int x, int y, int size) {
-        browserIcon(x,y,size,false);
-    }
-    public void browserIcon(int x, int y, int size, boolean purple) {
         float unit = size / 24f;
-        rect(x, y, size, size, 0.4f, purple?0xFF8450BD:0xFF16778D);
-        rect(x + 3 * unit, y + 3 * unit, 18 * unit, 18 * unit, 0.42f, purple?0xFF302047:0xFF102E45);
+        rect(x, y, size, size, 0.4f, 0xFF16778D);
+        rect(x + 3 * unit, y + 3 * unit, 18 * unit, 18 * unit, 0.42f, 0xFF102E45);
         for (int i = 0; i < 12; i++) {
             float width = (i < 6 ? i + 1 : 12 - i) * unit;
             rect(x + (12 * unit) - width / 2, y + (6 + i) * unit, width, unit, 0.44f,
-                    i < 6 ? (purple?0xFFD4ACFF:0xFF72ECF1) : 0xFFFFFFFF);
+                    i < 6 ? 0xFF72ECF1 : 0xFFFFFFFF);
         }
     }
     public void texture(ResourceLocation texture, int x, int y, int width, int height, float z) {

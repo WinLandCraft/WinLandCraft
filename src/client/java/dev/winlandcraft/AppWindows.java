@@ -9,7 +9,6 @@ public final class AppWindows {
     StreamClient streams;
     void stream(AppEntry entry){if(streams!=null&&streams.start(entry.panel()))launcher.close();}
     public final BrowserPanel browser = new BrowserPanel();
-    final StreamBrowserPanel streamBrowser = new StreamBrowserPanel();
     public final AppsPanel launcher = new AppsPanel(this);
     public final TasksPanel tasks = new TasksPanel(this);
     public final TaskManagerPanel taskManager = new TaskManagerPanel(this);
@@ -20,7 +19,7 @@ public final class AppWindows {
     private final List<VideoPlayerPanel> videoPlayers=new ArrayList<>();
     public final NotepadPanel notepad = new NotepadPanel();
     public final LaserCalibrationPanel laserCalibration=new LaserCalibrationPanel();
-    public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, streamBrowser, taskManager, fileManager, notepad, videoPlayer, imageViewer, laserCalibration));
+    public final List<WorldPanel> windows = new java.util.concurrent.CopyOnWriteArrayList<>(List.of(tasks, launcher, browser, taskManager, fileManager, notepad, videoPlayer, imageViewer, laserCalibration));
     private final LinkedHashMap<String, AppEntry> custom = new LinkedHashMap<>();
     private final List<NotepadPanel> fileEditors=new ArrayList<>();
     final PluginHost plugins=new PluginHost(this);
@@ -76,7 +75,6 @@ public final class AppWindows {
     public List<AppEntry> appEntries() {
         var result = new ArrayList<AppEntry>();
         result.add(new AppEntry("Browser", browser, null));
-        result.add(new AppEntry("Browser(streamable)", streamBrowser, null));
         result.add(new AppEntry("Task Manager", taskManager, null));
         result.add(new AppEntry("File Manager", fileManager, null));
         result.add(new AppEntry("Notepad", notepad, null));
@@ -103,7 +101,6 @@ public final class AppWindows {
             else PixelIcon.APPS.draw(canvas,x,y,size,.45f,0xFF8BD9CE);
         }
         else if (icon != null) canvas.texture(icon, x, y, size, size, 0.4f);
-        else if(entry.panel==streamBrowser) canvas.browserIcon(x,y,size,true);
         else if(entry.panel==fileManager) PixelIcon.FOLDER.draw(canvas,x,y,size,.45f,0xFFFFCE57);
         else if(entry.panel instanceof ImageViewerPanel){
             canvas.rect(x,y,size,size,.4f,0xFF286E70);canvas.rect(x+size*.65f,y+size*.2f,size*.16f,size*.16f,.45f,0xFFFFDC83);

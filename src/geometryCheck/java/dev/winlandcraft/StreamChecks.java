@@ -168,7 +168,7 @@ public final class StreamChecks {
         } finally {ModSettings.streamRemoteControl=remoteControl;}
 
         for(float curvature:new float[]{0,.6f,1}) {
-            var host=new StreamBrowserPanel();host.broadcastSession=SESSION;host.position=new Vec3(20000000,80,20000000);host.orientation=new Quaternionf().rotateXYZ(.2f,.7f,.1f);
+            var host=new BrowserPanel();host.broadcastSession=SESSION;host.position=new Vec3(20000000,80,20000000);host.orientation=new Quaternionf().rotateXYZ(.2f,.7f,.1f);
             host.scaleTo(4,2.25f);GroupCurve.get(host).apply(curvature);
             var s=StreamClient.snapshot(host,OWNER,SESSION);var viewer=new RemoteStreamPanel(s);viewer.place(s);
             check(!viewer.canInteract()&&!viewer.canResize()&&!viewer.canMove()&&!viewer.canGroup(),"read-only viewer cannot manipulate stream");

@@ -24,7 +24,7 @@ final class StreamClient {
     private String reportedCodecError="";
     private long lastState,nextFrame,lastRenderDrain,sequence;
     private long sentUnits,sentParts,sentBytes,sentVideo,sentAudio,nextSenderHealth;
-    StreamClient(AppWindows apps){this.apps=apps;apps.streams=this;apps.streamBrowser.streamClient=this;}
+    StreamClient(AppWindows apps){this.apps=apps;apps.streams=this;}
     boolean start(WorldPanel panel) {
         var client=Minecraft.getInstance();
         if(client.player==null||client.level==null)return false;
