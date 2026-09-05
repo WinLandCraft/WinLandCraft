@@ -1,5 +1,4 @@
 package dev.winlandcraft;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 import java.util.List;
 import java.util.Locale;
@@ -48,12 +47,6 @@ public final class TaskManagerPanel extends NativePanel {
     private static String memory(long bytes) { return bytes < 0 ? "Unavailable" : String.format(Locale.ROOT, "%.1f MiB", bytes / 1048576.0); }
     private static String percent(double value) { return Double.isFinite(value) ? String.format(Locale.ROOT, "%.1f%%", value) : "Sampling..."; }
     private static String io(double value) { return Double.isFinite(value) ? memory((long) value) + "/s" : value < 0 ? "Unavailable" : "Sampling..."; }
-    @Override public void render(WorldRenderContext context) {
-        try(var surface=surface(context)) {
-            if(surface==null||!surface.frontFacing())return;
-            drawSurface(surface.canvas());
-        }
-    }
     @Override void drawSurface(PanelCanvas c) {
         c.rect(-3,-3,pixelWidth()+6,pixelHeight()+6,0,0xFF536579);
         c.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF18212D);

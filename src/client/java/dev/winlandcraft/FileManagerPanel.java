@@ -3,7 +3,6 @@ package dev.winlandcraft;
 import java.nio.file.*;
 import java.util.*;
 import net.minecraft.client.Minecraft;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import org.lwjgl.glfw.GLFW;
 
 /** Native, read-only directory browser; no CEF view and no shell/file launching. */
@@ -137,12 +136,6 @@ public final class FileManagerPanel extends NativePanel {
     private static String fit(String value,int width,float scale){return Minecraft.getInstance().font.plainSubstrByWidth(value,(int)(width/scale));}
     private static String size(long bytes){if(bytes<0)return "-";if(bytes<1024)return bytes+" B";if(bytes<1048576)return String.format(Locale.ROOT,"%.1f KiB",bytes/1024.0);return String.format(Locale.ROOT,"%.1f MiB",bytes/1048576.0);}
     static void folder(PanelCanvas c,int x,int y,int size){PixelIcon.FOLDER.draw(c,x,y,size,.45f,0xFFFFCE57);}
-    @Override public void render(WorldRenderContext context) {
-        try(var surface=surface(context)) {
-            if(surface==null||!surface.frontFacing())return;
-            drawSurface(surface.canvas());
-        }
-    }
     @Override void drawSurface(PanelCanvas c) {
         if(placementFile!=null){drawPlacement(c);return;}
         c.rect(-3,-3,pixelWidth()+6,pixelHeight()+6,0,0xFF536579);

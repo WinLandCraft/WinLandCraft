@@ -3,7 +3,6 @@ package dev.winlandcraft;
 import java.nio.file.*;
 import java.util.*;
 import net.minecraft.client.Minecraft;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import org.lwjgl.glfw.GLFW;
 
 /** Native tabbed editor. Drafts remain in memory when the window is closed. */
@@ -130,12 +129,6 @@ public final class NotepadPanel extends NativePanel {
     private void toolbar(PanelCanvas c,PixelIcon icon,String text,int x,int width,boolean enabled){
         c.rect(x,40,width,44,.3f,enabled?hoverColor(x,40,width,44,0xFF1C2B36,0xFF30475A):0xFF18242F);
         icon.draw(c,x+8,50,24,.4f,enabled?-1:0xFF71818E);c.text(text,x+40,56,enabled?-1:0xFF71818E,1.5f);
-    }
-    @Override public void render(WorldRenderContext context) {
-        try(var surface=surface(context)) {
-            if(surface==null||!surface.frontFacing())return;
-            drawSurface(surface.canvas());
-        }
     }
     @Override void drawSurface(PanelCanvas c) {
         c.rect(-3,-3,pixelWidth()+6,pixelHeight()+6,0,0xFF536579);

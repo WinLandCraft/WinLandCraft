@@ -1,6 +1,5 @@
 package dev.winlandcraft;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 
 /** Live laser pose, beam-origin, and motion controls. */
@@ -73,12 +72,6 @@ public final class LaserCalibrationPanel extends NativePanel {
         return y>=ROW_TOP&&row<parameters().length&&y<ROW_TOP+row*ROW_HEIGHT+30?row:-1;
     }
 
-    @Override public void render(WorldRenderContext context) {
-        try(var surface=surface(context)) {
-            if(surface==null||!surface.frontFacing())return;
-            drawSurface(surface.canvas());
-        }
-    }
     @Override void drawSurface(PanelCanvas canvas) {
         canvas.rect(-3,-3,pixelWidth()+6,pixelHeight()+6,0,0xFF536579);
         canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF18212D);
