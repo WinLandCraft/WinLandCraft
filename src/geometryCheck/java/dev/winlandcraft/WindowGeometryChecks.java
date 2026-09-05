@@ -47,6 +47,7 @@ public final class WindowGeometryChecks {
         browserCloseThread();
         FileMediaChecks.run();
         laserPointer();
+        LaserTuningChecks.run();
         GroupChecks.run();
         CurveChecks.run();
     }
@@ -63,9 +64,9 @@ public final class WindowGeometryChecks {
         ModSettings.panelPointerMode=ModSettings.POINTER_GAZE;
         if(LaserPointer.normalizeColor(-1)!=4||LaserPointer.normalizeColor(5)!=0)
             throw new AssertionError("laser color wrapping");
-        near(-1.5,ModSettings.DEFAULT_LASER_BEAM_X,"laser calibrated beam horizontal");
-        near(0,ModSettings.DEFAULT_LASER_BEAM_Y,"laser calibrated beam vertical");
-        near(3.45,ModSettings.DEFAULT_LASER_BEAM_INSET,"laser calibrated beam inset");
+        near(-1.5,LaserTuning.Parameter.BEAM_X.value(),"laser calibrated beam horizontal");
+        near(0,LaserTuning.Parameter.BEAM_Y.value(),"laser calibrated beam vertical");
+        near(3.45,LaserTuning.Parameter.BEAM_INSET.value(),"laser calibrated beam inset");
         float near=LaserPointer.beamWidth(.34),far=LaserPointer.beamWidth(16);
         if(!(near>0&&far>near&&LaserPointer.beamWidth(1000)<=.04f))
             throw new AssertionError("laser beam distance scaling");

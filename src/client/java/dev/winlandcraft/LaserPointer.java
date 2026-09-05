@@ -1,6 +1,7 @@
 package dev.winlandcraft;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import dev.winlandcraft.LaserTuning.Parameter;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -83,9 +84,9 @@ public final class LaserPointer {
         Minecraft client=Minecraft.getInstance();
         captureContext=context==selectedContext(client)?context:null;
         if(captureContext==null)return;
-        float bounce=animation(bounceStarted,ModSettings.laserBounceMillis);
-        sampledBounceDegrees=bounce<0?0:bounceDegrees(bounce,ModSettings.laserBounceDegrees*bounceDirection);
-        float spin=animation(spinStarted,ModSettings.laserSpinMillis);
+        float bounce=animation(bounceStarted,Parameter.BOUNCE_MILLIS.value());
+        sampledBounceDegrees=bounce<0?0:bounceDegrees(bounce,Parameter.BOUNCE_DEGREES.value()*bounceDirection);
+        float spin=animation(spinStarted,Parameter.SPIN_MILLIS.value());
         sampledSpinDegrees=spin<0?0:spinDegrees(spin);
     }
 
@@ -97,8 +98,8 @@ public final class LaserPointer {
         applyCalibration(pose);
         pose.translate(-.5f,-.5f,-.5f);
         Matrix4f matrix=pose.last().pose();
-        Vector3f muzzle=matrix.transformPosition(new Vector3f(.5f+ModSettings.laserBeamX/16,
-                .5f+ModSettings.laserBeamY/16,ModSettings.laserBeamInset/16));
+        Vector3f muzzle=matrix.transformPosition(new Vector3f(.5f+Parameter.BEAM_X.value()/16,
+                .5f+Parameter.BEAM_Y.value()/16,Parameter.BEAM_INSET.value()/16));
         renderBeam(buffers,muzzle);
     }
 
@@ -272,7 +273,7 @@ public final class LaserPointer {
     }
 
     private static void powerSound(Minecraft client) {
-        float volume=ModSettings.laserSoundVolume;
+        float volume=Parameter.SOUND_VOLUME.value();
         float pitch=ModSettings.laserEnabled?1.55f:1.15f;
         sound(client,ModSettings.laserEnabled?SoundEvents.COPPER_BULB_TURN_ON:SoundEvents.COPPER_BULB_TURN_OFF,pitch,1.6f*volume);
         sound(client,SoundEvents.UI_BUTTON_CLICK.value(),ModSettings.laserEnabled?1.45f:1.05f,.7f*volume);
