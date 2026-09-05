@@ -3,9 +3,12 @@ package dev.winlandcraft;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.nio.file.Path;
+import java.util.function.Supplier;
 import net.minecraft.client.Minecraft;
 
 public final class AppWindows {
+    private static final int MAX_FILE_WINDOWS_PER_APP=16;
     StreamClient streams;
     void stream(AppEntry entry){if(streams!=null&&streams.start(entry.panel()))launcher.close();}
     public final BrowserPanel browser = new BrowserPanel();
@@ -24,35 +27,30 @@ public final class AppWindows {
     private final List<NotepadPanel> fileEditors=new ArrayList<>();
     final PluginHost plugins=new PluginHost(this);
     record FileTarget(String id,String name) { }
-    List<FileTarget> fileTargets(java.nio.file.Path path){
+    List<FileTarget> fileTargets(Path path){
         var result=new ArrayList<FileTarget>();if(FileAppPlacement.supported(path))result.add(new FileTarget("winlandcraft:notepad","Notepad"));
         if(ImageViewerPage.supports(path))result.addFirst(new FileTarget("winlandcraft:image_viewer","Image Viewer"));
         if(VideoFileServer.supports(path))result.add(new FileTarget("winlandcraft:video_player","Video Player"));
         result.addAll(plugins.handlers(path));return result;
     }
-    boolean openFile(String id,FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side){return id.equals("winlandcraft:image_viewer")?openImage(source,path,side):id.equals("winlandcraft:video_player")?openVideo(source,path,side):id.equals("winlandcraft:notepad")?openFile(source,path,side):plugins.openFile(id,source,path,side);}
-    boolean openFile(FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side) {
-        if(!FileAppPlacement.supported(path)||!source.isOpen())return false;
-        var editor=fileEditors.stream().filter(p->!p.isOpen()).findFirst().orElse(null);
-        if(editor==null) {
-            if(fileEditors.size()>=16)return false;
-            editor=new NotepadPanel();fileEditors.add(editor);windows.add(editor);
+    boolean openFile(String id,FileManagerPanel source,Path path,FileAppPlacement.Side side) {
+        if(!source.isOpen())return false;
+        WorldPanel panel;
+        switch(id) {
+            case "winlandcraft:image_viewer"->panel=ImageViewerPage.supports(path)?fileWindow(imageViewers,ImageViewerPanel::new):null;
+            case "winlandcraft:video_player"->panel=VideoFileServer.supports(path)?fileWindow(videoPlayers,VideoPlayerPanel::new):null;
+            case "winlandcraft:notepad"->panel=FileAppPlacement.supported(path)?fileWindow(fileEditors,NotepadPanel::new):null;
+            default->{return plugins.openFile(id,source,path,side);}
         }
-        // Closed editors retain their drafts, just like the main Notepad.
-        FileAppPlacement.place(source,editor,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
-        editor.dropFile(path);return true;
+        if(panel==null)return false;
+        FileAppPlacement.place(source,panel,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
+        panel.dropFile(path);return true;
     }
-    private boolean openVideo(FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side){
-        if(!VideoFileServer.supports(path)||!source.isOpen())return false;
-        var player=videoPlayers.stream().filter(p->!p.isOpen()).findFirst().orElse(null);
-        if(player==null){if(videoPlayers.size()>=16)return false;player=new VideoPlayerPanel();videoPlayers.add(player);windows.add(player);}
-        FileAppPlacement.place(source,player,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());player.dropFile(path);return true;
-    }
-    private boolean openImage(FileManagerPanel source,java.nio.file.Path path,FileAppPlacement.Side side){
-        if(!ImageViewerPage.supports(path)||!source.isOpen())return false;
-        var player=imageViewers.stream().filter(p->!p.isOpen()).findFirst().orElse(null);
-        if(player==null){if(imageViewers.size()>=16)return false;player=new ImageViewerPanel();imageViewers.add(player);windows.add(player);}
-        FileAppPlacement.place(source,player,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());player.dropFile(path);return true;
+    <T extends WorldPanel> T fileWindow(List<T> pool,Supplier<T> factory) {
+        // Reuse closed editors without discarding their drafts.
+        for(var panel:pool)if(!panel.isOpen())return panel;
+        if(pool.size()>=MAX_FILE_WINDOWS_PER_APP)return null;
+        T panel=factory.get();pool.add(panel);windows.add(panel);return panel;
     }
     public record AppEntry(String name, WorldPanel panel, WebApps.App definition) { }
     public AppWindows() { reconcileWebApps(); }

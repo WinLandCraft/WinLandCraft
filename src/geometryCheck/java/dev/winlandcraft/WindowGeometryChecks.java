@@ -43,6 +43,7 @@ public final class WindowGeometryChecks {
         scaling();
         NativeResizeChecks.run();
         FilePlacementChecks.run();
+        FileWindowChecks.run();
         titlebars();
         browserCloseThread();
         FileMediaChecks.run();
