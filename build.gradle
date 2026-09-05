@@ -159,66 +159,44 @@ sourceSets {
         runtimeClasspath = output + compileClasspath
     }
 }
-tasks.register('verifyWindowGeometry', JavaExec) {
-    dependsOn geometryCheckClasses
+def regressionChecks = [
+        verifyWindowGeometry: 'WindowGeometryChecks',
+        verifyScreenLighting: 'ScreenLightingChecks',
+        verifyStreaming: 'StreamChecks',
+        verifyFavicons: 'FaviconChecks',
+        verifyBrowserAddresses: 'BrowserAddressChecks',
+        verifyAdBlockNative: 'AdBlockNativeChecks',
+        verifyWebApps: 'WebAppChecks',
+        verifyResourceCounters: 'ResourceChecks',
+        verifyVideoPlayer: 'VideoPlayerChecks',
+        verifyPluginApi: 'PluginApiChecks',
+        verifyPluginMedia: 'PluginMediaChecks']
+regressionChecks.each { taskName, checkClass ->
+    def verification = tasks.register(taskName, JavaExec) {
+        dependsOn geometryCheckClasses
+        classpath = sourceSets.geometryCheck.runtimeClasspath
+        mainClass = "dev.winlandcraft.${checkClass}"
+    }
+    check.dependsOn verification
+}
+tasks.named('verifyWindowGeometry') {
     // RenderSystem's queue check initializes LWJGL's allocator, but never creates a GL context.
-    classpath = sourceSets.geometryCheck.runtimeClasspath + configurations.minecraftNatives
-    mainClass = 'dev.winlandcraft.WindowGeometryChecks'
+    classpath += configurations.minecraftNatives
 }
-check.dependsOn verifyWindowGeometry
-tasks.register('verifyScreenLighting', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.ScreenLightingChecks'
+tasks.named('verifyAdBlockNative') {
+    dependsOn adblockBuild
+    doFirst { args adblockTarget.get().file(adblockLibrary).asFile.absolutePath }
 }
-check.dependsOn verifyScreenLighting
-tasks.register('verifyStreaming', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.StreamChecks'
-}
-check.dependsOn verifyStreaming
 tasks.register('verifyCodecSelection', Exec) {
     commandLine 'node', file('src/geometryCheck/codec-selection-check.cjs')
 }
 check.dependsOn verifyCodecSelection
-tasks.register('verifyFavicons', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.FaviconChecks'
-}
-check.dependsOn verifyFavicons
-tasks.register('verifyBrowserAddresses', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.BrowserAddressChecks'
-}
-check.dependsOn verifyBrowserAddresses
-tasks.register('verifyAdBlockNative', JavaExec) {
-    dependsOn geometryCheckClasses, adblockBuild
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.AdBlockNativeChecks'
-    doFirst { args adblockTarget.get().file(adblockLibrary).asFile.absolutePath }
-}
-check.dependsOn verifyAdBlockNative
-tasks.register('verifyWebApps', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.WebAppChecks'
-}
-check.dependsOn verifyWebApps
-tasks.register('verifyResourceCounters', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.ResourceChecks'
-}
 tasks.register('smokeResourceCounters', JavaExec) {
     dependsOn geometryCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath
     mainClass = 'dev.winlandcraft.ResourceChecks'
     args '--live'
 }
-check.dependsOn verifyResourceCounters
 check.dependsOn project(':adblockNative').tasks.named('cargoTest')
 
 // Development launches can hide missing refmap declarations. Check the distributable JAR.
@@ -362,27 +340,16 @@ sourceSets {
         runtimeClasspath = output + compileClasspath
     }
 }
-tasks.register('verifyPluginApi', JavaExec) {
-    dependsOn geometryCheckClasses, pluginCheckClasses
+tasks.named('verifyPluginApi') {
+    dependsOn pluginCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath + sourceSets.pluginCheck.output
-    mainClass = 'dev.winlandcraft.PluginApiChecks'
     args file('docs/plugin-api-v1.txt').absolutePath
 }
-check.dependsOn verifyPluginApi
 build.dependsOn pluginApiJar
 build.dependsOn cefRuntimeJar
 
-tasks.register('verifyPluginMedia', JavaExec) {
-    dependsOn geometryCheckClasses, pluginCheckClasses
+tasks.named('verifyPluginMedia') {
+    dependsOn pluginCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath + sourceSets.pluginCheck.output
-    mainClass = 'dev.winlandcraft.PluginMediaChecks'
     args file('docs/plugin-api-v2.txt').absolutePath
 }
-check.dependsOn verifyPluginMedia
-
-tasks.register('verifyVideoPlayer', JavaExec) {
-    dependsOn geometryCheckClasses
-    classpath = sourceSets.geometryCheck.runtimeClasspath
-    mainClass = 'dev.winlandcraft.VideoPlayerChecks'
-}
-check.dependsOn verifyVideoPlayer
