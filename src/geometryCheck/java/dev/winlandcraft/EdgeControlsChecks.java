@@ -1,6 +1,7 @@
 package dev.winlandcraft;
 
 import net.minecraft.world.phys.Vec3;
+import static dev.winlandcraft.EdgeControls.Action.*;
 import org.joml.Quaternionf;
 
 final class EdgeControlsChecks {
@@ -15,14 +16,14 @@ final class EdgeControlsChecks {
             var at=WindowGroups.world(a.position,a.orientation,Math.signum(x)*1.6f,Math.signum(y)*.9f);
             var ui=new EdgeControls(a,at,0);ui.expand(1);ui.updateGroup(java.util.List.of(a,b));
             int row=edge==EdgeControls.TOP?4:42;
-            check(ui.action(150,row+14)==6,"group action available on every edge");
+            check(ui.action(150,row+14)==GROUP,"group action available on every edge");
             ui.pointerMoved(150,row+14);check(ui.previewsGroup(),"hover previews joining windows");
             ui.pointerMoved(20,ui.headerY()+20);check(!ui.previewsGroup(),"title hover does not preview grouping");
             b.position=WindowGroups.world(a.position,a.orientation,x*10,y*10);ui.updateGroup(java.util.List.of(a,b));
-            check(ui.action(150,row+14)==0,"distant candidate cannot be grouped");
+            check(ui.action(150,row+14)==NONE,"distant candidate cannot be grouped");
             b.position=WindowGroups.world(a.position,a.orientation,x,y);ui.updateGroup(java.util.List.of(a,b));ui.joinGroup();
             check(a.grouped()&&b.grouped(),"pill joins the selected pair");
-            ui.updateGroup(java.util.List.of(a,b));check(ui.action(150,row+14)==0,"already grouped pair is not suggested again");
+            ui.updateGroup(java.util.List.of(a,b));check(ui.action(150,row+14)==NONE,"already grouped pair is not suggested again");
         }
         check(EdgeControls.previewOpacity(0)==0&&Math.abs(EdgeControls.previewOpacity(1.2)-.85)<.0001
                 &&EdgeControls.previewOpacity(2.4)<.0001,"outline fades in and out over 2.4 seconds");
@@ -36,17 +37,17 @@ final class EdgeControlsChecks {
             check(EdgeControls.near(p,at),"all edges activate");
             var ui=new EdgeControls(p,at,100);
             check(ui.edge==edge,"nearest edge on rotated panel");
-            check(ui.action(270,20)!=7,"start stream hidden while compact");
-            check(ui.action(20,20)==1&&ui.action(220,20)==2,"compact move/close");
+            check(ui.action(270,20)!=START_STREAM,"start stream hidden while compact");
+            check(ui.action(20,20)==MOVE&&ui.action(220,20)==CLOSE,"compact move/close");
             Vec3 close=pixel(ui,220,20);
             ui.expand(200);
-            check(ui.action(270,(edge==EdgeControls.TOP?4:42)+14)==7,"start stream available on every edge");
+            check(ui.action(270,(edge==EdgeControls.TOP?4:42)+14)==START_STREAM,"start stream available on every edge");
             check(close.distanceTo(pixel(ui,ui.headerX()+220,ui.headerY()+20))<.00001,"expansion preserves close world position");
-            check(ui.action(ui.headerX()+220,ui.headerY()+20)==2,"expanded close target");
-            check(ui.action(ui.headerX()+20,ui.headerY()+20)==1,"expanded move target");
-            check(ui.action(10,ui.headerY()+20)==1,"expanded title is draggable from its left edge on every side");
+            check(ui.action(ui.headerX()+220,ui.headerY()+20)==CLOSE,"expanded close target");
+            check(ui.action(ui.headerX()+20,ui.headerY()+20)==MOVE,"expanded move target");
+            check(ui.action(10,ui.headerY()+20)==MOVE,"expanded title is draggable from its left edge on every side");
             int sliderY=edge==EdgeControls.TOP?48:84;
-            check(ui.action(180,sliderY)==4,"curve target");
+            check(ui.action(180,sliderY)==CURVE,"curve target");
             check(ui.curveValue(-50)==0&&ui.curveValue(500)==1,"slider clamps");
             check(!ui.expired(600_000_200L)&&ui.expired(700_000_200L),"leave grace period");
             check(ui.dragTarget()==p&&!ui.canResize()&&!ui.canGroup(),"chrome delegates movement only");
@@ -59,12 +60,12 @@ final class EdgeControlsChecks {
             Vec3 at=WindowGroups.world(p.position,p.orientation,edges[edge][0],edges[edge][1]);
             var ui=new EdgeControls(p,at,0);Vec3 close=pixel(ui,220,20);ui.expand(1);
             check(ui.pixelHeight()==352,"stream controls expand the pill");
-            check(ui.action(270,(edge==EdgeControls.TOP?244:42)+14)!=7,"active stream hides start action");
+            check(ui.action(270,(edge==EdgeControls.TOP?244:42)+14)!=START_STREAM,"active stream hides start action");
             check(close.distanceTo(pixel(ui,ui.headerX()+220,ui.headerY()+20))<.00001,"stream expansion keeps close anchored");
-            check(ui.action(306,ui.streamY()+152)==5,"codec selector routes to stream controls");
-            check(ui.action(306,ui.streamY()+32)==5,"quality button routes to stream controls");
-            check(ui.action(30,ui.streamY()+218)==5,"stop stream routes to stream controls");
-            check(ui.action(180,edge==EdgeControls.TOP?288:84)==4,"stream controls do not overlap curve slider");
+            check(ui.action(306,ui.streamY()+152)==STREAM_SETTINGS,"codec selector routes to stream controls");
+            check(ui.action(306,ui.streamY()+32)==STREAM_SETTINGS,"quality button routes to stream controls");
+            check(ui.action(30,ui.streamY()+218)==STREAM_SETTINGS,"stop stream routes to stream controls");
+            check(ui.action(180,edge==EdgeControls.TOP?288:84)==CURVE,"stream controls do not overlap curve slider");
         }
         p.broadcastSession=null;
         check(!EdgeControls.near(p,p.position),"center does not activate");
@@ -83,7 +84,7 @@ final class EdgeControlsChecks {
         Vec3 closeAt=pixel(sized,220,20);
         check(Math.abs(sized.intersect(closeAt.add(direction.scale(64)),direction.scale(-1))-64)<.0001,"distant enlarged close is pickable");
         int[] closePixel=sized.pixelAt(closeAt);
-        check(sized.action(closePixel[0],closePixel[1])==2,"enlarged close uses unchanged logical hit area");
+        check(sized.action(closePixel[0],closePixel[1])==CLOSE,"enlarged close uses unchanged logical hit area");
         var dwell=new EdgeControls.Dwell();
         check(!dwell.ready(p,0,0)&&!dwell.ready(p,0,499_000_000L)&&dwell.ready(p,0,500_000_000L),"half-second dwell threshold");
         check(!dwell.ready(p,1,510_000_000L),"changing sides restarts dwell");

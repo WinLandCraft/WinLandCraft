@@ -9,6 +9,9 @@ import org.joml.Vector3f;
 /** Local-only chrome with deliberate activation and frame-rate independent edge following. */
 final class EdgeControls extends WorldPanel {
     static final int TOP=0,RIGHT=1,BOTTOM=2,LEFT=3;
+    enum Action { NONE, MOVE, CLOSE, UNGROUP, CURVE, STREAM_SETTINGS, GROUP, START_STREAM }
+    private static final int HEADER_WIDTH=240,HEADER_HEIGHT=40,EXPANDED_WIDTH=360,EXPANDED_HEIGHT=112;
+    private static final int EDGE_GAP=12,CLOSE_SIZE=40,CURVE_START=92,CURVE_WIDTH=214;
     final WorldPanel owner;
     final int edge;
     private float anchorX,anchorY;
@@ -77,10 +80,10 @@ final class EdgeControls extends WorldPanel {
     void expand(long now){touch(now);hoverUntil=now+650_000_000L;if(!expanded){expanded=true;sync();}}
     void nearTouch(long now){touch(now);if(expanded&&now>hoverUntil){expanded=false;sync();}}
     boolean expanded(){return expanded;}
-    int headerX(){return expanded&&edge!=RIGHT?120:0;}
-    int headerY(){return expanded&&edge==TOP?72+streamHeight():0;}
-    @Override public int pixelWidth(){return expanded?360:240;}
-    @Override public int pixelHeight(){return expanded?112+streamHeight():40;}
+    int headerX(){return expanded&&edge!=RIGHT?EXPANDED_WIDTH-HEADER_WIDTH:0;}
+    int headerY(){return expanded&&edge==TOP?EXPANDED_HEIGHT-HEADER_HEIGHT+streamHeight():0;}
+    @Override public int pixelWidth(){return expanded?EXPANDED_WIDTH:HEADER_WIDTH;}
+    @Override public int pixelHeight(){return expanded?EXPANDED_HEIGHT+streamHeight():HEADER_HEIGHT;}
     @Override public boolean canResize(){return false;}
     @Override public boolean canGroup(){return false;}
     @Override public WorldPanel dragTarget(){return owner;}
@@ -100,23 +103,23 @@ final class EdgeControls extends WorldPanel {
         // Freeze size through a grab so its world-space grab point/slider mapping stays stable.
         if(observer!=null&&!sizeLocked)unit=Math.max(minimumUnit,(float)Math.min(observer.distanceTo(anchor),WindowControls.MOVE_RANGE)*.001f);
         // Expansion grows away from the panel; the compact header and close button don't move.
-        float left=edge==LEFT?-252:edge==RIGHT?12:-120,top=edge==TOP?-52:edge==BOTTOM?12:-20;
+        float left=edge==LEFT?-HEADER_WIDTH-EDGE_GAP:edge==RIGHT?EDGE_GAP:-HEADER_WIDTH/2f;
+        float top=edge==TOP?-HEADER_HEIGHT-EDGE_GAP:edge==BOTTOM?EDGE_GAP:-HEADER_HEIGHT/2f;
         left-=headerX();top-=headerY();
         var offset=new Vector3f((left+pixelWidth()/2f)*unit,-(top+pixelHeight()/2f)*unit,.002f).rotate(orientation);
         position=anchor.add(offset.x,offset.y,offset.z);level=owner.level;
         scaleTo(pixelWidth()*unit,pixelHeight()*unit);
     }
-    /** 1 drag, 2 close, 3 ungroup, 4 curve, 5 stream, 6 group, 7 start stream. */
-    int action(int x,int y) {
-        if(x<0||y<0||x>=pixelWidth()||y>=pixelHeight())return 0;
+    Action action(int x,int y) {
+        if(x<0||y<0||x>=pixelWidth()||y>=pixelHeight())return Action.NONE;
         int hx=headerX(),hy=headerY();
-        if(y>=hy&&y<hy+40&&x<hx+240)return x>=hx+200?2:1;
-        if(expanded&&canStartStream()&&x>=244&&x<348&&y>=ungroupY()&&y<ungroupY()+28)return 7;
-        if(expanded&&groupCandidate!=null&&x>=124&&x<232&&y>=ungroupY()&&y<ungroupY()+28)return 6;
-        if(expanded&&owner.grouped()&&x>=12&&x<112&&y>=ungroupY()&&y<ungroupY()+28)return 3;
-        if(expanded&&GroupCurve.eligible(owner)&&y>=sliderY()-14&&y<sliderY()+18)return 4;
-        if(expanded&&owner.streaming()&&y>=streamY()&&y<streamY()+streamHeight())return 5;
-        return 0;
+        if(y>=hy&&y<hy+HEADER_HEIGHT&&x<hx+HEADER_WIDTH)return x>=hx+HEADER_WIDTH-CLOSE_SIZE?Action.CLOSE:Action.MOVE;
+        if(expanded&&canStartStream()&&x>=244&&x<348&&y>=ungroupY()&&y<ungroupY()+28)return Action.START_STREAM;
+        if(expanded&&groupCandidate!=null&&x>=124&&x<232&&y>=ungroupY()&&y<ungroupY()+28)return Action.GROUP;
+        if(expanded&&owner.grouped()&&x>=12&&x<112&&y>=ungroupY()&&y<ungroupY()+28)return Action.UNGROUP;
+        if(expanded&&GroupCurve.eligible(owner)&&y>=sliderY()-14&&y<sliderY()+18)return Action.CURVE;
+        if(expanded&&owner.streaming()&&y>=streamY()&&y<streamY()+streamHeight())return Action.STREAM_SETTINGS;
+        return Action.NONE;
     }
     private boolean canStartStream(){return !owner.streaming()&&owner.isOpen()&&owner.canMove()&&owner.canInteract();}
     void updateGroup(java.util.List<WorldPanel> windows) {
@@ -160,7 +163,7 @@ final class EdgeControls extends WorldPanel {
     private int sliderY(){return edge==TOP?48+streamHeight():84;}
     private int ungroupY(){return edge==TOP?4+streamHeight():42;}
     private int streamHeight(){return owner.streaming()?240:0;}
-    int streamY(){return edge==TOP?0:112;}
+    int streamY(){return edge==TOP?0:EXPANDED_HEIGHT;}
     void streamClick(int x,int y) {
         if(!expanded||!owner.streaming())return;
         int local=y-streamY();
@@ -200,7 +203,7 @@ final class EdgeControls extends WorldPanel {
         c.rect(12,top+208,336,28,.4f,hoverColor(12,top+208,336,28,0xFF854551,0xFFB65B69));
         c.text("Stop streaming",18,top+218,-1,1.2f);
     }
-    float curveValue(int x){return Math.clamp((x-92)/214f,0,1);}
+    float curveValue(int x){return Math.clamp((x-CURVE_START)/(float)CURVE_WIDTH,0,1);}
     @Override public void render(WorldRenderContext context) {
         // Minecraft's font treats near-zero alpha as unspecified/opaque.
         if(!owner.isOpen()||opacity<.02f)return;
@@ -211,11 +214,12 @@ final class EdgeControls extends WorldPanel {
             int hx=headerX(),hy=headerY();
             c.rect(-1,-1,pixelWidth()+2,pixelHeight()+2,.2f,0xFF657888);
             c.rect(0,0,pixelWidth(),pixelHeight(),.3f,0xF020303D);
-            c.rect(0,hy,hx+200,40,.4f,hoverColor(0,hy,hx+200,40,0xFF314D63,0xFF466B83));
+            int closeX=hx+HEADER_WIDTH-CLOSE_SIZE;
+            c.rect(0,hy,closeX,HEADER_HEIGHT,.4f,hoverColor(0,hy,closeX,HEADER_HEIGHT,0xFF314D63,0xFF466B83));
             String title=Minecraft.getInstance().font.plainSubstrByWidth(owner.windowTitle(),(int)((hx+180)/1.5f));
             c.text(title,10,hy+14,-1,1.5f);
-            c.rect(hx+200,hy,40,40,.4f,hoverColor(hx+200,hy,40,40,0xFF854551,0xFFB65B69));
-            PixelIcon.CLOSE.draw(c,hx+208,hy+8,24,.5f,-1);
+            c.rect(closeX,hy,CLOSE_SIZE,HEADER_HEIGHT,.4f,hoverColor(closeX,hy,CLOSE_SIZE,HEADER_HEIGHT,0xFF854551,0xFFB65B69));
+            PixelIcon.CLOSE.draw(c,closeX+8,hy+8,24,.5f,-1);
             if(expanded) {
                 if(owner.streaming())drawStream(c);
                 else if(canStartStream()) {
@@ -234,8 +238,8 @@ final class EdgeControls extends WorldPanel {
                 if(GroupCurve.eligible(owner)) {
                     float amount=owner.curve==null?0:owner.curve.amount;int y=sliderY();
                     c.text("Curve",12,y-5,0xFFE1F2FA,1.5f);
-                    c.rect(92,y,214,4,.4f,0xFF69808A);c.rect(92,y,214*amount,4,.45f,0xFF51CFDF);
-                    c.rect(88+214*amount,y-8,8,20,.5f,0xFFAAEDF5);
+                    c.rect(CURVE_START,y,CURVE_WIDTH,4,.4f,0xFF69808A);c.rect(CURVE_START,y,CURVE_WIDTH*amount,4,.45f,0xFF51CFDF);
+                    c.rect(CURVE_START-4+CURVE_WIDTH*amount,y-8,8,20,.5f,0xFFAAEDF5);
                     c.text(Math.round(amount*100)+"%",316,y-3,-1);
                 }
             }

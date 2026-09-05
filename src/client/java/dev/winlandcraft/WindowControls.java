@@ -177,22 +177,7 @@ public final class WindowControls {
         if (pointer == null && c.player.isUsingItem()) return false;
         if(pointer==null&&hit!=null&&hit.panel==edgeUi) {
             buttons.add(button);
-            if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-                edgeUi.updateGroup(apps.windows);
-                int[] at=edgeUi.pixelAt(hit.point);int actionAt=edgeUi.action(at[0],at[1]);
-                if(actionAt==2){stopTyping();edgeUi.owner.close();discardEdge();}
-                else if(actionAt==6){stopTyping();edgeUi.joinGroup();edgeUi.touch(System.nanoTime());}
-                else if(actionAt==7){stopTyping();if(apps.streams!=null)apps.streams.start(edgeUi.owner);edgeUi.sync();edgeUi.touch(System.nanoTime());}
-                else if(actionAt==5){stopTyping();edgeUi.streamClick(at[0],at[1]);}
-                else if(actionAt==3){WindowGroups.detach(edgeUi.owner);edgeUi.touch(System.nanoTime());}
-                else if(actionAt==1)beginMove(hit,c.gameRenderer.getMainCamera(),null);
-                else if(actionAt==4) {
-                    stopTyping();curving=true;curveOwner=edgeUi.owner;curveUi=null;
-                    var curve=GroupCurve.get(curveOwner);
-                    curve.facing=WindowGroups.local(curveOwner,c.gameRenderer.getMainCamera().getPosition()).z>=0?1:-1;
-                    setCurve(hit.point);
-                }
-            }
+            if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT)edgeAction(hit,c);
             return true;
         }
         if(pointer==null && hit!=null && hit.panel==curveUi) {
@@ -246,6 +231,25 @@ public final class WindowControls {
             return true;
         }
         return false;
+    }
+    private void edgeAction(Hit hit,Minecraft client) {
+        edgeUi.updateGroup(apps.windows);
+        int[] at=edgeUi.pixelAt(hit.point);
+        switch(edgeUi.action(at[0],at[1])) {
+            case NONE -> { }
+            case CLOSE -> {stopTyping();edgeUi.owner.close();discardEdge();}
+            case GROUP -> {stopTyping();edgeUi.joinGroup();edgeUi.touch(System.nanoTime());}
+            case START_STREAM -> {stopTyping();if(apps.streams!=null)apps.streams.start(edgeUi.owner);edgeUi.sync();edgeUi.touch(System.nanoTime());}
+            case STREAM_SETTINGS -> {stopTyping();edgeUi.streamClick(at[0],at[1]);}
+            case UNGROUP -> {WindowGroups.detach(edgeUi.owner);edgeUi.touch(System.nanoTime());}
+            case MOVE -> beginMove(hit,client.gameRenderer.getMainCamera(),null);
+            case CURVE -> {
+                stopTyping();curving=true;curveOwner=edgeUi.owner;curveUi=null;
+                var curve=GroupCurve.get(curveOwner);
+                curve.facing=WindowGroups.local(curveOwner,client.gameRenderer.getMainCamera().getPosition()).z>=0?1:-1;
+                setCurve(hit.point);
+            }
+        }
     }
     public boolean scroll(double amount) {
         var c = Minecraft.getInstance();
