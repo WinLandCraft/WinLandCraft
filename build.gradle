@@ -54,10 +54,12 @@ dependencies {
     include "org.bytedeco:ffmpeg:${project.ffmpeg_version}"
     include "org.bytedeco:javacpp:${project.javacpp_version}"
     // No upstream FFmpeg build exists for Windows ARM64; streaming stays
-    // unavailable there while everything else keeps working.
+    // unavailable there while everything else keeps working. The -gpl builds
+    // are used because only they bundle libx264, the software fallback; without
+    // them machines without a supported GPU would have no H.264 encoder at all.
     for (platform in ['windows-x86_64', 'linux-x86_64', 'linux-arm64', 'macosx-x86_64', 'macosx-arm64']) {
-        modImplementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}"
-        include "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}"
+        modImplementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}-gpl"
+        include "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}-gpl"
     }
     for (platform in ['windows-x86_64', 'windows-arm64', 'linux-x86_64', 'linux-arm64', 'macosx-x86_64', 'macosx-arm64']) {
         modImplementation "org.bytedeco:javacpp:${project.javacpp_version}:${platform}"

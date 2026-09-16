@@ -15,7 +15,8 @@ lifecycle, OSR paint, and audio capture all run through MCEF's own integration u
   H.264 hardware encode is not guaranteed).
 - Multiplayer app streaming no longer touches Chromium at all: `StreamEncoder`/`StreamDecoder`
   drive bundled FFmpeg (JavaCPP presets `ffmpeg_version` in `gradle.properties`, Jar-in-Jar for
-  Windows/Linux/macOS x64+ARM, except Windows ARM64 which has no upstream FFmpeg build). The sender
+  Windows/Linux/macOS x64+ARM, except Windows ARM64 which has no upstream FFmpeg build). The `-gpl`
+  classifier builds are used because only they bundle libx264, the software fallback. The sender
   probes `h264_nvenc`, `h264_amf`, `h264_qsv`, `h264_videotoolbox`, then `libx264`; audio is
   `libopus`/`opus` at 48 kHz stereo. The Minecraft relay (`StreamProtocol`/`StreamRelay`/
   `StreamMedia`) is unchanged: H.264 Annex B video plus Opus audio in the same envelopes, so the

@@ -111,7 +111,7 @@ final class StreamClient {
         if(!encoder.error.isEmpty()) {
             String reason=encoder.error;
             if(!reason.equals(reportedCodecError)){reportedCodecError=reason;WinLandCraftClient.LOGGER.warn("Stream codec error: {}",reason);
-                client.player.displayClientMessage(Component.literal("Stream codec error: "+reason+". Choose another encoder in the pill."),false);}
+                client.player.displayClientMessage(Component.literal("Stream codec error: "+reason),false);}
             return;
         }
         if(System.nanoTime()-lastRenderDrain>=RENDER_DRAIN_FALLBACK_NANOS)drainEncoded();

@@ -176,7 +176,11 @@ final class StreamDecoder implements AutoCloseable {
         final String signature;
         private final AVCodecContext context;
         private final AVFrame decoded, rgba;
-        private final SwsContext scaler;
+        // Built lazily from the first decoded frame: a decoder context reports
+        // AV_PIX_FMT_NONE until frames arrive, and building swscale on that
+        // produces a converter that crashes native code on first use.
+        private SwsContext scaler;
+        private String scalerKey = "";
         private BytePointer packetBuffer, rgbaBuffer;
         private final int width, height;
 
@@ -189,22 +193,16 @@ final class StreamDecoder implements AutoCloseable {
             packetBuffer = new BytePointer(0);
             rgbaBuffer = new BytePointer(0);
             AVFrame frames = null, target = null;
-            SwsContext created = null;
             try {
                 Ffmpeg.check(avcodec.avcodec_open2(context, codec, (AVDictionary) null), "open video decoder");
                 frames = avutil.av_frame_alloc();
                 target = avutil.av_frame_alloc();
-                created = swscale.sws_getContext(width, height, context.pix_fmt(), width, height,
-                        avutil.AV_PIX_FMT_RGBA, swscale.SWS_BILINEAR, null, null, (org.bytedeco.javacpp.DoublePointer) null);
-                if (created == null || created.isNull()) throw new IllegalStateException("could not create pixel converter");
             } catch (RuntimeException failure) {
-                if (created != null && !created.isNull()) swscale.sws_freeContext(created);
                 if (frames != null && !frames.isNull()) avutil.av_frame_free(frames);
                 if (target != null && !target.isNull()) avutil.av_frame_free(target);
                 avcodec.avcodec_free_context(context);
                 throw failure instanceof IllegalStateException illegal ? illegal : new IllegalStateException(failure.getMessage(), failure);
             }
-            this.scaler = created;
             this.decoded = frames;
             this.rgba = target;
         }
@@ -242,6 +240,14 @@ final class StreamDecoder implements AutoCloseable {
         private void render(AVFrame frame, long sequence) {
             int w = frame.width(), h = frame.height();
             if (w != width || h != height) throw new IllegalStateException("Decoder dimensions changed mid-stream");
+            String key = frame.format() + ":" + w + "x" + h;
+            if (scaler == null || !key.equals(scalerKey)) {
+                if (scaler != null && !scaler.isNull()) swscale.sws_freeContext(scaler);
+                scaler = swscale.sws_getContext(w, h, frame.format(), w, h,
+                        avutil.AV_PIX_FMT_RGBA, swscale.SWS_BILINEAR, null, null, (org.bytedeco.javacpp.DoublePointer) null);
+                if (scaler == null || scaler.isNull()) { scaler = null; throw new IllegalStateException("could not create pixel converter"); }
+                scalerKey = key;
+            }
             int size = w * h * 4;
             if (rgbaBuffer.capacity() < size) {
                 rgbaBuffer.deallocate();
