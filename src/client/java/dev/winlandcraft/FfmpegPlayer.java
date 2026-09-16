@@ -44,13 +44,15 @@ final class FfmpegPlayer implements AutoCloseable {
     volatile String hw = "SW";
     volatile int videoWidth, videoHeight;
     volatile boolean hasAudio;
-    private final long startedNanos = System.nanoTime();
 
     private final Object stateLock = new Object();
-    private double clockBasePtsSec, pausePtsSec;
-    private long clockBaseNanos;
     private boolean seekPending;
     private double seekTargetSec;
+    /** Set by the worker on publish, cleared by the render thread after upload. While set,
+     *  the worker drops incoming video instead of decoding it. */
+    private volatile boolean fresh;
+    private long wallStartNanos = System.nanoTime();
+    private double audioFedSec, videoFedSec;
 
     private final ArrayDeque<byte[]> framePool = new ArrayDeque<>();
     private StreamAudioMonitor monitor;
@@ -64,19 +66,20 @@ final class FfmpegPlayer implements AutoCloseable {
         worker = Thread.ofVirtual().name("WinLandCraft media player").start(this::run);
     }
 
-    double timeSec() {
-        if (paused) return pausePtsSec;
-        return Math.max(0, clockBasePtsSec + (System.nanoTime() - clockBaseNanos) / 1_000_000_000.0);
-    }
+    /** Last presented video timestamp. The render thread consumes the newest frame, so this
+     *  only moves forward in normal playback and freezes the moment decoding stops. */
+    volatile double lastVideoPtsSec;
+
+    double timeSec() { return Math.max(0, lastVideoPtsSec); }
 
     void play() {
         synchronized (stateLock) {
             if (closed) return;
             if (eof) { seekLocked(0); }
             if (paused) {
-                clockBasePtsSec = pausePtsSec;
-                clockBaseNanos = System.nanoTime();
                 paused = false;
+                audioFedSec = videoFedSec = lastVideoPtsSec;
+                wallStartNanos = System.nanoTime();
                 stateLock.notifyAll();
             }
         }
@@ -85,7 +88,6 @@ final class FfmpegPlayer implements AutoCloseable {
     void pause() {
         synchronized (stateLock) {
             if (closed || paused || eof) return;
-            pausePtsSec = timeSec();
             paused = true;
             stateLock.notifyAll();
         }
@@ -126,6 +128,9 @@ final class FfmpegPlayer implements AutoCloseable {
     }
 
     void toggleMute() { muted = !muted; }
+
+    /** Called by the render thread after uploading a new frame so the worker decodes the next one. */
+    void markConsumed() { fresh = false; }
 
     private void run() {
         AVFormatContext format = null;
@@ -170,8 +175,6 @@ final class FfmpegPlayer implements AutoCloseable {
             WinLandCraftClient.LOGGER.info("Playing {}: {} {}x{}, {}s, audio={}, hw={}",
                     file.getFileName(), session.videoName, session.width, session.height,
                     String.format(java.util.Locale.ROOT, "%.1f", durationSec), session.hasAudio(), session.hwName);
-            clockBasePtsSec = 0;
-            clockBaseNanos = System.nanoTime();
             session.loop();
         } finally {
             session.close();
@@ -266,7 +269,7 @@ final class FfmpegPlayer implements AutoCloseable {
             }
             audioCtx = actx;
             audioStream = actx != null ? astream : null;
-            if (audioCtx != null && monitor == null) monitor = new StreamAudioMonitor();
+            if (audioCtx != null && monitor == null) monitor = new StreamAudioMonitor(24);
             decoded = avutil.av_frame_alloc();
             rgba = avutil.av_frame_alloc();
             audioFrame = avutil.av_frame_alloc();
@@ -334,6 +337,7 @@ final class FfmpegPlayer implements AutoCloseable {
         }
 
         void loop() {
+            wallStartNanos = System.nanoTime();
             while (true) {
                 double seekTo = -1;
                 synchronized (stateLock) {
@@ -345,6 +349,18 @@ final class FfmpegPlayer implements AutoCloseable {
                 }
                 if (seekTo >= 0) { doSeek(seekTo); continue; }
                 if (!readFrame()) return;
+                pace();
+            }
+        }
+
+        /** Holds demux near realtime so playback (and the test) observes wall-clock
+         *  progress instead of racing to EOF. Audio fed time leads; video follows. */
+        private void pace() {
+            while (!seekPending && !paused && !closed && error.isEmpty()) {
+                double fed = hasAudio() ? Math.max(audioFedSec, videoFedSec) : videoFedSec;
+                double ahead = fed - (System.nanoTime() - wallStartNanos) / 1_000_000_000.0;
+                if (ahead <= 0.75) return;
+                try { Thread.sleep(10); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); return; }
             }
         }
 
@@ -362,15 +378,16 @@ final class FfmpegPlayer implements AutoCloseable {
                 resetAudio();
             }
             synchronized (stateLock) {
-                clockBasePtsSec = seconds;
-                clockBaseNanos = System.nanoTime();
-                if (paused) pausePtsSec = seconds;
+                lastVideoPtsSec = seconds;
+                fresh = false;
+                audioFedSec = videoFedSec = seconds;
+                wallStartNanos = System.nanoTime();
                 eof = false;
             }
         }
 
         private void resetAudio() {
-            if (monitor != null) { monitor.close(); monitor = new StreamAudioMonitor(); }
+            if (monitor != null) { monitor.close(); monitor = new StreamAudioMonitor(24); }
             if (swr != null && !swr.isNull()) swresample.swr_free(swr);
             swr = null;
             if (audioCtx != null) {
@@ -404,11 +421,13 @@ final class FfmpegPlayer implements AutoCloseable {
             }
             eof = true;
             paused = true;
-            pausePtsSec = durationSec > 0 ? durationSec : timeSec();
             WinLandCraftClient.LOGGER.info("Finished playing {}", file.getFileName());
         }
 
         private void decodeVideo() {
+            // The panel shows the newest frame; when it hasn't consumed the last one yet,
+            // drop instead of decoding. Pacing is handled separately in pace().
+            if (fresh) { droppedFrames++; return; }
             int send = avcodec.avcodec_send_packet(videoCtx, packet);
             if (send < 0 && send != avutil.AVERROR_EAGAIN() && send != avutil.AVERROR_INVALIDDATA()) {
                 WinLandCraftClient.LOGGER.warn("Media video packet rejected: {}", Ffmpeg.error(send));
@@ -416,28 +435,11 @@ final class FfmpegPlayer implements AutoCloseable {
             }
             while (avcodec.avcodec_receive_frame(videoCtx, decoded) == 0) {
                 try {
-                    double pts = ptsSec(decoded, videoStream);
-                    if (!waitUntil(pts)) return;
-                    double now = timeSec();
-                    if (pts < now - 0.25) { droppedFrames++; continue; }
-                    present(decoded, pts);
+                    present(decoded, ptsSec(decoded, videoStream));
+                    if (fresh) break;
                 } finally {
                     avutil.av_frame_unref(decoded);
                 }
-            }
-        }
-
-        /** Sleeps until {@code pts} is due. Returns false when state changed and the frame is stale. */
-        private boolean waitUntil(double pts) {
-            long deadline = System.nanoTime() + (long) ((pts - timeSec()) * 1_000_000_000L);
-            while (true) {
-                synchronized (stateLock) {
-                    if (seekPending || paused || closed || !error.isEmpty()) return false;
-                }
-                long remaining = deadline - System.nanoTime();
-                if (remaining <= 0) return true;
-                try { Thread.sleep(Math.min(20, remaining / 1_000_000L)); }
-                catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); return false; }
             }
         }
 
@@ -500,6 +502,9 @@ final class FfmpegPlayer implements AutoCloseable {
                 var previous = current;
                 current = new Frame(bytes, w, h, ++frameSequence);
                 decodedFrames++;
+                lastVideoPtsSec = pts;
+                videoFedSec = Math.max(videoFedSec, pts);
+                fresh = true;
                 if (previous != null) synchronized (framePool) {
                     if (framePool.size() < 3) framePool.offer(previous.rgba());
                 }
@@ -550,6 +555,7 @@ final class FfmpegPlayer implements AutoCloseable {
             }
             monitor.offer(StreamAudio.Packet.owned(planar));
             audioPackets++;
+            audioFedSec += outSamples / (double) StreamAudioResampler.OUTPUT_RATE;
         }
 
         @Override public void close() {

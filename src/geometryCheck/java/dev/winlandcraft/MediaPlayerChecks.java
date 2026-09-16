@@ -22,8 +22,8 @@ final class MediaPlayerChecks {
         Path movie = Files.createTempFile("wlc-player-", ".mp4");
         try {
             int rc = new ProcessBuilder(ffmpeg.toString(), "-y", "-v", "error",
-                    "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=2",
-                    "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+                    "-f", "lavfi", "-i", "testsrc=size=320x240:rate=10:duration=8",
+                    "-f", "lavfi", "-i", "sine=frequency=440:duration=8",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", movie.toString())
                     .redirectErrorStream(true).start().waitFor();
             check(rc == 0, "ffmpeg generated test media");
@@ -33,7 +33,7 @@ final class MediaPlayerChecks {
                 waitFor(() -> player.ready || !player.error.isEmpty(), 15_000, "player opens test media");
                 check(player.error.isEmpty(), "no player error: " + player.error);
                 check(player.videoWidth == 320 && player.videoHeight == 240, "decoded dimensions");
-                check(Math.abs(player.durationSec - 2) < .6, "duration ~2s: " + player.durationSec);
+                check(Math.abs(player.durationSec - 8) < .6, "duration ~8s: " + player.durationSec);
                 check(player.hasAudio, "audio stream detected");
                 check(!player.hw.isEmpty(), "decoder backend reported: " + player.hw);
                 backend = player.hw;
@@ -41,18 +41,27 @@ final class MediaPlayerChecks {
                 var frame = player.current;
                 check(frame.width() == 320 && frame.height() == 240, "frame dimensions");
                 check(!player.paused, "autoplay");
+                // Consume like the panel upload does so the worker keeps producing.
+                player.markConsumed();
                 double t0 = player.timeSec();
-                Thread.sleep(400);
+                for (int i = 0; i < 30 && player.timeSec() <= t0; i++) { player.markConsumed(); Thread.sleep(100); }
                 check(player.timeSec() > t0, "clock advances while playing");
                 player.pause();
                 check(player.paused, "pause holds");
+                Thread.sleep(300);
                 double frozen = player.timeSec();
                 Thread.sleep(200);
-                check(player.timeSec() == frozen, "clock frozen while paused");
+                check(player.timeSec() == frozen, "clock frozen while paused; error=" + player.error);
                 player.seekTo(1);
-                waitFor(() -> Math.abs(player.timeSec() - 1) < .6, 5_000, "seek lands near 1s");
+                long deadline = System.currentTimeMillis() + 5_000;
+                while (Math.abs(player.timeSec() - 1) >= .6 && System.currentTimeMillis() < deadline) Thread.sleep(50);
+                check(Math.abs(player.timeSec() - 1) < .6,
+                        "seek lands near 1s; time=" + player.timeSec() + " error=" + player.error + " paused=" + player.paused);
                 player.play();
                 check(!player.paused, "resume clears pause");
+                // Re-anchor mid-file so later toggles can't trip over natural EOF.
+                player.seekTo(2);
+                waitFor(() -> Math.abs(player.timeSec() - 2) < .6, 5_000, "re-anchor near 2s");
                 player.seekFraction(.5);
                 player.setVolume(.5);
                 check(player.volume == .5 && !player.muted, "volume step");
