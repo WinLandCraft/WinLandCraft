@@ -44,6 +44,7 @@ final class StreamEncoder implements AutoCloseable {
     volatile boolean ready, closed;
     volatile String error = "", videoCodec = "n/a", videoAcceleration = "n/a";
     private final long startedNanos = System.nanoTime();
+    private final long startedMillis = System.currentTimeMillis();
     private long nextHealth;
     private String lastHealthState = "";
 
@@ -73,7 +74,9 @@ final class StreamEncoder implements AutoCloseable {
 
     long elapsedTimeUs() { return Math.max(0, (System.nanoTime() - startedNanos) / 1_000); }
 
-    boolean wantsVideo() { synchronized (videoLock) { return ready && !closed && error.isEmpty() && pendingVideo == null; } }
+    /** True while the mailbox is empty. Deliberately ignores {@link #ready}: the first frame
+     *  is what lets the worker open the codec and become ready. Gating on ready deadlocks. */
+    boolean wantsVideo() { synchronized (videoLock) { return !closed && error.isEmpty() && pendingVideo == null; } }
 
     /** Takes ownership of the pixels in all cases. */
     void video(StreamCapture.Pixels pixels) {
@@ -238,7 +241,7 @@ final class StreamEncoder implements AutoCloseable {
     void tick() {
         if (closed) return;
         long now = System.currentTimeMillis();
-        if (!ready && now - (startedNanos / 1_000_000L) > STARTUP_TIMEOUT_MILLIS && error.isEmpty())
+        if (!ready && now - startedMillis > STARTUP_TIMEOUT_MILLIS && error.isEmpty())
             error = "Stream encoder failed to start";
         String state = ready + "/" + videoCodec + "/" + videoAcceleration + "/" + error;
         if (!state.equals(lastHealthState) || now >= nextHealth) { logHealth("health"); lastHealthState = state; nextHealth = now + 10_000; }
