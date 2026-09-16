@@ -31,6 +31,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
     @Override public void onInitializeClient() {
         ModSettings.load();
         AdBlock.install();
+        Thread.ofVirtual().name("WinLandCraft ffmpeg prewarm").start(Ffmpeg::prewarm);
         StreamAudio.install();
         WebApps.load();
         var give = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.winlandcraft.give_tasks",

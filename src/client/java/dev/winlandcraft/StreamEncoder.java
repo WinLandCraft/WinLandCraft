@@ -159,7 +159,7 @@ final class StreamEncoder implements AutoCloseable {
         for (var candidate : CANDIDATES) {
             if (codecMode == 1 && candidate.software()) continue;
             if (codecMode == 2 && !candidate.software()) continue;
-            if (!blockedVideo.add(candidate.encoder())) { probes.append(candidate.encoder()).append("=blocked,"); continue; }
+            if (blockedVideo.contains(candidate.encoder())) { probes.append(candidate.encoder()).append("=blocked,"); continue; }
             AVCodec codec = avcodec.avcodec_find_encoder_by_name(candidate.encoder());
             if (codec == null || codec.isNull()) { probes.append(candidate.encoder()).append("=missing,"); continue; }
             try {
@@ -167,10 +167,14 @@ final class StreamEncoder implements AutoCloseable {
                 videoCodec = "H.264";
                 videoAcceleration = candidate.label();
                 videoFailure = "";
+                // A working open clears past transient failures so the next quality
+                // change retries the preferred candidate instead of skipping it.
+                blockedVideo.clear();
                 WinLandCraftClient.LOGGER.info("Stream video encoder #{}: {} {}x{} @ {} kbps, {} fps (probes {})",
                         id, candidate.label(), width, height, bitrate / 1000, fps, probes);
                 return session;
             } catch (IllegalStateException failed) {
+                blockedVideo.add(candidate.encoder());
                 probes.append(candidate.encoder()).append('=').append(failed.getMessage()).append(',');
             }
         }

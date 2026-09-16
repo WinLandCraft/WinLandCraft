@@ -54,8 +54,11 @@ final class RemoteStreamPanel extends WorldPanel {
     }
     void place(StreamProtocol.State state) {
         curve=null;
+        var before=position;
         position=new Vec3(state.x(),state.y(),state.z());orientation=new Quaternionf(state.qx(),state.qy(),state.qz(),state.qw()).normalize();
         scaleTo(state.width(),state.height());pixelsWide=state.pixelsWide();pixelsHigh=state.pixelsHigh();
+        if(before!=null&&before.distanceTo(position)>.05)
+            WinLandCraftClient.LOGGER.info("Stream replica re-placed by {:.2f} blocks",before.distanceTo(position));
         if(state.curve()>0){var bend=GroupCurve.get(this);bend.facing=state.facing();bend.apply(state.curve());}
     }
     void start(StreamDecoder endpoint) {
