@@ -9,7 +9,7 @@ import org.joml.Quaternionf;
 public final class StreamChecks {
     private static final UUID OWNER=UUID.randomUUID(),SESSION=UUID.randomUUID();
     public static void main(String[] args) throws Exception {
-        RemoteAppInputChecks.run();packets();media();timing();audioResampling();placement();
+        RemoteAppInputChecks.run();packets();media();timing();audioResampling();placement();StreamRoundtripChecks.run();
         System.out.println("Streaming: bounded media/control queues, viewer demand, ownership/dimension/permission validation, rate-safe remote input, replay/partial frame rejection, H.264/VP9/Opus envelopes, audio-preserving queue limits, stable frame cadence and continuous resampling, immutable replicas, scaled and curved replica geometry passed.");
     }
     private static StreamProtocol.State state(UUID owner) {

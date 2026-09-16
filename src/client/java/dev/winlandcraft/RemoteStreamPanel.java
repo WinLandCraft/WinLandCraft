@@ -130,10 +130,12 @@ final class RemoteStreamPanel extends WorldPanel {
         if(staging==null||staging.capacity()!=size){if(staging!=null)MemoryUtil.memFree(staging);staging=MemoryUtil.memAlloc(size);}
         staging.clear();staging.put(frame.rgba()).flip();
         int binding=GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D),pbo=GL11.glGetInteger(GL21.GL_PIXEL_UNPACK_BUFFER_BINDING);
-        int alignment=GL11.glGetInteger(GL11.GL_UNPACK_ALIGNMENT);
+        // MCEF browser uploads can leak stride/skip unpack state; sanitize all of it like PluginFrames does.
+        int[] fields={GL11.GL_UNPACK_ALIGNMENT,GL11.GL_UNPACK_ROW_LENGTH,GL11.GL_UNPACK_SKIP_ROWS,GL11.GL_UNPACK_SKIP_PIXELS};int[] old=new int[fields.length];
+        for(int i=0;i<fields.length;i++)old[i]=GL11.glGetInteger(fields[i]);
         try{
             GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,0);
-            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT,1);
+            for(int i=0;i<fields.length;i++)GL11.glPixelStorei(fields[i],i==0?1:0);
             if(textureId==0){
                 textureId=GL11.glGenTextures();
                 GL11.glBindTexture(GL11.GL_TEXTURE_2D,textureId);
@@ -150,7 +152,7 @@ final class RemoteStreamPanel extends WorldPanel {
             return true;
         }finally{
             GL11.glBindTexture(GL11.GL_TEXTURE_2D,binding);GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,pbo);
-            GL11.glPixelStorei(GL11.GL_UNPACK_ALIGNMENT,alignment);
+            for(int i=0;i<fields.length;i++)GL11.glPixelStorei(fields[i],old[i]);
         }
     }
     @Override public void render(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
