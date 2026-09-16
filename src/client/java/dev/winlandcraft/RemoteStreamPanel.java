@@ -148,6 +148,7 @@ final class RemoteStreamPanel extends WorldPanel {
                 GL11.glTexImage2D(GL11.GL_TEXTURE_2D,0,GL11.GL_RGBA8,frame.width(),frame.height(),0,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,(ByteBuffer)null);
             GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D,0,0,0,frame.width(),frame.height(),GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,staging);
             uploadedWidth=frame.width();uploadedHeight=frame.height();uploadedSequence=frame.sequence();
+            decoder.releaseFrame(frame.rgba());
             lastVideoFrame=System.currentTimeMillis();
             return true;
         }finally{

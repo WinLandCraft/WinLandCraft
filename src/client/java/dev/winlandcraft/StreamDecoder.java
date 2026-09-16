@@ -143,6 +143,15 @@ final class StreamDecoder implements AutoCloseable {
         if (audio != null) { audio.close(); audio = null; }
     }
 
+    /** Returns a fully-copied frame buffer for reuse. Only these enter the pool. */
+    void releaseFrame(byte[] rgba) {
+        if (rgba == null) return;
+        synchronized (framePool) {
+            for (var candidate : framePool) if (candidate == rgba) return;
+            if (framePool.size() < 3) framePool.offer(rgba);
+        }
+    }
+
     void tick() {
         if (closed) return;
         long now = System.currentTimeMillis();
@@ -267,11 +276,9 @@ final class StreamDecoder implements AutoCloseable {
             }
             if (bytes == null) bytes = new byte[size];
             rgbaBuffer.get(bytes, 0, size);
-            var previous = current;
+            // The panel may still be copying the published buffer; only panel-released
+            // buffers return to the pool (see releaseFrame), never the retired one.
             current = new Frame(bytes, w, h, sequence);
-            if (previous != null) synchronized (framePool) {
-                if (framePool.size() < 3) framePool.offer(previous.rgba());
-            }
         }
 
         @Override public void close() {

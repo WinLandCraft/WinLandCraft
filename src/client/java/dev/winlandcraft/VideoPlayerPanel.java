@@ -113,6 +113,7 @@ final class VideoPlayerPanel extends NativePanel {
             uploadedHeight = frame.height();
             uploadedSequence = frame.sequence();
             player.markConsumed();
+            player.releaseFrame(frame.rgba());
             return true;
         } finally {
             GL11.glBindTexture(GL11.GL_TEXTURE_2D, binding);

@@ -46,13 +46,15 @@ final class FfmpegPlayer implements AutoCloseable {
     volatile boolean hasAudio;
 
     private final Object stateLock = new Object();
-    private boolean seekPending;
+    private volatile boolean seekPending;
+    /** Last worker parking spot, for stuck-playback diagnostics. */
+    private volatile String workerState = "starting";
     private double seekTargetSec;
     /** Set by the worker on publish, cleared by the render thread after upload. While set,
      *  the worker drops incoming video instead of decoding it. */
     private volatile boolean fresh;
     private long wallStartNanos = System.nanoTime();
-    private double audioFedSec, videoFedSec;
+    private double audioFedSec, videoFedSec, fedBaseSec;
 
     private final ArrayDeque<byte[]> framePool = new ArrayDeque<>();
     private StreamAudioMonitor monitor;
@@ -78,7 +80,7 @@ final class FfmpegPlayer implements AutoCloseable {
             if (eof) { seekLocked(0); }
             if (paused) {
                 paused = false;
-                audioFedSec = videoFedSec = lastVideoPtsSec;
+                audioFedSec = videoFedSec = fedBaseSec = lastVideoPtsSec;
                 wallStartNanos = System.nanoTime();
                 stateLock.notifyAll();
             }
@@ -129,8 +131,23 @@ final class FfmpegPlayer implements AutoCloseable {
 
     void toggleMute() { muted = !muted; }
 
+    String debugState() {
+        return "worker=" + workerState + " ready=" + ready + " paused=" + paused + " eof=" + eof
+                + " closed=" + closed + " error=" + error + " time=" + timeSec() + "/" + durationSec
+                + " decoded=" + decodedFrames + " dropped=" + droppedFrames + " audio=" + audioPackets;
+    }
+
     /** Called by the render thread after uploading a new frame so the worker decodes the next one. */
     void markConsumed() { fresh = false; }
+
+    /** Returns a fully-copied frame buffer for reuse. Only these enter the pool. */
+    void releaseFrame(byte[] rgba) {
+        if (rgba == null) return;
+        synchronized (framePool) {
+            for (var candidate : framePool) if (candidate == rgba) return;
+            if (framePool.size() < 3) framePool.offer(rgba);
+        }
+    }
 
     private void run() {
         AVFormatContext format = null;
@@ -340,6 +357,7 @@ final class FfmpegPlayer implements AutoCloseable {
             wallStartNanos = System.nanoTime();
             while (true) {
                 double seekTo = -1;
+                workerState = "loop-top paused=" + paused + " seek=" + seekPending;
                 synchronized (stateLock) {
                     while (paused && !seekPending && !closed && error.isEmpty()) {
                         try { stateLock.wait(50); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); return; }
@@ -347,18 +365,22 @@ final class FfmpegPlayer implements AutoCloseable {
                     if (closed || !error.isEmpty()) return;
                     if (seekPending) { seekPending = false; seekTo = seekTargetSec; }
                 }
-                if (seekTo >= 0) { doSeek(seekTo); continue; }
+                if (seekTo >= 0) { workerState = "seeking"; doSeek(seekTo); continue; }
+                workerState = "reading";
                 if (!readFrame()) return;
+                workerState = "pacing";
                 pace();
             }
         }
 
         /** Holds demux near realtime so playback (and the test) observes wall-clock
-         *  progress instead of racing to EOF. Audio fed time leads; video follows. */
+         *  progress instead of racing to EOF. Audio fed time leads; video follows.
+         *  Base-relative: after a seek both bases restart at the target, so a far
+         *  seek never parks the worker hours out (which locked video and audio). */
         private void pace() {
             while (!seekPending && !paused && !closed && error.isEmpty()) {
                 double fed = hasAudio() ? Math.max(audioFedSec, videoFedSec) : videoFedSec;
-                double ahead = fed - (System.nanoTime() - wallStartNanos) / 1_000_000_000.0;
+                double ahead = (fed - fedBaseSec) - (System.nanoTime() - wallStartNanos) / 1_000_000_000.0;
                 if (ahead <= 0.75) return;
                 try { Thread.sleep(10); } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); return; }
             }
@@ -380,7 +402,7 @@ final class FfmpegPlayer implements AutoCloseable {
             synchronized (stateLock) {
                 lastVideoPtsSec = seconds;
                 fresh = false;
-                audioFedSec = videoFedSec = seconds;
+                audioFedSec = videoFedSec = fedBaseSec = seconds;
                 wallStartNanos = System.nanoTime();
                 eof = false;
             }
@@ -499,15 +521,13 @@ final class FfmpegPlayer implements AutoCloseable {
                 }
                 if (bytes == null) bytes = new byte[size];
                 rgbaBuffer.get(bytes, 0, size);
-                var previous = current;
+                // The panel may still be copying the published buffer; only panel-released
+                // buffers return to the pool (see releaseFrame), never the retired one.
                 current = new Frame(bytes, w, h, ++frameSequence);
                 decodedFrames++;
                 lastVideoPtsSec = pts;
                 videoFedSec = Math.max(videoFedSec, pts);
                 fresh = true;
-                if (previous != null) synchronized (framePool) {
-                    if (framePool.size() < 3) framePool.offer(previous.rgba());
-                }
             } finally {
                 if (moved != null && !moved.isNull()) avutil.av_frame_free(moved);
             }

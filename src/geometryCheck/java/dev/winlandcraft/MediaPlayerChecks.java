@@ -53,15 +53,12 @@ final class MediaPlayerChecks {
                 Thread.sleep(200);
                 check(player.timeSec() == frozen, "clock frozen while paused; error=" + player.error);
                 player.seekTo(1);
-                long deadline = System.currentTimeMillis() + 5_000;
-                while (Math.abs(player.timeSec() - 1) >= .6 && System.currentTimeMillis() < deadline) Thread.sleep(50);
-                check(Math.abs(player.timeSec() - 1) < .6,
-                        "seek lands near 1s; time=" + player.timeSec() + " error=" + player.error + " paused=" + player.paused);
+                dumpOnTimeout(player, () -> Math.abs(player.timeSec() - 1) < .6, 5_000, "seek lands near 1s");
                 player.play();
                 check(!player.paused, "resume clears pause");
                 // Re-anchor mid-file so later toggles can't trip over natural EOF.
                 player.seekTo(2);
-                waitFor(() -> Math.abs(player.timeSec() - 2) < .6, 5_000, "re-anchor near 2s");
+                dumpOnTimeout(player, () -> Math.abs(player.timeSec() - 2) < .6, 5_000, "re-anchor near 2s");
                 player.seekFraction(.5);
                 player.setVolume(.5);
                 check(player.volume == .5 && !player.muted, "volume step");
@@ -165,6 +162,18 @@ final class MediaPlayerChecks {
     }
 
     private interface Condition { boolean ready(); }
+
+    private static void dumpOnTimeout(FfmpegPlayer player, Condition condition, long timeoutMillis, String message) throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        while (!condition.ready() && System.currentTimeMillis() < deadline) {
+            // Consume like the panel upload does, or video stays parked on one frame.
+            player.markConsumed();
+            Thread.sleep(50);
+        }
+        if (condition.ready()) return;
+        System.out.println("TIMEOUT: " + message + " :: " + player.debugState());
+        check(false, message);
+    }
 
     private static void waitFor(Condition condition, long timeoutMillis, String message) throws Exception {
         long deadline = System.currentTimeMillis() + timeoutMillis;
