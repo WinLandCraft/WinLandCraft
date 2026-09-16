@@ -55,7 +55,7 @@ final class FfmpegPlayer implements AutoCloseable {
     private final ArrayDeque<byte[]> framePool = new ArrayDeque<>();
     private StreamAudioMonitor monitor;
     private Thread worker;
-    private long frameSequence, decodedFrames, droppedFrames, audioPackets;
+    private long frameSequence, decodedFrames, droppedFrames, clampedPts, audioPackets;
     private long nextHealth;
 
     FfmpegPlayer(Path file) {
@@ -445,7 +445,17 @@ final class FfmpegPlayer implements AutoCloseable {
             long pts = frame.pts();
             if (pts == avutil.AV_NOPTS_VALUE()) return timeSec();
             var tb = stream.time_base();
-            return pts * tb.num() / (double) tb.den();
+            return sanePts(pts * tb.num() / (double) tb.den());
+        }
+
+        /** Broken container timestamps would park the worker hours out and starve audio
+         *  on the same thread; play through instead of sleeping to them. */
+        private double sanePts(double pts) {
+            if (!Double.isFinite(pts) || pts < 0 || (durationSec > 0 && pts > durationSec + 60)) {
+                clampedPts++;
+                return timeSec();
+            }
+            return pts;
         }
 
         private void present(AVFrame frame, double pts) {
@@ -567,9 +577,9 @@ final class FfmpegPlayer implements AutoCloseable {
         long now = System.currentTimeMillis();
         if (now >= nextHealth) {
             nextHealth = now + 30_000;
-            WinLandCraftClient.LOGGER.info("Media player {}: ready={}, hw={}, video={}x{}, decoded={}, dropped={}, audioPackets={}, time={:.1f}/{:.1f}s, error='{}'",
-                    file.getFileName(), ready, hw, videoWidth, videoHeight, decodedFrames, droppedFrames,
-                    audioPackets, timeSec(), durationSec, error);
+            WinLandCraftClient.LOGGER.info("Media player {}: ready={}, hw={}, video={}x{}, decoded={}, dropped={}+{}clamped, audioPackets={}, time={}s, error='{}'",
+                    file.getFileName(), ready, hw, videoWidth, videoHeight, decodedFrames, droppedFrames, clampedPts,
+                    audioPackets, String.format(java.util.Locale.ROOT, "%.1f/%.1f", timeSec(), durationSec), error);
         }
     }
 

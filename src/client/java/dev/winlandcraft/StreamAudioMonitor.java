@@ -4,11 +4,13 @@ import javax.sound.sampled.*;
 import java.nio.*;
 import java.util.concurrent.ArrayBlockingQueue;
 
-/** CEF capture replaces native playback, so keep the each captured browser tab audible locally. */
+/** CEF capture replaces native playback, so keep the each captured browser tab audible locally.
+ *  Reopens the output line instead of dying when the OS switches or loses audio devices. */
 final class StreamAudioMonitor implements AutoCloseable {
     private final ArrayBlockingQueue<StreamAudio.Packet> queue=new ArrayBlockingQueue<>(8);
     private volatile boolean closed;
     private final Thread worker;
+    private long nextWarning;
     StreamAudioMonitor(){worker=Thread.ofVirtual().name("WinLandCraft local browser audio").start(this::run);}
     /** Consumes one shared audio-packet owner in all cases. */
     synchronized void offer(StreamAudio.Packet packet){
@@ -16,13 +18,25 @@ final class StreamAudioMonitor implements AutoCloseable {
         if(!queue.offer(packet)){var dropped=queue.poll();if(dropped!=null)dropped.release();if(!queue.offer(packet))packet.release();}
     }
     private void run() {
-        SourceDataLine line=null;
         byte[] pcm=new byte[0];
+        SourceDataLine line=null;
         try {
-            var format=new AudioFormat(48000,16,2,true,false);
-            line=AudioSystem.getSourceDataLine(format);line.open(format,4800*4);line.start();
             while(!closed) {
-                var packet=queue.take();
+                if(line==null) {
+                    try {
+                        var format=new AudioFormat(48000,16,2,true,false);
+                        line=AudioSystem.getSourceDataLine(format);line.open(format,4800*4);line.start();
+                    } catch(Exception unavailable) {
+                        warn("Local stream audio output unavailable, retrying");
+                        if(!sleep(1000))break;
+                        continue;
+                    }
+                }
+                StreamAudio.Packet packet;
+                try {
+                    packet=queue.poll(500,java.util.concurrent.TimeUnit.MILLISECONDS);
+                } catch(InterruptedException interrupted) {Thread.currentThread().interrupt();break;}
+                if(packet==null)continue;
                 try {
                     byte[] data=packet.data();int frames=data.length/8;
                     var floats=ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
@@ -30,11 +44,21 @@ final class StreamAudioMonitor implements AutoCloseable {
                     var output=ByteBuffer.wrap(pcm,0,pcmBytes).order(ByteOrder.LITTLE_ENDIAN);
                     for(int i=0;i<frames;i++){output.putShort((short)(floats.get(i)*32767));output.putShort((short)(floats.get(frames+i)*32767));}
                     int offset=0;while(!closed&&offset<pcmBytes)offset+=line.write(pcm,offset,pcmBytes-offset);
+                } catch(RuntimeException lost) {
+                    warn("Local stream audio device lost, reopening");
+                    try {line.stop();line.flush();line.close();} catch(Exception ignored) {}
+                    line=null;
                 } finally {packet.release();}
             }
-        }catch(InterruptedException interrupted){Thread.currentThread().interrupt();}
-        catch(Exception unavailable){WinLandCraftClient.LOGGER.warn("Local stream audio output unavailable",unavailable);}
-        finally {closed=true;releaseQueued();if(line!=null){line.stop();line.flush();line.close();}}
+        } finally {closed=true;releaseQueued();if(line!=null){try{line.stop();line.flush();line.close();}catch(Exception ignored){}}}
+    }
+    private boolean sleep(long millis) {
+        try {Thread.sleep(millis);return !closed;}
+        catch(InterruptedException interrupted){Thread.currentThread().interrupt();return false;}
+    }
+    private void warn(String message) {
+        long now=System.currentTimeMillis();
+        if(now>=nextWarning){nextWarning=now+10_000;WinLandCraftClient.LOGGER.warn(message);}
     }
     private void releaseQueued(){StreamAudio.Packet packet;while((packet=queue.poll())!=null)packet.release();}
     @Override public synchronized void close(){closed=true;releaseQueued();worker.interrupt();}

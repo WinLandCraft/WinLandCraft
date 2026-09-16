@@ -26,8 +26,8 @@ final class StreamRoundtripChecks {
         try {
             long timeUs = 1_000_000L;
             var received = new ArrayList<Long>();
-            // Warm up the codec, then measure steady-state marker positions.
-            for (int frame = 0; frame < 600 && received.size() < 90; frame++) {
+            // Pace the producer in realtime so workers keep up; warm up, then measure.
+            for (int frame = 0; frame < 400 && received.size() < 90; frame++) {
                 var pixels = (StreamCapture.Pixels) pixelsCtor.newInstance(null, input.clone(), WIDTH, HEIGHT, timeUs);
                 encoder.video(pixels);
                 timeUs += 33_333L;
@@ -38,6 +38,7 @@ final class StreamRoundtripChecks {
                     int marker = markerRow(current.rgba(), current.width(), current.height());
                     received.add(current.sequence() << 32 | (marker & 0xffffffffL));
                 }
+                Thread.sleep(30);
             }
             check(received.size() >= 60, "roundtrip produced " + received.size() + " measured frames");
             int first = (int) (received.get(0) & 0xffffffffL);

@@ -14,10 +14,18 @@ import org.lwjgl.system.MemoryUtil;
 
 /** Native video player on FfmpegPlayer: file-direct playback with its own controls.
  *  No browser view, no file server. Streams capture the composed panel like native apps. */
-final class VideoPlayerPanel extends WorldPanel {
+final class VideoPlayerPanel extends NativePanel {
     static final int WIDTH = 1280, VIDEO_HEIGHT = 720, BAR_HEIGHT = 32, HEIGHT = VIDEO_HEIGHT + BAR_HEIGHT;
-    private static final int PLAY_X = 8, PLAY_SIZE = 24, TRACK_X = 52, TRACK_END = 900, TIME_X = 908;
-    private static final int VOL_DOWN_X = 1072, VOL_UP_X = 1108, MUTE_X = 1144, BTN_W = 32;
+    private static final int PLAY_X = 8, PLAY_SIZE = 24, TRACK_X = 52;
+
+    private int viewWidth() { return pixelWidth(); }
+    private int videoHeight() { return pixelHeight() - BAR_HEIGHT; }
+    private int barTop() { return pixelHeight() - BAR_HEIGHT; }
+    private int trackEnd() { return pixelWidth() - 308; }
+    private int timeX() { return pixelWidth() - 300; }
+    private int volDownX() { return pixelWidth() - 180; }
+    private int volUpX() { return pixelWidth() - 144; }
+    private int muteX() { return pixelWidth() - 108; }
 
     private Path file;
     private FfmpegPlayer player;
@@ -28,9 +36,7 @@ final class VideoPlayerPanel extends WorldPanel {
     private long uploadedSequence = -1;
     private ByteBuffer staging;
 
-    VideoPlayerPanel() { super(4.5f, 2.64f); }
-    @Override public int pixelWidth() { return WIDTH; }
-    @Override public int pixelHeight() { return HEIGHT; }
+    VideoPlayerPanel() { super(4.5f, 2.64f, WIDTH, HEIGHT); }
     @Override public String windowTitle() { return file == null ? "Video Player" : file.getFileName() + " - Video Player"; }
     @Override public boolean acceptsFileDrop() { return true; }
     @Override public void dropFile(Path path) {
@@ -47,17 +53,16 @@ final class VideoPlayerPanel extends WorldPanel {
     /** Current player error for regression checks; empty while loading or playing. */
     String playerError() { return player == null ? "" : player.error; }
 
-    private boolean inBar(int y) { return y >= VIDEO_HEIGHT && y < HEIGHT; }
+    private boolean inBar(int y) { return y >= barTop() && y < pixelHeight(); }
 
     @Override public void mouseDown(int x, int y, int button) {
         if (button != 0 || player == null) return;
-        int barY = y - VIDEO_HEIGHT;
         if (inBar(y)) {
             if (x >= PLAY_X && x < PLAY_X + PLAY_SIZE) player.toggle();
-            else if (x >= TRACK_X && x < TRACK_END) { seeking = true; seekTo(x); }
-            else if (x >= VOL_DOWN_X && x < VOL_DOWN_X + BTN_W) player.setVolume(player.volume - .1);
-            else if (x >= VOL_UP_X && x < VOL_UP_X + BTN_W) player.setVolume(player.volume + .1);
-            else if (x >= MUTE_X && x < MUTE_X + 48) player.toggleMute();
+            else if (x >= TRACK_X && x < trackEnd()) { seeking = true; seekTo(x); }
+            else if (x >= volDownX() && x < volDownX() + 32) player.setVolume(player.volume - .1);
+            else if (x >= volUpX() && x < volUpX() + 32) player.setVolume(player.volume + .1);
+            else if (x >= muteX() && x < muteX() + 48) player.toggleMute();
         } else if (y >= 0) player.toggle();
     }
 
@@ -70,7 +75,7 @@ final class VideoPlayerPanel extends WorldPanel {
     }
 
     private void seekTo(int x) {
-        player.seekFraction((x - TRACK_X) / (double) (TRACK_END - TRACK_X));
+        player.seekFraction((x - TRACK_X) / (double) (trackEnd() - TRACK_X));
     }
 
     @Override public void tick(Minecraft client) {
@@ -116,7 +121,8 @@ final class VideoPlayerPanel extends WorldPanel {
     }
 
     @Override void drawSurface(PanelCanvas canvas) {
-        canvas.rect(0, 0, WIDTH, HEIGHT, 0, 0xFF10151C);
+        int width = pixelWidth(), videoH = videoHeight();
+        canvas.rect(0, 0, width, pixelHeight(), 0, 0xFF10151C);
         if (player == null) {
             canvas.text("Drop a video here, or open one from File Manager.", 20, 40, -1, 2);
             canvas.text("MP4, WebM, OGV, MOV, MKV and anything else FFmpeg reads.", 20, 76, 0xFF9BAABD, 1.5f);
@@ -137,9 +143,9 @@ final class VideoPlayerPanel extends WorldPanel {
                     @Override public void close() { }
                 });
             }
-            float scale = Math.min(WIDTH / (float) uploadedWidth, VIDEO_HEIGHT / (float) uploadedHeight);
+            float scale = Math.min(width / (float) uploadedWidth, videoH / (float) uploadedHeight);
             int w = Math.max(1, Math.round(uploadedWidth * scale)), h = Math.max(1, Math.round(uploadedHeight * scale));
-            canvas.texture(texture, (WIDTH - w) / 2f, (VIDEO_HEIGHT - h) / 2f, w, h, .1f, -1, 0, 0, 1, 1);
+            canvas.texture(texture, (width - w) / 2f, (videoH - h) / 2f, w, h, .1f, -1, 0, 0, 1, 1);
         } else {
             canvas.text("Loading...", 20, 40, -1, 2);
         }
@@ -147,8 +153,8 @@ final class VideoPlayerPanel extends WorldPanel {
     }
 
     private void drawBar(PanelCanvas canvas) {
-        int top = VIDEO_HEIGHT;
-        canvas.rect(0, top, WIDTH, BAR_HEIGHT, .2f, 0xFF1B2530);
+        int top = barTop(), width = pixelWidth();
+        canvas.rect(0, top, width, BAR_HEIGHT, .2f, 0xFF1B2530);
         int mid = top + BAR_HEIGHT / 2;
         // Play/pause: triangle built from bars, or two pause bars.
         if (player.paused) {
@@ -159,15 +165,16 @@ final class VideoPlayerPanel extends WorldPanel {
             canvas.rect(PLAY_X + 14, mid - 8, 6, 16, .3f, -1);
         }
         // Progress track.
-        canvas.rect(TRACK_X, mid - 3, TRACK_END - TRACK_X, 6, .3f, 0xFF3A4552);
+        int end = trackEnd();
+        canvas.rect(TRACK_X, mid - 3, end - TRACK_X, 6, .3f, 0xFF3A4552);
         double fraction = player.durationSec > 0 ? player.timeSec() / player.durationSec : 0;
-        int knob = TRACK_X + (int) Math.round(Math.clamp(fraction, 0, 1) * (TRACK_END - TRACK_X));
+        int knob = TRACK_X + (int) Math.round(Math.clamp(fraction, 0, 1) * (end - TRACK_X));
         canvas.rect(TRACK_X, mid - 3, Math.max(0, knob - TRACK_X), 6, .35f, 0xFF8C4BC1);
         canvas.rect(knob - 3, mid - 7, 6, 14, .4f, -1);
-        canvas.text(formatTime(player.timeSec()) + " / " + formatTime(player.durationSec), TIME_X, mid - 7, -1);
-        canvas.text("-", VOL_DOWN_X + 12, mid - 7, -1, 1.5f);
-        canvas.text("+", VOL_UP_X + 11, mid - 7, -1, 1.5f);
-        canvas.text(player.muted ? "MUTED" : (int) Math.round(player.volume * 100) + "", MUTE_X, mid - 7, player.muted ? 0xFFFF8888 : -1);
+        canvas.text(formatTime(player.timeSec()) + " / " + formatTime(player.durationSec), timeX(), mid - 7, -1);
+        canvas.text("-", volDownX() + 12, mid - 7, -1, 1.5f);
+        canvas.text("+", volUpX() + 11, mid - 7, -1, 1.5f);
+        canvas.text(player.muted ? "MUTED" : (int) Math.round(player.volume * 100) + "", muteX(), mid - 7, player.muted ? 0xFFFF8888 : -1);
         if (player.eof) canvas.text("Ended — press play to replay", TRACK_X, top - 24, 0xFFFFCC88, 1.2f);
     }
 
