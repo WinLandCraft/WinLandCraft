@@ -289,7 +289,7 @@ final class AdBlock {
         };
     }
 
-    /** The private codec bridge must not inherit a transient about:blank initiator from JCEF. */
+    /** Local media servers must not inherit a transient about:blank initiator from JCEF. */
     static boolean bypasses(String url) {
         try {
             URI parsed = URI.create(url);

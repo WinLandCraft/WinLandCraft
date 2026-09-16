@@ -8,7 +8,7 @@ The Rust crate is pinned to `0.13.3` in `adblockNative/Cargo.lock`. Filter data 
 
 The JCEF request handler asks the native engine about each resource on CEF's IO thread. Blocking decisions cancel the request; redirect resources and URL rewrites modify it in `onBeforeResourceLoad`, the callback where CEF permits mutation. The engine is immutable after initialization and shared for concurrent reads.
 
-The private `http://127.0.0.1:<ephemeral port>` WebCodecs bridge is excluded before any native filter query or cosmetic injection. It is application plumbing rather than browsed web content, and initial JCEF subresources can temporarily report `about:blank` as their initiator. Keep the exclusion limited to the literal IPv4 loopback host and plain HTTP used by `MediaBridge`; lookalike hostnames and normal web traffic must still be filtered. Codec health showing `config>0` with `status=0` is a bridge control-path failure, not evidence that adblock blocked the worker; see `chromium-compatibility.md`.
+Private `http://127.0.0.1:<ephemeral port>` local media servers (Video Player, Image Viewer) are excluded before any native filter query or cosmetic injection. They are application plumbing rather than browsed web content, and initial JCEF subresources can temporarily report `about:blank` as their initiator. Keep the exclusion limited to the literal IPv4 loopback host and plain HTTP; lookalike hostnames and normal web traffic must still be filtered.
 
 Page-specific selectors and scriptlets are queried at navigation start and again at load completion. The first successful injection installs:
 

@@ -4,7 +4,7 @@ import java.nio.*;
 
 final class PluginAudio implements AudioOutput {
     private final WorldPanel panel;private StreamAudioMonitor monitor;private boolean local=true,closed;
-    private long nextNs;private MediaBridge.Endpoint clock;private long timeUs;
+    private long nextNs;private StreamEncoder clock;private long timeUs;
     PluginAudio(WorldPanel panel){this.panel=panel;}
     static byte[] pcm(float[] stereo){
         if(stereo==null||stereo.length<2||stereo.length>9600||(stereo.length&1)!=0)throw new IllegalArgumentException("Expected 1..4800 stereo frames at 48 kHz");

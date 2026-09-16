@@ -26,7 +26,7 @@ final class StreamAudio {
         volatile int rate,channels;
         final ArrayBlockingQueue<byte[]> freeBuffers=new ArrayBlockingQueue<>(32);
         final StreamAudioResampler resampler=new StreamAudioResampler();
-        MediaBridge.Endpoint clockEndpoint;
+        StreamEncoder clockEndpoint;
         long timeUs,clockFrames,packets,frames,invalid,nextLog,nextWarning;
         Source(CefBrowser browser,BrowserPanel panel){this.browser=browser;this.panel=panel;browserId=id(browser);}
         byte[] acquire(int size){byte[] bytes;while((bytes=freeBuffers.poll())!=null)if(bytes.length==size)return bytes;return new byte[size];}

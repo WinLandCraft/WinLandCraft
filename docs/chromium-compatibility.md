@@ -12,13 +12,15 @@ lifecycle, OSR paint, and audio capture all run through MCEF's own integration u
 ## Consequences
 
 - Video/audio codec support is whatever stock MCEF's CEF build ships (VP9/Opus software paths work;
-  H.264 hardware encode is not guaranteed). The previous custom `proprietary_codecs`/`ffmpeg_branding`
-  runtime, the Linux VA-API shared-memory patchset, and the `AcceleratedVideoDecoder`/
-  `AcceleratedVideoEncoder` flags are gone.
-- Multiplayer app streaming is temporarily disabled in `StreamClient.start()` while the media
-  pipeline is reimplemented on FFmpeg instead of Chromium WebCodecs. The Minecraft relay
-  (`StreamProtocol`/`StreamRelay`/`StreamMedia`) is untouched and still forwards packets; no sender
-  currently produces them.
+  H.264 hardware encode is not guaranteed).
+- Multiplayer app streaming no longer touches Chromium at all: `StreamEncoder`/`StreamDecoder`
+  drive bundled FFmpeg (JavaCPP presets `ffmpeg_version` in `gradle.properties`, Jar-in-Jar for
+  Windows/Linux/macOS x64+ARM, except Windows ARM64 which has no upstream FFmpeg build). The sender
+  probes `h264_nvenc`, `h264_amf`, `h264_qsv`, `h264_videotoolbox`, then `libx264`; audio is
+  `libopus`/`opus` at 48 kHz stereo. The Minecraft relay (`StreamProtocol`/`StreamRelay`/
+  `StreamMedia`) is unchanged: H.264 Annex B video plus Opus audio in the same envelopes, so the
+  wire format stays compatible with older v5 senders that still emit VP9 (the FFmpeg receiver
+  decodes VP9 too).
 - Local Video Player / Image Viewer still use Chromium's `<video>`/`<img>` elements through the
   shared MCEF runtime, so playable formats are limited to what stock CEF decodes. A native mpv-based
   player is planned to replace this.

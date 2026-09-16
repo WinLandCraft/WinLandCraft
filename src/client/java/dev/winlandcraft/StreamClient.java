@@ -8,7 +8,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-/** Owner-side capture and timestamped H.264/VP9/Opus relay. Chromium handles media codecs. */
+/** Owner-side capture and timestamped H.264/Opus relay. FFmpeg handles media codecs. */
 final class StreamClient {
     private static final int MAX_MEDIA_PER_RENDER=32;
     private static final long RENDER_DRAIN_FALLBACK_NANOS=100_000_000L;
@@ -16,8 +16,7 @@ final class StreamClient {
     private WorldPanel source;
     private final StreamCapture capture=new StreamCapture();
     private final Map<UUID,RemoteStreamPanel> remote=new HashMap<>();
-    private MediaBridge bridge;
-    private MediaBridge.Endpoint encoder;
+    private StreamEncoder encoder;
     private StreamProtocol.State published;
     private boolean demand;
     private int codecMode;
@@ -27,11 +26,20 @@ final class StreamClient {
     StreamClient(AppWindows apps){this.apps=apps;apps.streams=this;}
     boolean start(WorldPanel panel) {
         var client=Minecraft.getInstance();
-        if(client.player==null)return false;
-        // Multiplayer app streaming is temporarily disabled while the media
-        // pipeline is reimplemented without the custom Chromium runtime.
-        client.player.displayClientMessage(Component.literal("Multiplayer streaming is temporarily disabled in this build."),false);
-        return false;
+        if(client.player==null||client.level==null)return false;
+        if(!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)||!ClientPlayNetworking.canSend(StreamProtocol.Frame.TYPE)) {
+            client.player.displayClientMessage(Component.literal("Streaming requires WinLandCraft on the server."),false);return false;
+        }
+        if(source==panel&&panel.streaming())return true;
+        if(source!=null)stop(source);
+        // The relay describes one independently curved surface per owner.
+        if(panel.grouped())WindowGroups.detach(panel);
+        codecMode=ModSettings.streamCodecMode;reportedCodecError="";
+        source=panel;panel.streamClient=this;panel.broadcastSession=UUID.randomUUID();
+        if(!panel.isOpen())panel.open(client);
+        panel.streamStatus="Waiting for viewers...";
+        client.player.displayClientMessage(Component.literal("Sharing "+panel.windowTitle()+". Stream controls are in the floating pill."),false);
+        return true;
     }
     void stop(WorldPanel panel) {
         if(source!=panel)return;
@@ -55,7 +63,7 @@ final class StreamClient {
         });
         ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Stop.TYPE,(p,c)->{
             if(published!=null&&published.owner().equals(p.owner())&&published.session().equals(p.session())) {
-                published=null;fail("The server ended this browser stream.");
+                published=null;fail("The server ended this app stream.");
             }
             var panel=remote.get(p.owner());
             if(panel!=null&&panel.session.equals(p.session()))remove(panel);
@@ -76,13 +84,12 @@ final class StreamClient {
         if(panel==null) {
             if(remote.size()>=StreamProtocol.MAX_STREAMS)return;
             try {
-                panel=new RemoteStreamPanel(state);panel.start(media().create(false,"receiver owner="+shortId(state.owner())));remote.put(state.owner(),panel);apps.windows.add(panel);
-                WinLandCraftClient.LOGGER.info("Started receiving browser stream from {} (session {})",shortId(state.owner()),shortId(state.session()));
+                panel=new RemoteStreamPanel(state);panel.start(new StreamDecoder());remote.put(state.owner(),panel);apps.windows.add(panel);
+                WinLandCraftClient.LOGGER.info("Started receiving app stream from {} (session {})",shortId(state.owner()),shortId(state.session()));
             }catch(Exception|LinkageError failure){if(panel!=null)panel.close();WinLandCraftClient.LOGGER.error("Could not start stream playback",failure);return;}
         }
         panel.apply(state);
     }
-    private MediaBridge media()throws java.io.IOException {if(bridge==null)bridge=new MediaBridge();return bridge;}
     void tick(Minecraft client) {
         long now=System.currentTimeMillis();
         for(var panel:List.copyOf(remote.values()))if(!panel.isOpen()||panel.level!=client.level||now-panel.lastState>10_000)remove(panel);
@@ -96,15 +103,15 @@ final class StreamClient {
             stopEncoder();panel.streamStatus="Waiting for viewers...";return;
         }
         if(encoder==null)try {
-            encoder=media().create(true,"sender");panel.encoder=encoder;panel.streamStatus="Starting video + Opus...";
+            encoder=new StreamEncoder();panel.encoder=encoder;panel.streamStatus="Starting video + Opus...";
             sentUnits=sentParts=sentBytes=sentVideo=sentAudio=0;nextFrame=nextSenderHealth=0;
-        }catch(Exception|LinkageError failure){WinLandCraftClient.LOGGER.error("Could not start stream codecs",failure);fail("Could not start browser streaming. See latest.log.");return;}
+        }catch(Exception|LinkageError failure){WinLandCraftClient.LOGGER.error("Could not start stream codecs",failure);fail("Could not start app streaming. See latest.log.");return;}
         encoder.quality=StreamQuality.current();encoder.tick();
         panel.streamStatus=encoder.error.isEmpty()?(encoder.ready?"Live: "+encoder.videoCodec+" ("+encoder.videoAcceleration+") + Opus":"Starting video + Opus..."):encoder.error;
         if(!encoder.error.isEmpty()) {
             String reason=encoder.error;
             if(!reason.equals(reportedCodecError)){reportedCodecError=reason;WinLandCraftClient.LOGGER.warn("Stream codec error: {}",reason);
-                client.player.displayClientMessage(Component.literal("Stream codec error: "+reason+". Choose another codec in the pill."),false);}
+                client.player.displayClientMessage(Component.literal("Stream codec error: "+reason+". Choose another encoder in the pill."),false);}
             return;
         }
         if(System.nanoTime()-lastRenderDrain>=RENDER_DRAIN_FALLBACK_NANOS)drainEncoded();
@@ -179,10 +186,10 @@ final class StreamClient {
         if(encoder!=null){encoder.close();encoder=null;}
     }
     private void remove(RemoteStreamPanel panel){
-        WinLandCraftClient.LOGGER.info("Stopped receiving browser stream from {}: {}",shortId(panel.owner),panel.health());
+        WinLandCraftClient.LOGGER.info("Stopped receiving app stream from {}: {}",shortId(panel.owner),panel.health());
         remote.remove(panel.owner);apps.windows.remove(panel);panel.close();
     }
     static String shortId(UUID id){return id.toString().substring(0,8);}
-    void clear(){if(source!=null)stop(source);else stopPublishing();for(var panel:List.copyOf(remote.values()))remove(panel);if(bridge!=null){bridge.close();bridge=null;}}
+    void clear(){if(source!=null)stop(source);else stopPublishing();for(var panel:List.copyOf(remote.values()))remove(panel);}
     void shutdown(){clear();}
 }

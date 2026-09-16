@@ -51,7 +51,7 @@ Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR pai
 1. Opening, navigating, resizing, closing, and reopening Browser and a custom webapp.
 2. A single-page-app navigation such as a real click on YouTube that changes the URL without a full page load.
 3. Saving and quitting with several browser views open.
-4. (Skipped while streaming is disabled; was: stream encode/decode and audio on one Linux GPU stack and one Windows GPU stack.)
+4. Stream encode/decode and audio on one Linux GPU stack and one Windows GPU stack (FFmpeg NVENC/QSV/AMF/x264 + Opus).
 
 ## Plugin API compatibility
 

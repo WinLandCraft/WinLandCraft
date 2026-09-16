@@ -27,6 +27,7 @@ def stageAdblockNative = tasks.register('stageAdblockNative', Sync) {
 }
 repositories {
     maven { url = 'https://mcef-download.cinemamod.com/repositories/releases' }
+    mavenCentral()
 }
 
 loom {
@@ -45,6 +46,23 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
     modImplementation "com.cinemamod:mcef-fabric:${project.mcef_version}"
+    // FFmpeg sender/receiver codecs (GPU H.264 encode, software decode, Opus).
+    // The full jar is large: every platform native rides inside the mod JAR until
+    // per-platform artifacts or a runtime download replace this.
+    modImplementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}"
+    modImplementation "org.bytedeco:javacpp:${project.javacpp_version}"
+    include "org.bytedeco:ffmpeg:${project.ffmpeg_version}"
+    include "org.bytedeco:javacpp:${project.javacpp_version}"
+    // No upstream FFmpeg build exists for Windows ARM64; streaming stays
+    // unavailable there while everything else keeps working.
+    for (platform in ['windows-x86_64', 'linux-x86_64', 'linux-arm64', 'macosx-x86_64', 'macosx-arm64']) {
+        modImplementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}"
+        include "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}"
+    }
+    for (platform in ['windows-x86_64', 'windows-arm64', 'linux-x86_64', 'linux-arm64', 'macosx-x86_64', 'macosx-arm64']) {
+        modImplementation "org.bytedeco:javacpp:${project.javacpp_version}:${platform}"
+        include "org.bytedeco:javacpp:${project.javacpp_version}:${platform}"
+    }
 }
 
 def modVersion = version.toString()
@@ -104,10 +122,6 @@ tasks.named('verifyAdBlockNative') {
     dependsOn adblockBuild
     doFirst { args adblockTarget.get().file(adblockLibrary).asFile.absolutePath }
 }
-tasks.register('verifyCodecSelection', Exec) {
-    commandLine 'node', file('src/geometryCheck/codec-selection-check.cjs')
-}
-check.dependsOn verifyCodecSelection
 tasks.register('smokeResourceCounters', JavaExec) {
     dependsOn geometryCheckClasses
     classpath = sourceSets.geometryCheck.runtimeClasspath

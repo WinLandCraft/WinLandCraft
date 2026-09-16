@@ -11,7 +11,7 @@ public abstract class WorldPanel {
     final java.util.Set<WorldPanel> glued = new java.util.HashSet<>();
     GroupCurve curve;
     java.util.UUID broadcastSession;
-    volatile MediaBridge.Endpoint encoder;
+    volatile StreamEncoder encoder;
     volatile String streamStatus="Starting codecs...";
     StreamClient streamClient;
     final boolean streaming(){return broadcastSession!=null;}
