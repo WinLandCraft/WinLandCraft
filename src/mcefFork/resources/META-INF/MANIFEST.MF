@@ -1,4 +1,0 @@
-Manifest-Version: 1.0
-Implementation-Title: WinLandCraft MCEF runtime
-Implementation-Version: 151.0.7922.34
-java-cef-commit: 2eb4ca2648bda91d1dfed81e9a37ba92e757aff9

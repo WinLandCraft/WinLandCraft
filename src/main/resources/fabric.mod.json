@@ -10,18 +10,14 @@
     "main": ["dev.winlandcraft.WinLandCraft"],
     "client": ["dev.winlandcraft.WinLandCraftClient"]
   },
-  "jars": [
-    { "file": "META-INF/jars/winlandcraft-mcef-${chromiumVersion}.jar" }
-  ],
   "depends": {
     "fabricloader": ">=0.16.9",
     "minecraft": "1.21.4",
     "java": ">=21",
-    "fabric-api": "*"
+    "fabric-api": "*",
+    "mcef": "*"
   },
   "suggests": {
-    "iris": "*",
-    "winlandcraft_chromium": "=${chromiumRuntimeVersion}"
-  },
-  "breaks": { "mcef": "*" }
+    "iris": "*"
+  }
 }

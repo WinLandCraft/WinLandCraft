@@ -27,20 +27,11 @@ final class StreamClient {
     StreamClient(AppWindows apps){this.apps=apps;apps.streams=this;}
     boolean start(WorldPanel panel) {
         var client=Minecraft.getInstance();
-        if(client.player==null||client.level==null)return false;
-        if(!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)||!ClientPlayNetworking.canSend(StreamProtocol.Frame.TYPE)) {
-            client.player.displayClientMessage(Component.literal("Streaming requires WinLandCraft on the server."),false);return false;
-        }
-        if(source==panel&&panel.streaming())return true;
-        if(source!=null)stop(source);
-        // The relay describes one independently curved surface per owner.
-        if(panel.grouped())WindowGroups.detach(panel);
-        codecMode=ModSettings.streamCodecMode;reportedCodecError="";
-        source=panel;panel.streamClient=this;panel.broadcastSession=UUID.randomUUID();
-        if(!panel.isOpen())panel.open(client);
-        panel.streamStatus="Waiting for viewers...";
-        client.player.displayClientMessage(Component.literal("Sharing "+panel.windowTitle()+". Stream controls are in the floating pill."),false);
-        return true;
+        if(client.player==null)return false;
+        // Multiplayer app streaming is temporarily disabled while the media
+        // pipeline is reimplemented without the custom Chromium runtime.
+        client.player.displayClientMessage(Component.literal("Multiplayer streaming is temporarily disabled in this build."),false);
+        return false;
     }
     void stop(WorldPanel panel) {
         if(source!=panel)return;

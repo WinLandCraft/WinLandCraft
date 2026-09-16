@@ -1,9 +1,7 @@
 package dev.winlandcraft;
 
-import com.cinemamod.mcef.MCEFPlatform;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -31,12 +29,6 @@ public final class WinLandCraftClient implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("winlandcraft");
     public static WindowControls controls;
     @Override public void onInitializeClient() {
-        requireChromiumRuntime();
-        try {
-            System.loadLibrary("jawt");
-        } catch (UnsatisfiedLinkError missingJavaDesktop) {
-            throw new IllegalStateException("Chromium 151 requires a Java runtime with Java Desktop/JAWT support.", missingJavaDesktop);
-        }
         ModSettings.load();
         AdBlock.install();
         StreamAudio.install();
@@ -108,29 +100,6 @@ public final class WinLandCraftClient implements ClientModInitializer {
         }));
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> { WebAppIconProbe.cancelCurrent(); controls.cancel(); streams.shutdown(); apps.windows.forEach(WorldPanel::close);ScreenLighting.shutdown();PanelCanvas.shutdown(); });
         LOGGER.info("WinLandCraft browser window controls initialized.");
-    }
-    private static void requireChromiumRuntime() {
-        var loader=FabricLoader.getInstance();
-        var bridge=loader.getModContainer("winlandcraft_mcef");
-        if(bridge.isEmpty())throw new IllegalStateException("WinLandCraft's embedded MCEF bridge is missing. Reinstall the WinLandCraft mod JAR.");
-        var runtime=loader.getModContainer("winlandcraft_chromium");
-        if(runtime.isEmpty()){
-            if(loader.isDevelopmentEnvironment()){
-                LOGGER.warn("Separate WinLandCraft Chromium runtime is absent; allowing MCEF's development download fallback");
-                return;
-            }
-            throw new IllegalStateException("WinLandCraft Chromium is missing. Put the matching winlandcraft-chromium JAR beside WinLandCraft in the mods folder.");
-        }
-        String expected=bridge.get().getMetadata().getVersion().getFriendlyString();
-        String actual=runtime.get().getMetadata().getVersion().getFriendlyString();
-        if(!expected.equals(actual))throw new IllegalStateException("Wrong WinLandCraft Chromium version: expected "+expected+", found "+actual+".");
-        MCEFPlatform platform=MCEFPlatform.getPlatform();
-        if(platform==null)throw new IllegalStateException("WinLandCraft Chromium does not support this operating system or CPU architecture.");
-        String base="META-INF/winlandcraft/cef/"+platform.getNormalizedName()+".tar.gz";
-        ClassLoader classes=WinLandCraftClient.class.getClassLoader();
-        if(classes.getResource(base)==null||classes.getResource(base+".sha256")==null)
-            throw new IllegalStateException("The WinLandCraft Chromium JAR has no runtime for "+platform.getNormalizedName()+".");
-        LOGGER.info("Found separate WinLandCraft Chromium {} runtime for {}",actual,platform.getNormalizedName());
     }
     private static InteractionResult use(Player player, Level level, InteractionHand hand) {
         var item=player.getItemInHand(hand);

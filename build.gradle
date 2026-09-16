@@ -5,12 +5,7 @@ plugins {
 version = project.mod_version
 group = 'dev.winlandcraft'
 
-evaluationDependsOn(':mcefFork')
 evaluationDependsOn(':adblockNative')
-def modernMcef = project(':mcefFork').tasks.named('modernMcef')
-def modernMcefJar = project(':mcefFork').layout.buildDirectory.file(
-        "distributions/winlandcraft-mcef-${project.chromium_version}.jar")
-def modernMcefFiles = files(modernMcefJar).builtBy(modernMcef)
 def adblockBuild = project(':adblockNative').tasks.named('cargoBuild')
 def adblockTarget = project(':adblockNative').layout.buildDirectory.dir('cargo-target/release')
 def hostOs = System.getProperty('os.name').toLowerCase(Locale.ROOT)
@@ -22,9 +17,6 @@ def adblockLibrary = nativePlatform == 'windows' ? 'winlandcraft_adblock.dll'
         : nativePlatform == 'macos' ? 'libwinlandcraft_adblock.dylib' : 'libwinlandcraft_adblock.so'
 def stagedAdblock = layout.buildDirectory.dir('generated/adblockNativeResources')
 def adblockNativeBundleDir = providers.gradleProperty('adblockNativeBundleDir')
-def stagedCefRuntimes = layout.buildDirectory.dir('generated/cefRuntimeResources')
-def cefRuntimeBundleDir = providers.gradleProperty('cefRuntimeBundleDir')
-def cefPlatforms = ['linux_amd64', 'linux_arm64', 'windows_amd64', 'windows_arm64', 'macos_amd64', 'macos_arm64'] as Set
 def stageAdblockNative = tasks.register('stageAdblockNative', Sync) {
     dependsOn adblockBuild
     into(stagedAdblock)
@@ -33,76 +25,6 @@ def stageAdblockNative = tasks.register('stageAdblockNative', Sync) {
     }
     if (adblockNativeBundleDir.isPresent()) from(file(adblockNativeBundleDir.get()))
 }
-def stageCefRuntimes = tasks.register('stageCefRuntimes', Sync) {
-    into(stagedCefRuntimes)
-    if (cefRuntimeBundleDir.isPresent()) {
-        from(file(cefRuntimeBundleDir.get())) {
-            include '*.tar.gz', '*.tar.gz.sha256'
-            into 'META-INF/winlandcraft/cef'
-        }
-    }
-    doFirst {
-        if (!cefRuntimeBundleDir.isPresent()) return
-        def directory = file(cefRuntimeBundleDir.get())
-        def archives = fileTree(directory) { include '*.tar.gz' }.files.sort { it.name }
-        if (archives.isEmpty()) throw new GradleException("No CEF runtime archives found in ${directory}")
-        archives.each { archive ->
-            def platform = archive.name.substring(0, archive.name.length() - '.tar.gz'.length())
-            if (!cefPlatforms.contains(platform)) throw new GradleException("Unsupported CEF runtime platform: ${platform}")
-            def sidecar = new File(directory, archive.name + '.sha256')
-            if (!sidecar.isFile()) throw new GradleException("Missing CEF runtime checksum: ${sidecar}")
-            def digest = java.security.MessageDigest.getInstance('SHA-256')
-            archive.withInputStream { input ->
-                byte[] buffer = new byte[64 * 1024]
-                for (int read; (read = input.read(buffer)) >= 0;) digest.update(buffer, 0, read)
-            }
-            def actual = java.util.HexFormat.of().formatHex(digest.digest())
-            def expected = sidecar.text.strip().split('\\s+', 2)[0].toLowerCase(Locale.ROOT)
-            if (expected != actual) throw new GradleException("CEF runtime checksum mismatch for ${archive.name}")
-
-            def libcefPath = platform.startsWith('windows_') ? "${platform}/libcef.dll"
-                    : platform.startsWith('macos_') ? "${platform}/Chromium Embedded Framework.framework/Chromium Embedded Framework"
-                    : "${platform}/libcef.so"
-            def archiveTree = tarTree(resources.gzip(archive))
-            def libcef = archiveTree.matching { include libcefPath }.files
-            def manifests = archiveTree.matching { include "${platform}/WINLANDCRAFT-CODEC-BUILD.properties" }.files
-            if (libcef.size() != 1 || manifests.size() != 1)
-                throw new GradleException("CEF runtime ${archive.name} is missing libcef or its codec build manifest")
-            def codecManifest = new Properties()
-            manifests.first().withInputStream { codecManifest.load(it) }
-            def required = [
-                    'cef.commit': project.cef_commit,
-                    'jcef.commit': project.jcef_commit,
-                    'chromium.version': project.chromium_version,
-                    'gn.proprietary_codecs': 'true',
-                    'gn.ffmpeg_branding': 'Chrome']
-            if (platform.startsWith('linux_'))
-                required['winlandcraft.patchset'] = 'linux-vaapi-shmem-v2'
-            required.each { key, value ->
-                if (codecManifest.getProperty(key) != value)
-                    throw new GradleException("CEF runtime ${archive.name} has invalid ${key}")
-            }
-            if (!(codecManifest.getProperty('libcef.sha256', '') ==~ /[0-9a-f]{64}/))
-                throw new GradleException("CEF runtime ${archive.name} has no valid libcef SHA-256")
-        }
-    }
-}
-def cefRuntimeJar = tasks.register('cefRuntimeJar', Jar) {
-    dependsOn stageCefRuntimes
-    archiveBaseName = 'winlandcraft-chromium'
-    archiveVersion = project.chromium_runtime_version
-    archiveClassifier = ''
-    entryCompression = org.gradle.api.tasks.bundling.ZipEntryCompression.STORED
-    from(stagedCefRuntimes)
-    from('src/chromiumRuntime/resources') {
-        expand chromiumVersion: project.chromium_runtime_version,
-                cefCommit: project.cef_commit,
-                jcefCommit: project.jcef_commit,
-                runtimePatchset: 'linux-vaapi-shmem-v2'
-    }
-    onlyIf { cefRuntimeBundleDir.isPresent() }
-}
-
 repositories {
     maven { url = 'https://mcef-download.cinemamod.com/repositories/releases' }
 }
@@ -122,25 +44,20 @@ dependencies {
     mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-    modImplementation modernMcefFiles
+    modImplementation "com.cinemamod:mcef-fabric:${project.mcef_version}"
 }
 
 def modVersion = version.toString()
 processResources {
     dependsOn stageAdblockNative
     inputs.property 'version', modVersion
-    inputs.property 'chromiumVersion', project.chromium_version
-    inputs.property 'chromiumRuntimeVersion', project.chromium_runtime_version
     filesMatching('fabric.mod.json') {
-        expand version: modVersion, chromiumVersion: project.chromium_version,
-                chromiumRuntimeVersion: project.chromium_runtime_version
+        expand version: modVersion
     }
     from(stagedAdblock)
 }
 
 jar {
-    dependsOn modernMcef
-    from(modernMcefJar) { into 'META-INF/jars' }
 }
 
 java {
@@ -201,7 +118,7 @@ check.dependsOn project(':adblockNative').tasks.named('cargoTest')
 
 // Development launches can hide missing refmap declarations. Check the distributable JAR.
 tasks.register('verifyMixinPackaging') {
-    dependsOn remapJar, cefRuntimeJar
+    dependsOn remapJar
     doLast {
         def parser = new groovy.json.JsonSlurper()
         new java.util.zip.ZipFile(tasks.remapJar.archiveFile.get().asFile).withCloseable { zip ->
@@ -236,26 +153,6 @@ tasks.register('verifyMixinPackaging') {
                     }
                 }
             }
-            ['McefRuntimeMixin', 'McefChromiumFlagsMixin', 'McefPaintMixin'].each { mcefMixin ->
-                if (!config.client.contains(mcefMixin)) throw new GradleException("Missing mixin: ${mcefMixin}")
-                def mcefClass = config.package.replace('.', '/') + '/' + mcefMixin
-                if (zip.getEntry(mcefClass + '.class') == null) throw new GradleException("Missing class: ${mcefClass}")
-            }
-            def chromiumFlagsClass = config.package.replace('.', '/') + '/McefChromiumFlagsMixin.class'
-            def chromiumFlagsBytes = zip.getInputStream(zip.getEntry(chromiumFlagsClass)).withCloseable { it.readAllBytes() }
-            def chromiumFlagsConstants = new String(chromiumFlagsBytes, java.nio.charset.StandardCharsets.ISO_8859_1)
-            ['AcceleratedVideoDecoder', 'AcceleratedVideoEncoder'].each { feature ->
-                if (!chromiumFlagsConstants.contains(feature))
-                    throw new GradleException("Missing Chromium 151 Linux feature flag: ${feature}")
-            }
-            ['VaapiVideoDecoder', 'VaapiVideoEncoder'].each { obsoleteFeature ->
-                if (chromiumFlagsConstants.contains(obsoleteFeature))
-                    throw new GradleException("Obsolete Chromium feature flag must not be packaged: ${obsoleteFeature}")
-            }
-            def nested = zip.entries().find { it.name.startsWith('META-INF/jars/winlandcraft-mcef-') && it.name.endsWith('.jar') }
-            if (nested == null) throw new GradleException('Missing embedded Chromium 151 MCEF runtime')
-            if (zip.entries().find { it.name.startsWith('META-INF/winlandcraft/cef/') } != null)
-                throw new GradleException('Native CEF runtimes must not be embedded in the main mod JAR')
             if (zip.getEntry('META-INF/ADBLOCK-NOTICE.txt') == null)
                 throw new GradleException('Missing adblock third-party notice')
             def iconLicense = zip.getEntry('META-INF/PIXELARTICONS-LICENSE.txt')
@@ -300,28 +197,7 @@ tasks.register('verifyMixinPackaging') {
                 if (zip.getEntry(nativePath) == null)
                     throw new GradleException("Missing native adblock engine: ${nativePath}")
             }
-            logger.lifecycle('Packaged mixins, MCEF bridge, Pixelarticons atlas/license, and native adblock engine verified.')
-        }
-        if (cefRuntimeBundleDir.isPresent()) {
-            def runtimeFile = cefRuntimeJar.get().archiveFile.get().asFile
-            if (!runtimeFile.isFile()) throw new GradleException('Missing separate Chromium runtime JAR')
-            new java.util.zip.ZipFile(runtimeFile).withCloseable { zip ->
-                def metadataEntry = zip.getEntry('fabric.mod.json')
-                if (metadataEntry == null) throw new GradleException('Chromium runtime JAR has no Fabric metadata')
-                def metadata = zip.getInputStream(metadataEntry).withCloseable { parser.parse(it) }
-                if (metadata.id != 'winlandcraft_chromium' || metadata.version != project.chromium_runtime_version
-                        || metadata.environment != 'client')
-                    throw new GradleException('Chromium runtime JAR has invalid Fabric identity, version, or environment')
-                if (metadata.custom?.get('winlandcraft:patchset') != 'linux-vaapi-shmem-v2')
-                    throw new GradleException('Chromium runtime JAR has the wrong WinLandCraft patchset')
-                def names = fileTree(file(cefRuntimeBundleDir.get())) { include '*.tar.gz' }.files.collect { it.name }
-                names.each { name ->
-                    if (zip.getEntry("META-INF/winlandcraft/cef/${name}") == null
-                            || zip.getEntry("META-INF/winlandcraft/cef/${name}.sha256") == null)
-                        throw new GradleException("Missing native CEF runtime from companion JAR: ${name}")
-                }
-                logger.lifecycle('Separate client-only Chromium runtime JAR and native archives verified.')
-            }
+            logger.lifecycle('Packaged input mixins, Pixelarticons atlas/license, and native adblock engine verified.')
         }
     }
 }
@@ -346,7 +222,6 @@ tasks.named('verifyPluginApi') {
     args file('docs/plugin-api-v1.txt').absolutePath
 }
 build.dependsOn pluginApiJar
-build.dependsOn cefRuntimeJar
 
 tasks.named('verifyPluginMedia') {
     dependsOn pluginCheckClasses

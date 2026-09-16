@@ -1,6 +1,6 @@
 # WinLandCraft
 
-Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-anchored taskbar, Apps launcher, a Browser with vertical tabs, user-defined 1280x720 webapp panels sharing MCEF, and an experimental player-hosted app stream relay.
+Minecraft 1.21.4 / Fabric mod targeting Windows, Linux, and macOS: a world-anchored taskbar, Apps launcher, a Browser with vertical tabs, and user-defined 1280x720 webapp panels sharing stock MCEF. Multiplayer app streaming is temporarily disabled while its media pipeline is reimplemented without a custom Chromium runtime.
 
 ## Plugin apps
 
@@ -8,15 +8,15 @@ Other Fabric mods can register native, Chromium, and hybrid apps through the ver
 
 ## Setup and build
 
-- JDK 21 (Temurin), Fabric Loader 0.16.9+, and Fabric API 0.119.4+1.21.4. Clients install both the small WinLandCraft mod JAR and the matching `winlandcraft-chromium-<version>.jar` in `mods/`. The Chromium companion is client-only; dedicated servers need only the main mod JAR.
+- JDK 21 (Temurin), Fabric Loader 0.16.9+, and Fabric API 0.119.4+1.21.4. Clients install the WinLandCraft mod JAR alongside the stock MCEF mod; dedicated servers need only the main mod JAR.
 - Gradle 8.12 and Loom 1.9.2 are pinned; use the included wrapper.
 - Linux build: `./dev.sh build`; development client: `./dev.sh runClient`. The helper locates JDK 21, keeps Gradle caches inside the checkout, and works even if the wrapper's executable bit was not preserved.
 - macOS or direct wrapper use: `sh gradlew build` with `JAVA_HOME` pointing to JDK 21.
 - Build: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 build`
 - Separate development client: `powershell -ExecutionPolicy Bypass -File .\dev.ps1 runClient`
 - The helper scripts discover JDK 21 and store Gradle caches locally. An IDE can import build.gradle with JDK 21.
-- Replace the old Prism mod JAR with the new `build/libs/winlandcraft-<version>.jar`, then place `build/libs/winlandcraft-chromium-<chromium-version>.jar` beside it. Keep one of each installed alongside Fabric API; remove any separate stock MCEF JAR.
-- The first client launch verifies and extracts its native browser from the Chromium companion. It does not download or silently substitute a stock codec-limited runtime. Online websites still need an internet connection.
+- Replace the old Prism mod JAR with the new `build/libs/winlandcraft-<version>.jar`. Keep it installed alongside Fabric API and stock MCEF; remove any `winlandcraft-chromium` companion JAR.
+- The first client launch lets stock MCEF download and verify its own native browser runtime. Online websites still need an internet connection.
 
 Browser requests and page cosmetics are filtered by a pinned build of Brave's `adblock-rust` engine, including redirect resources and trusted scriptlets used by current YouTube rules. Filter assets are checksum-verified and cached under `config/winlandcraft/adblock`. A local JAR contains the adblock native for the OS that built it; release/CI artifacts combine Linux, Windows, and Intel macOS natives. Implementation and update constraints are documented in [docs/adblocking.md](docs/adblocking.md).
 
@@ -26,7 +26,9 @@ Complete panels are composed off-screen, mipmapped, and submitted through Fabric
 
 Browser, webapp, and remote-stream panels can project their changing colors onto nearby geometry through an experimental Iris/Solas shader bridge. **Options > WinLandCraft...** controls its power and range and can create a non-destructive `+ WinLandCraft` copy of an installed Solas ZIP. Vanilla Minecraft keeps the panels emissive but cannot provide true dynamic RGB world lighting. The bounded asynchronous sampling path, shader-pack workflow, performance limits, and smoke test are documented in [docs/screen-lighting.md](docs/screen-lighting.md).
 
-## Stream any app: video and audio
+## Stream any app: video and audio (temporarily disabled)
+
+> Multiplayer streaming is turned off in this build. Choosing **Stream** shows a "temporarily disabled" message and does nothing. The Minecraft relay (`StreamProtocol`/`StreamRelay`) is still in place; the sender-side media pipeline is being reimplemented on FFmpeg instead of Chromium WebCodecs. The notes below describe the protocol that is coming back, not current behavior.
 
 Right-click an app in **Apps**, then choose **Stream**. This opens it if necessary and shares its content: Browser, custom webapps, Notepad, File Manager, Task Manager, and Laser Calibration all use the same capture path. The relay allows one outgoing app per player; starting another switches the source. Starting a grouped app detaches that app; shared/private grouping stays disabled while streaming, but individual curvature remains available.
 
@@ -51,7 +53,7 @@ Audio capture follows [CEF's audio-handler API](https://cef-builds.spotifycdn.co
 
 Decoded video is painted directly from WebCodecs output callbacks. It does not use short JavaScript intervals, because Chromium throttles timers in hidden off-screen browser views. The server sends a demand signal when the first compatible player enters the stream's dimension and when the last one leaves; sender-side capture and WebCodecs stay closed at zero viewers while the lightweight placement heartbeat remains active. Active loopback media endpoints use bounded long-polling, so empty queues do not spin and new frames wake the codec worker immediately. Capture FPS is not passed as a WebCodecs capability constraint: cadence is already enforced before encoding, and this keeps an available hardware encoder selected across live FPS changes.
 
-Install the same main mod build on **all clients and the world host/server**: stream protocol v5 adds opt-in remote-control packets and intentionally does not interoperate with older builds. Each client also needs the matching WinLandCraft Chromium companion; dedicated servers require only Fabric API and the small main WinLandCraft JAR. Essential/LAN still use the integrated server's existing Minecraft connection. The server validates ownership, media envelopes, and controller permission, then forwards bounded data; it never runs Chromium or encodes/decodes media. This remains a TCP Minecraft relay, not WebRTC. Bitrate increases also increase the world's host/relay bandwidth usage for every viewer.
+Install the same main mod build on **all clients and the world host/server**: stream protocol v5 adds opt-in remote-control packets and intentionally does not interoperate with older builds. Each client also needs stock MCEF; dedicated servers require only Fabric API and the small main WinLandCraft JAR. Essential/LAN still use the integrated server's existing Minecraft connection. The server validates ownership, media envelopes, and controller permission, then forwards bounded data; it never runs Chromium or encodes/decodes media. This remains a TCP Minecraft relay, not WebRTC. Bitrate increases also increase the world's host/relay bandwidth usage for every viewer.
 
 The audio handler retains the sample rate from `getAudioParameters`, because MCEF 2.1.6's native adapter passes null parameters to `onAudioStreamStarted`. Unknown parameters disable capture instead of guessing a sample rate. A stateful resampler preserves fractional phase across CEF callbacks and timestamps output from its cumulative 48 kHz frame count. Raw PCM and encoded media cross the loopback bridge in bounded batches; numbered concurrent uploads are restored to order by Java, avoiding one HTTP round trip becoming a head-of-line stall for every later frame. Audio is preserved when video queues overflow, while stale video is discarded until a replacement keyframe. Receiver audio is scheduled contiguously against the Web Audio clock with a named 150 ms cushion; only a real underrun rebuilds that cushion, without stopping sources that were already scheduled.
 
@@ -185,13 +187,13 @@ through the existing placement arrows. File opens create separate players (up to
 16), and dropping another file replaces the current video. A purple play icon
 identifies players in Apps and the taskbar.
 
-The whole 1280x720 starting window uses Chromium's video controls for play/pause,
+The whole 1280x720 starting window uses stock MCEF/Chromium's video controls for play/pause,
 seeking and volume, with aspect-preserving video fitting on resize. Codec/container
-support depends on the installed CEF runtime; the listed associations are playback
-attempts, not a guarantee every encoding works. Unsupported/unreadable videos show
-an error in the player. No external player executable is needed.
+support is limited to what stock CEF decodes (VP9/Opus WebM works; many H.264/AAC MP4 files do not);
+the listed associations are playback attempts, not a guarantee every encoding works. Unsupported/unreadable videos show
+an error in the player. A native mpv-based player is planned to replace this.
 
-To share an already running app, hover its floating titlebar pill and click **Start stream**. The pill then shows the existing quality settings and **Stop streaming** controls. Starting a stream uses the current window without reopening it; existing server requirements and single-stream ownership rules still apply.
+To share an already running app, hover its floating titlebar pill and click **Start stream**. (Currently disabled: streaming shows a "temporarily disabled" message until the FFmpeg pipeline lands.)
 
 
 ### Image Viewer

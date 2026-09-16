@@ -7,8 +7,8 @@ These instructions apply to the entire repository.
 - WinLandCraft targets Minecraft 1.21.4, Fabric Loader, Fabric API, and Java 21.
 - Put client-only code in `src/client`; keep `src/main` safe for dedicated servers.
 - Dependency-free regression programs live in `src/geometryCheck` and run as part of `check`.
-- `mcefFork` assembles the embedded browser compatibility JAR. It combines MCEF 2.1.6 integration classes with the pinned JCEF classes in `gradle.properties`; do not add a separate MCEF runtime dependency.
-- Chromium/JCEF compatibility decisions are documented in `docs/chromium-compatibility.md`. Update that document whenever the pinned runtime, browser flags, download source, or lifecycle handling changes.
+- Stock external MCEF (`com.cinemamod:mcef-fabric`, pinned as `mcef_version` in `gradle.properties`) is the browser runtime. Do not fork it, ship a custom Chromium build, or add MCEF mixins; `fabric.mod.json` depends on `mcef`.
+- Chromium/JCEF compatibility decisions are documented in `docs/chromium-compatibility.md`. Update that document whenever the MCEF version or lifecycle handling changes.
 - `adblockNative` is the pinned Rust/JNI adblock engine. Its request, page-injection, asset, and packaging invariants are documented in `docs/adblocking.md`.
 - Native control icons and hover-state invariants are documented in `docs/ui-icons.md`. Keep the `PixelIcon` order synchronized with its atlas and packaged license.
 
@@ -19,8 +19,7 @@ These instructions apply to the entire repository.
 - CEF-owned `ByteBuffer` data is valid only for the callback. Copy data before returning if another thread will consume it.
 - Keep frame, audio, network, and render queues bounded. Prefer dropping or coalescing stale media over accumulating latency.
 - Close browser views on the render thread and make cleanup idempotent. Disconnect callbacks can originate on Netty threads.
-- Merge Chromium feature lists instead of replacing existing `--enable-features` or `--disable-features` arguments. Apply startup flags consistently to both `CefApp.startup` and `CefApp.getInstance`.
-- MCEF/JCEF mixins use `remap = false`. Register new mixins in `winlandcraft.client.mixins.json` and extend `verifyMixinPackaging` so missing production classes fail the build.
+- Mixins use `remap = false` only where they target non-Minecraft classes. Register new mixins in `winlandcraft.client.mixins.json` and extend `verifyMixinPackaging` so missing production classes fail the build.
 - CEF request objects may only be mutated in callbacks that explicitly allow it. Keep the adblock engine immutable after initialization and bound every page-to-Java cosmetic query.
 - Screen-light sampling reuses `PanelSurface`'s mip chain and asynchronous bounded PBO readback. Do not synchronously read a full browser texture or move pixel analysis off the render thread with a live GL buffer.
 - Solas integration is an explicit, non-destructive shader-pack copy. Keep SSBO binding changes, buffer layout, patch anchors, and compatibility limits synchronized with `docs/screen-lighting.md` and its regression check.
@@ -47,12 +46,12 @@ Run the complete gate after code or resource changes:
 
 The distributable JAR is written to `build/libs/`. Before handing it off, run `git diff --check` and report the artifact name and SHA-256.
 
-Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR paint, audio capture, WebCodecs hardware selection, and cross-platform GPU flags require an in-game smoke test on every affected OS. For Chromium changes, test at least:
+Automated checks cannot validate native CEF behavior. Browser lifecycle, OSR paint, and audio capture require an in-game smoke test on every affected OS. For Chromium changes, test at least:
 
 1. Opening, navigating, resizing, closing, and reopening Browser and a custom webapp.
 2. A single-page-app navigation such as a real click on YouTube that changes the URL without a full page load.
 3. Saving and quitting with several browser views open.
-4. Stream encode/decode and audio on one Linux GPU stack and one Windows GPU stack.
+4. (Skipped while streaming is disabled; was: stream encode/decode and audio on one Linux GPU stack and one Windows GPU stack.)
 
 ## Plugin API compatibility
 

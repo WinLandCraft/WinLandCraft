@@ -3,6 +3,6 @@
   "package": "dev.winlandcraft.mixin",
   "refmap": "client-winlandcraft-refmap.json",
   "compatibilityLevel": "JAVA_21",
-  "client": ["MouseHandlerMixin", "KeyboardHandlerMixin", "GuiMixin", "MinecraftMixin", "GameRendererLightMixin", "ItemInHandRendererMixin", "ItemStackRenderStateMixin", "ItemStackLayerRenderStateMixin", "McefRuntimeMixin", "McefChromiumFlagsMixin", "McefPaintMixin"],
+  "client": ["MouseHandlerMixin", "KeyboardHandlerMixin", "GuiMixin", "MinecraftMixin", "GameRendererLightMixin", "ItemInHandRendererMixin", "ItemStackRenderStateMixin", "ItemStackLayerRenderStateMixin"],
   "injectors": {"defaultRequire": 1}
 }
