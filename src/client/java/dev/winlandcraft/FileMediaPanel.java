@@ -7,12 +7,11 @@ import com.mojang.blaze3d.systems.RenderSystem;
 
 abstract class FileMediaPanel extends BrowserPanel {
     private final String name;
-    private final boolean image;
     private VideoFileServer server;
     private Path file;
     private String error="";
 
-    FileMediaPanel(String name,boolean image){super("about:blank");this.name=name;this.image=image;setAppName(name);}
+    FileMediaPanel(String name){super("about:blank");this.name=name;setAppName(name);}
     @Override public String windowTitle(){return file==null?name:file.getFileName()+" - "+name;}
     @Override protected boolean showBrowserMenu(){return false;}
     @Override public boolean acceptsFileDrop(){return true;}
@@ -22,7 +21,7 @@ abstract class FileMediaPanel extends BrowserPanel {
     }
     private void ensureServer(){
         if(server!=null||!error.isEmpty())return;
-        try{server=new VideoFileServer(image);server.select(file);}
+        try{server=new VideoFileServer();server.select(file);}
         catch(IOException failure){
             error="Could not start "+name+". Close and reopen to retry.";
             WinLandCraftClient.LOGGER.error("{} endpoint failed",name,failure);

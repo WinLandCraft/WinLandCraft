@@ -185,11 +185,15 @@ through the existing placement arrows. File opens create separate players (up to
 16), and dropping another file replaces the current video. A purple play icon
 identifies players in Apps and the taskbar.
 
-The whole 1280x720 starting window uses stock MCEF/Chromium's video controls for play/pause,
-seeking and volume, with aspect-preserving video fitting on resize. Codec/container
-support is limited to what stock CEF decodes (VP9/Opus WebM works; many H.264/AAC MP4 files do not);
-the listed associations are playback attempts, not a guarantee every encoding works. Unsupported/unreadable videos show
-an error in the player. A native mpv-based player is planned to replace this.
+The player is native: files play straight off disk through the bundled FFmpeg
+(any container/codec it reads: H.264, HEVC, VP9, AV1, MPEG-4 and more) with
+hardware-preferred decoding (D3D11VA/CUDA on Windows, VAAPI/CUDA on Linux,
+VideoToolbox on macOS, software fallback everywhere). Its own control bar has
+play/pause, a seek slider, time display, volume and mute; click the video to
+toggle playback. Aspect ratio is preserved on resize. Unsupported/unreadable
+videos show an error in the player. No browser view, file server, or external
+player executable is involved. Player audio plays locally; streamed replicas
+currently carry video only, like other native apps.
 
 To share an already running app, hover its floating titlebar pill and click **Start stream**. The pill then shows the existing quality settings and **Stop streaming** controls. Starting a stream uses the current window without reopening it; existing server requirements and single-stream ownership rules still apply.
 

@@ -22,9 +22,9 @@ lifecycle, OSR paint, and audio capture all run through MCEF's own integration u
   `StreamMedia`) is unchanged: H.264 Annex B video plus Opus audio in the same envelopes, so the
   wire format stays compatible with older v5 senders that still emit VP9 (the FFmpeg receiver
   decodes VP9 too).
-- Local Video Player / Image Viewer still use Chromium's `<video>`/`<img>` elements through the
-  shared MCEF runtime, so playable formats are limited to what stock CEF decodes. A native mpv-based
-  player is planned to replace this.
+- Local Video Player is a native FFmpeg panel, not a Chromium `<video>` element: files play
+  straight off disk with hardware-preferred decoding and the player's own controls. Only the
+  Image Viewer still uses a loopback file server through the shared MCEF runtime.
 
 ## Upgrading MCEF
 

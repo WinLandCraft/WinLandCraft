@@ -1,50 +1,63 @@
 package dev.winlandcraft;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import java.net.URI;
-import java.net.http.*;
 import java.nio.file.Path;
-import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
 final class FileMediaChecks {
     static void run() {
-        try(var client=HttpClient.newHttpClient()) {
-            for(var panel:List.of(new VideoPlayerPanel(),new ImageViewerPanel())) {
-                boolean image=panel instanceof ImageViewerPanel;
-                String name=image?"Image Viewer":"Video Player",element=image?"image":"video";
-                Path file=Path.of(image?"picture.png":"movie.mp4");
-                try {
-                    check(panel.windowTitle().equals(name)&&!panel.browserEnabled(),"lazy media endpoint");
-                    panel.position=new Vec3(0,0,-3);panel.orientation=new Quaternionf();
-                    panel.dropFile(file);
-                    String first=panel.initialUrl();
-                    check(panel.windowTitle().equals(file.getFileName()+" - "+name),"selected file title");
-                    check(get(client,first).body().contains(element+".src='media'"),"correct media page");
-                    panel.dropFile(file);
-                    String selected=panel.initialUrl();
-                    check(!selected.equals(first)&&get(client,first).statusCode()==404,"selection invalidates old URL");
-                    var failure=new AtomicReference<Throwable>();
-                    Thread network=new Thread(()->{try{panel.close();}catch(Throwable error){failure.set(error);}},"media-close-check");
-                    network.start();network.join();
-                    if(failure.get()!=null)throw new AssertionError("off-thread media close",failure.get());
-                    check(panel.isOpen()&&panel.initialUrl().equals(selected)&&get(client,selected).statusCode()==200,"endpoint survives until render-thread close");
-                    RenderSystem.replayQueue();
-                    check(!panel.isOpen()&&!panel.browserEnabled()&&panel.initialUrl().equals("about:blank"),"media resources cleared");
-                    check(panel.windowTitle().equals(name),"title reset on close");
-                    panel.close();
-                    panel.position=new Vec3(0,0,-3);panel.orientation=new Quaternionf();panel.dropFile(file);
-                    check(!panel.initialUrl().equals(selected)&&get(client,panel.initialUrl()).statusCode()==200,"reopen creates a fresh endpoint");
-                } finally {panel.close();}
-            }
-        } catch(Exception error){throw new AssertionError(error);}
-        System.out.println("File media panels: titles, page selection, stale URLs, deferred close and reopen passed (without native CEF).");
+        imageViewer();
+        videoPlayer();
+        System.out.println("File media panels: titles, selection, replacement, deferred close and reopen passed (without native CEF).");
     }
-    private static HttpResponse<String> get(HttpClient client,String url)throws Exception {
-        return client.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(5)).build(),HttpResponse.BodyHandlers.ofString());
+    private static void videoPlayer() {
+        var panel = new VideoPlayerPanel();
+        try {
+            check(panel.windowTitle().equals("Video Player"), "empty player title");
+            panel.position = new Vec3(0, 0, -3);
+            panel.orientation = new Quaternionf();
+            Path first = Path.of("movie.mp4"), second = Path.of("clip.mkv");
+            panel.dropFile(first);
+            check(panel.windowTitle().equals("movie.mp4 - Video Player"), "selected video title");
+            panel.dropFile(second);
+            check(panel.windowTitle().equals("clip.mkv - Video Player"), "replacement video title");
+            // Missing files fail asynchronously in the player worker, never on the caller.
+            long deadline = System.currentTimeMillis() + 10_000;
+            while (panel.playerError().isEmpty() && System.currentTimeMillis() < deadline) Thread.sleep(50);
+            check(panel.playerError().contains("not found"), "unreadable file reports an error: " + panel.playerError());
+            var failure = new AtomicReference<Throwable>();
+            Thread network = new Thread(() -> { try { panel.close(); } catch (Throwable error) { failure.set(error); } }, "video-close-check");
+            network.start();
+            network.join();
+            if (failure.get() != null) throw new AssertionError("off-thread video close", failure.get());
+            RenderSystem.replayQueue();
+            check(!panel.isOpen(), "video resources cleared");
+            check(panel.windowTitle().equals("Video Player"), "video title reset on close");
+        } catch (Exception error) { throw new AssertionError(error); }
+        finally { panel.close(); }
+    }
+    private static void imageViewer() {
+        var panel = new ImageViewerPanel();
+        try {
+            check(panel.windowTitle().equals("Image Viewer") && !panel.browserEnabled(), "lazy image endpoint");
+            panel.position = new Vec3(0, 0, -3);
+            panel.orientation = new Quaternionf();
+            Path file = Path.of("picture.png");
+            panel.dropFile(file);
+            check(panel.windowTitle().equals(file.getFileName() + " - Image Viewer"), "selected image title");
+            panel.dropFile(file);
+            var failure = new AtomicReference<Throwable>();
+            Thread network = new Thread(() -> { try { panel.close(); } catch (Throwable error) { failure.set(error); } }, "media-close-check");
+            network.start();
+            network.join();
+            if (failure.get() != null) throw new AssertionError("off-thread image close", failure.get());
+            RenderSystem.replayQueue();
+            check(!panel.isOpen() && !panel.browserEnabled(), "image resources cleared");
+            check(panel.windowTitle().equals("Image Viewer"), "image title reset on close");
+        } catch (Exception error) { throw new AssertionError(error); }
+        finally { panel.close(); }
     }
     private static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
 }

@@ -8,17 +8,14 @@ import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Serves only a user-selected video or image; URLs never contain filesystem paths. */
+/** Serves only a user-selected image; URLs never contain filesystem paths. */
 final class VideoFileServer implements AutoCloseable {
     private final HttpServer server;
-    private final boolean image;
-    private final ExecutorService workers=new ThreadPoolExecutor(2,2,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(8),r->{var t=new Thread(r,"WLC video file");t.setDaemon(true);return t;});
+    private final ExecutorService workers=new ThreadPoolExecutor(2,2,0,TimeUnit.SECONDS,new ArrayBlockingQueue<>(8),r->{var t=new Thread(r,"WLC image file");t.setDaemon(true);return t;});
     private final String token=UUID.randomUUID().toString()+UUID.randomUUID(),origin;
     private volatile Selection selected=new Selection(null,UUID.randomUUID().toString());
     private record Selection(Path path,String id){}
-    VideoFileServer() throws IOException {this(false);}
-    VideoFileServer(boolean image) throws IOException {
-        this.image=image;
+    VideoFileServer() throws IOException {
         server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),8);
         origin="http://127.0.0.1:"+server.getAddress().getPort();
         server.createContext("/",this::handle);server.setExecutor(workers);server.start();
@@ -27,7 +24,6 @@ final class VideoFileServer implements AutoCloseable {
     void select(Path path){selected=new Selection(path==null?null:path.toAbsolutePath().normalize(),UUID.randomUUID().toString());}
     static boolean supports(Path path){return Set.of("mp4","m4v","webm","ogv","ogg","mov","mkv").contains(extension(path));}
     private static String extension(Path path){String n=path.getFileName().toString().toLowerCase(Locale.ROOT);return n.substring(n.lastIndexOf('.')+1);}
-    private static String mime(Path path){return switch(extension(path)){case "webm"->"video/webm";case "ogv","ogg"->"video/ogg";case "mov"->"video/quicktime";case "mkv"->"video/x-matroska";default->"video/mp4";};}
     private void handle(HttpExchange exchange) throws IOException {
         try(exchange){
             String host=exchange.getRequestHeaders().getFirst("Host"),requestOrigin=exchange.getRequestHeaders().getFirst("Origin");
@@ -40,7 +36,7 @@ final class VideoFileServer implements AutoCloseable {
             exchange.getResponseHeaders().set("X-Content-Type-Options","nosniff");
             exchange.getResponseHeaders().set("Referrer-Policy","no-referrer");
             if(path.equals(base+"index.html")){
-                byte[] html=(image?ImageViewerPage.html(selection.path()!=null):page(selection.path()!=null)).getBytes(StandardCharsets.UTF_8);
+                byte[] html=ImageViewerPage.html(selection.path()!=null).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type","text/html; charset=utf-8");
                 exchange.getResponseHeaders().set("Content-Security-Policy","default-src 'none'; media-src 'self'; img-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'");
                 exchange.getResponseHeaders().set("Content-Length",Integer.toString(html.length));
@@ -53,7 +49,7 @@ final class VideoFileServer implements AutoCloseable {
                 long size=file.size();String range=exchange.getRequestHeaders().getFirst("Range");long[] bounds;
                 try{bounds=range(range,size);}catch(IllegalArgumentException invalid){exchange.getResponseHeaders().set("Content-Range","bytes */"+size);exchange.sendResponseHeaders(416,-1);return;}
                 long length=bounds[1]-bounds[0]+1;
-                exchange.getResponseHeaders().set("Content-Type",image?ImageViewerPage.mime(selection.path()):mime(selection.path()));exchange.getResponseHeaders().set("Accept-Ranges","bytes");
+                exchange.getResponseHeaders().set("Content-Type",ImageViewerPage.mime(selection.path()));exchange.getResponseHeaders().set("Accept-Ranges","bytes");
                 exchange.getResponseHeaders().set("Content-Length",Long.toString(length));
                 if(range!=null)exchange.getResponseHeaders().set("Content-Range","bytes "+bounds[0]+"-"+bounds[1]+"/"+size);
                 exchange.sendResponseHeaders(range==null?200:206,head||length==0?-1:length);
@@ -72,13 +68,5 @@ final class VideoFileServer implements AutoCloseable {
             if(start>=size||end<start)throw new IllegalArgumentException();return new long[]{start,end};
         }catch(NumberFormatException error){throw new IllegalArgumentException("Invalid range",error);}
     }
-    private static String page(boolean loaded){return """
-        <!doctype html><html><head><meta charset="utf-8"><title>Video Player</title>
-        <style>html,body{margin:0;width:100%;height:100%;background:#10151c;color:#dce5ef;font:20px sans-serif;overflow:hidden}video{width:100%;height:100%;object-fit:contain}#message{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:32px;pointer-events:none}small{color:#9aafc1;margin-top:12px}</style></head>
-        <body><video controls playsinline></video><div id="message"></div><script>
-        const video=document.querySelector('video'),message=document.querySelector('#message');
-        video.addEventListener('error',()=>{message.textContent='Cannot play this video. Its format/codec may be unsupported, or the file cannot be read.';});
-        video.addEventListener('playing',()=>{message.textContent='';});
-        """+(loaded?"video.src='media';video.play().catch(()=>{if(!video.error)message.textContent='Press Play to start.';});":"video.hidden=true;message.textContent='Drop a video here, or open one from File Manager.';")+"</script></body></html>";}
     public void close(){server.stop(0);workers.shutdownNow();}
 }
