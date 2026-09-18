@@ -88,6 +88,7 @@ final class PluginPanel extends BrowserPanel {
     @Override public Path dragFileAt(int x,int y){if(app==null||inBrowser(x,y))return null;Path[] result={null};call(()->result[0]=app.dragFileAt(x,y));return result[0];}
     @Override void drawSurface(PanelCanvas canvas){
         canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF18212D);
+        canvas.frame(pixelWidth(),pixelHeight(),titlebarHeight());
         if(!error.isEmpty()){canvas.text(error,16,24,0xFFFFA5A5,1.5f);return;}
         if(browserEnabled())drawManagedBrowser(canvas,browserX(),browserY(),browserWidth(),browserHeight());
         if(frames!=null)call(()->frames.draw(canvas,pixelWidth(),pixelHeight()));

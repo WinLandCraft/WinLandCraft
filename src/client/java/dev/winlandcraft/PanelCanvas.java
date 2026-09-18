@@ -109,6 +109,14 @@ public final class PanelCanvas implements AutoCloseable {
         rect(-3,-title-3,panel.pixelWidth()+6,panel.pixelHeight()+title+6,0,0xFF536579);
         rect(0,-title,panel.pixelWidth(),panel.pixelHeight()+title,.1f,0xFF111923);
     }
+    /** Window frame shared by browser, plugin, and other content panels. A border, not a
+     *  full quad behind the content (which would also z-fight). */
+    public void frame(int width,int height,int titlebar){
+        rect(-3,-titlebar-3,width+6,3,0,0xFF536579);
+        rect(-3,height,width+6,3,0,0xFF536579);
+        rect(-3,-titlebar,3,height+titlebar,0,0xFF536579);
+        rect(width,-titlebar,3,height+titlebar,0,0xFF536579);
+    }
     /** World layers stay coplanar; polygon offset separates them in depth-buffer units at any distance. */
     private float depth(float layer){
         if(!worldSpace)return layer;

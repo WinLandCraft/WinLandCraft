@@ -332,11 +332,7 @@ public class BrowserPanel extends WorldPanel {
     }
     void drawSurface(PanelCanvas canvas) {
             boolean browserReady = active != null && active.browser.getRenderer().getTextureID() > 0;
-            // The frame is a border, not a full quad behind the page (which would also z-fight).
-            canvas.rect(-3, -titlebarHeight() - 3, pixelWidth() + 6, 3, 0, 0xFF536579);
-            canvas.rect(-3, pixelHeight(), pixelWidth() + 6, 3, 0, 0xFF536579);
-            canvas.rect(-3, -titlebarHeight(), 3, pixelHeight() + titlebarHeight(), 0, 0xFF536579);
-            canvas.rect(pixelWidth(), -titlebarHeight(), 3, pixelHeight() + titlebarHeight(), 0, 0xFF536579);
+            canvas.frame(pixelWidth(),pixelHeight(),titlebarHeight());
             // The live page is opaque, so avoid a redundant full-size backing draw.
             if (!browserReady) canvas.rect(0, 0, pixelWidth(), pixelHeight(), 0.1f, 0xFF18212D);
             if (!standalone) {
