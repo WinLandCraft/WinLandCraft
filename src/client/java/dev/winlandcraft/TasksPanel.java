@@ -14,6 +14,8 @@ public final class TasksPanel extends WorldPanel {
     }
     @Override public void mouseDown(int x, int y, int button) {
         if (button != 0) return;
+        // Drag handle: a short pill-styled grip centered on the bottom edge.
+        if (x >= 166 && x < 234 && y >= 42 && y < 48) { WinLandCraftClient.controls.beginDrag(this); return; }
         if (x >= 4 && x < 44 && y >= 4 && y < 44) apps.toggleStartMenu();
         var running = apps.runningApps();
         first = Math.clamp(first, 0, Math.max(0, running.size() - VISIBLE_APPS));
@@ -38,7 +40,9 @@ public final class TasksPanel extends WorldPanel {
             var canvas=surface.canvas();
             canvas.rect(0, 0, 400, 48, 0, 0xFF536579);
             canvas.rect(1, 1, 398, 46, 0.15f, 0xFF18212D);
-            canvas.rect(1, 45, 398, 2, 0.3f, 0xFF51CFDF);
+            // Drag grip: short, thick, pill-styled; hover highlights like other controls.
+            canvas.rect(166, 42, 68, 6, .35f, hoverColor(166, 42, 68, 6, 0xFF314D63, 0xFF466B83));
+            canvas.rect(186, 44, 28, 2, .4f, 0xFF51CFDF);
 
             int appsColor=apps.launcher.isAttached()?0xFF466B83:hoverColor(4,4,40,40,0xFF314D63,0xFF42637C);
             canvas.rect(4,4,40,40,.3f,appsColor);

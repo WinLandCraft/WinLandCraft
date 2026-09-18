@@ -129,13 +129,31 @@ public final class WindowControls {
         dragging = hit.panel.dragTarget();
         dragHand = hand;
         distance = hit.distance;
-        Quaternionf oldRotation=new Quaternionf(dragging.orientation);
-        dragging.orientation = PanelRotation.allowed(dragging.orientation);
-        WindowGroups.moved(dragging,dragging.position,oldRotation);
-        Vec3 offset = hit.point.subtract(dragging.position);
+        startMove(dragging, hit.point, camera);
+    }
+    /** Starts a look-drag from an on-panel handle without the Window Drag item. */
+    public void beginDrag(WorldPanel panel) {
+        var c = Minecraft.getInstance();
+        if (panel == null || !panel.isOpen() || !panel.canMove() || c.player == null) return;
+        var camera = c.gameRenderer.getMainCamera();
+        Vec3 origin = camera.getPosition();
+        Vec3 dir = direction(camera);
+        double t = panel.planeDistance(origin, dir);
+        if (!Double.isFinite(t)) return;
+        stopTyping();
+        dragging = panel.dragTarget();
+        dragHand = null;
+        distance = t;
+        startMove(dragging, origin.add(dir.scale(t)), camera);
+    }
+    private void startMove(WorldPanel panel, Vec3 point, Camera camera) {
+        Quaternionf oldRotation=new Quaternionf(panel.orientation);
+        panel.orientation = PanelRotation.allowed(panel.orientation);
+        WindowGroups.moved(panel,panel.position,oldRotation);
+        Vec3 offset = point.subtract(panel.position);
         grabOffset = new Vector3f((float) offset.x, (float) offset.y, (float) offset.z)
-                .rotate(new Quaternionf(dragging.orientation).conjugate());
-        relativeRotation = PanelRotation.allowed(camera.rotation()).conjugate().mul(dragging.orientation);
+                .rotate(new Quaternionf(panel.orientation).conjugate());
+        relativeRotation = PanelRotation.allowed(camera.rotation()).conjugate().mul(panel.orientation);
     }
     public boolean mouseButton(int button, int action) {
         Minecraft c = Minecraft.getInstance();
