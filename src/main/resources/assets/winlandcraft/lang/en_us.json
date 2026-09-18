@@ -8,7 +8,6 @@
   "message.winlandcraft.inventory_full": "Make room and press Get controls again to receive the missing controls.",
   "message.winlandcraft.controls_given": "Controls added. Point at panels to click/scroll. Hold Laser Pointer; click away to toggle/recolor, or sneak-right-click to calibrate. G to type.",
   "message.winlandcraft.tasks_opened": "Tasks brought to your view. Sneak + right-click with Tasks to close.",
-  "message.winlandcraft.point_at_window": "Point at a window, then hold right-click to drag it.",
   "message.winlandcraft.unsupported_server": "Tasks requires a world running WinLandCraft. Try singleplayer.",
   "item.winlandcraft.interact": "Interact",
   "item.winlandcraft.apps": "Apps",

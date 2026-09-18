@@ -107,13 +107,6 @@ public final class AppWindows {
             PixelIcon.EXTERNAL_LINK.draw(canvas,x,y,size,.45f,-1);
         }
     }
-    public void openApps() {
-        var client = Minecraft.getInstance();
-        if (client.level != null) {
-            launcher.close();
-            launcher.bringToView(client.level, client.gameRenderer.getMainCamera(), 0.3f);
-        }
-    }
     public void toggleStartMenu() {
         if (launcher.isAttached()) launcher.close();
         else launcher.openAttached();

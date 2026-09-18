@@ -16,16 +16,14 @@ public final class WinLandCraft implements ModInitializer {
     public static final ResourceLocation TASKS_ID = ResourceLocation.fromNamespaceAndPath("winlandcraft", "tasks");
     public static final Item TASKS = new Item(new Item.Properties()
             .setId(ResourceKey.create(Registries.ITEM, TASKS_ID)).stacksTo(1));
-    public static final ResourceLocation DRAG_ID = ResourceLocation.fromNamespaceAndPath("winlandcraft", "window_drag");
-    public static final Item WINDOW_DRAG = new Item(new Item.Properties()
-            .setId(ResourceKey.create(Registries.ITEM, DRAG_ID)).stacksTo(1));
-    // Read old inventories without an unknown-item registry error; never give this item again.
+    // Read old inventories without an unknown-item registry error; never give these items again.
     private static final Item LEGACY_INTERACT = createItem("interact");
-    public static final Item APPS = createItem("apps");
+    private static final Item LEGACY_APPS = createItem("apps");
+    private static final Item LEGACY_WINDOW_DRAG = createItem("window_drag");
     public static final ResourceLocation LASER_POINTER_ID = ResourceLocation.fromNamespaceAndPath("winlandcraft", "laser_pointer");
     public static final Item LASER_POINTER = new Item(new Item.Properties()
             .setId(ResourceKey.create(Registries.ITEM, LASER_POINTER_ID)).stacksTo(1));
-    public static final Item[] CONTROLS = {TASKS, WINDOW_DRAG, APPS, LASER_POINTER};
+    public static final Item[] CONTROLS = {TASKS, LASER_POINTER};
 
     private static Item createItem(String name) {
         return new Item(new Item.Properties().setId(ResourceKey.create(Registries.ITEM,
@@ -41,9 +39,9 @@ public final class WinLandCraft implements ModInitializer {
     public void onInitialize() {
         StreamRelay.register();
         Registry.register(BuiltInRegistries.ITEM, TASKS_ID, TASKS);
-        Registry.register(BuiltInRegistries.ITEM, DRAG_ID, WINDOW_DRAG);
         Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "interact"), LEGACY_INTERACT);
-        Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "apps"), APPS);
+        Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "apps"), LEGACY_APPS);
+        Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "window_drag"), LEGACY_WINDOW_DRAG);
         Registry.register(BuiltInRegistries.ITEM, LASER_POINTER_ID, LASER_POINTER);
         PayloadTypeRegistry.playC2S().register(RequestTasksPayload.TYPE, RequestTasksPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> removeLegacyInteract(handler.player));
@@ -75,9 +73,11 @@ public final class WinLandCraft implements ModInitializer {
         });
     }
     private static void removeLegacyInteract(net.minecraft.server.level.ServerPlayer player) {
-        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++)
-            if (player.getInventory().getItem(slot).is(LEGACY_INTERACT)) player.getInventory().setItem(slot, ItemStack.EMPTY);
-        if (player.containerMenu.getCarried().is(LEGACY_INTERACT)) player.containerMenu.setCarried(ItemStack.EMPTY);
+        for (Item legacy : new Item[]{LEGACY_INTERACT, LEGACY_APPS, LEGACY_WINDOW_DRAG}) {
+            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++)
+                if (player.getInventory().getItem(slot).is(legacy)) player.getInventory().setItem(slot, ItemStack.EMPTY);
+            if (player.containerMenu.getCarried().is(legacy)) player.containerMenu.setCarried(ItemStack.EMPTY);
+        }
         player.containerMenu.broadcastChanges();
     }
 }

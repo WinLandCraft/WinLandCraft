@@ -26,7 +26,6 @@ public final class WindowControls {
     private final Set<Integer> buttons = new HashSet<>();
     private final Map<Integer, Integer> keys = new HashMap<>();
     private int pointerX, pointerY;
-    private InteractionHand dragHand;
     private double distance;
     private Vector3f grabOffset;
     private Quaternionf relativeRotation;
@@ -55,13 +54,12 @@ public final class WindowControls {
                 && c.screen == null && c.isWindowActive();
     }
     public void tick(Minecraft c) {
-        if (!c.options.keyUse.isDown()) { usedThisPress = false; if (dragHand != null) dragging = null; }
+        if (!c.options.keyUse.isDown()) usedThisPress = false;
         if (!active(c)) { cancel(); return; }
         if(edgeUi!=null&&(!edgeUi.owner.isOpen()||edgeUi.owner.level!=c.level||!edgeUi.owner.canMove())){discardEdge();clearCurve();}
         if(curveOwner!=null && (!GroupCurve.eligible(curveOwner) || curveOwner.curve==null)) clearCurve();
         if (resizing != null && (!resizing.panel.isOpen() || resizing.panel.level != c.level)) resizing = null;
-        if (dragging != null && (!dragging.isOpen() || dragging.level != c.level
-                || dragHand != null && !c.player.getItemInHand(dragHand).is(WinLandCraft.WINDOW_DRAG))) dragging = null;
+        if (dragging != null && (!dragging.isOpen() || dragging.level != c.level)) dragging = null;
         if (pointer != null && (!pointer.isOpen() || pointer.level != c.level || !pointer.canInteract())) releasePointer();
         if (focused != null && (!focused.isOpen() || focused.level != c.level || !focused.acceptsKeyboard())) stopTyping();
     }
@@ -110,24 +108,15 @@ public final class WindowControls {
             if (c.player.isShiftKeyDown()) apps.tasks.close(); else apps.tasks.open(c);
             return;
         }
-        if (item.is(WinLandCraft.APPS)) {
-            if (c.player.isShiftKeyDown()) apps.launcher.close(); else apps.openApps();
-            return;
-        }
         if (item.is(WinLandCraft.LASER_POINTER)) {
             if(c.player.isShiftKeyDown())apps.laserCalibration.open(c);else LaserPointer.cycleColor(c);
             return;
         }
-        if (!item.is(WinLandCraft.WINDOW_DRAG)) return;
-        Hit hit = pick(c,MOVE_RANGE);
-        if (hit == null) { message("Point at a window to drag it."); return; }
-        if (!hit.panel.canMove()) { message("This shared window is positioned by its owner."); return; }
-        beginMove(hit, c.gameRenderer.getMainCamera(), hand);
+        return;
     }
-    private void beginMove(Hit hit, Camera camera, InteractionHand hand) {
+    private void beginMove(Hit hit, Camera camera) {
         stopTyping();
         dragging = hit.panel.dragTarget();
-        dragHand = hand;
         distance = hit.distance;
         startMove(dragging, hit.point, camera);
     }
@@ -142,7 +131,6 @@ public final class WindowControls {
         if (!Double.isFinite(t)) return;
         stopTyping();
         dragging = panel.dragTarget();
-        dragHand = null;
         distance = t;
         startMove(dragging, origin.add(dir.scale(t)), camera);
     }
@@ -171,8 +159,8 @@ public final class WindowControls {
                 draggedFile=null;fileDragging=false;
                 curving=false;
                 resizing = null;
-                if (dragHand == null) dragging = null;
-            }
+                dragging = null;
+            } else if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) dragging = null;
             if (pointer != null) pointer.mouseUp(pointerX, pointerY, button);
             if (buttons.isEmpty()) pointer = null;
             return true;
@@ -193,6 +181,16 @@ public final class WindowControls {
             return true;
         }
         if (pointer == null && c.player.isUsingItem()) return false;
+        // Super-key window move: Alt + middle drags from anywhere on the window in crosshair
+        // mode; the laser pointer needs middle alone since it already aims the interaction.
+        if (pointer == null && hit != null && button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE
+                && hit.panel.isOpen() && hit.panel.canMove()
+                && (LaserPointer.active(c) || altHeld())) {
+            stopTyping();
+            beginMove(hit, c.gameRenderer.getMainCamera());
+            buttons.add(button);
+            return true;
+        }
         if(pointer==null&&hit!=null&&hit.panel==edgeUi) {
             buttons.add(button);
             if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT)edgeAction(hit,c);
@@ -226,7 +224,7 @@ public final class WindowControls {
                 buttons.add(button);
                 if (titlebar == 2) { stopTyping(); hit.panel.close(); }
                 else if (titlebar == 3) WindowGroups.detach(hit.panel);
-                else beginMove(hit, c.gameRenderer.getMainCamera(), null);
+                else beginMove(hit, c.gameRenderer.getMainCamera());
                 return true;
             }
         }
@@ -260,7 +258,7 @@ public final class WindowControls {
             case START_STREAM -> {stopTyping();if(apps.streams!=null)apps.streams.start(edgeUi.owner);edgeUi.sync();edgeUi.touch(System.nanoTime());}
             case STREAM_SETTINGS -> {stopTyping();edgeUi.streamClick(at[0],at[1]);}
             case UNGROUP -> {WindowGroups.detach(edgeUi.owner);edgeUi.touch(System.nanoTime());}
-            case MOVE -> beginMove(hit,client.gameRenderer.getMainCamera(),null);
+            case MOVE -> beginMove(hit,client.gameRenderer.getMainCamera());
             case CURVE -> {
                 stopTyping();curving=true;curveOwner=edgeUi.owner;curveUi=null;
                 var curve=GroupCurve.get(curveOwner);
@@ -454,7 +452,8 @@ public final class WindowControls {
                     var local=WindowGroups.local(hit.panel,hit.point);
                     int edge=EdgeControls.nearestEdge(local.x,local.y,hit.panel.worldWidth(),hit.panel.worldHeight());
                     if(edgeUi!=null&&edgeUi.owner==hit.panel&&edgeUi.edge==edge){edgeDwell.clear();edgeUi.follow(hit.point,edgeNow);}
-                    else if(edgeDwell.ready(hit.panel,edge,edgeNow)) {
+                    // Alt is the super key: skip the hover dwell and show the nearest pill now.
+                    else if(edgeDwell.ready(hit.panel,edge,edgeNow)||altHeld()) {
                         if(edgeUi!=null)edgeUi.dismiss(edgeNow);
                         else {edgeUi=new EdgeControls(hit.panel,hit.point,edgeNow);edgeUi.view(camera.getPosition(),false);}
                     }
@@ -558,6 +557,12 @@ public final class WindowControls {
     private static Vec3 direction(Camera camera) {
         Vector3f vector = new Vector3f(0, 0, -1).rotate(camera.rotation());
         return new Vec3(vector.x, vector.y, vector.z);
+    }
+    /** Either Alt key, for super-key window shortcuts that work in both pointer modes. */
+    static boolean altHeld() {
+        long window = Minecraft.getInstance().getWindow().getWindow();
+        return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
+                || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
     }
     private static void message(String text) {
         var player = Minecraft.getInstance().player;
