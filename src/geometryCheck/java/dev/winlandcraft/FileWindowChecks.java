@@ -20,7 +20,7 @@ final class FileWindowChecks {
         var otherPool=new ArrayList<WorldPanel>();
         check(apps.fileWindow(otherPool,()->new WorldPanel(2,1){})!=null,"per-app limits remain independent");
         var source=new FileManagerPanel();
-        for(String id:new String[]{"winlandcraft:notepad","winlandcraft:image_viewer","winlandcraft:video_player"})
+        for(String id:new String[]{"winlandcraft:notepad","winlandcraft:image_viewer"})
             check(!apps.openFile(id,source,Path.of("test.txt"),FileAppPlacement.Side.RIGHT),"closed source rejected without allocating");
         source.position=Vec3.ZERO;
         check(!apps.openFile("winlandcraft:image_viewer",source,Path.of("test.txt"),FileAppPlacement.Side.RIGHT),"unsupported file rejected");

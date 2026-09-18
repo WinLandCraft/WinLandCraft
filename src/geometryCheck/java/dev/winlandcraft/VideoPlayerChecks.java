@@ -6,11 +6,10 @@ import java.util.*;
 
 public final class VideoPlayerChecks {
     public static void main(String[] args)throws Exception{
-        check(VideoFileServer.supports(Path.of("movie.MP4"))&&!VideoFileServer.supports(Path.of("notes.txt")),"associations");
+        // No built-in video handler: video playback lives in plugin mods through the v2 API.
         var apps=new AppWindows();
-        check(apps.fileTargets(Path.of("movie.mp4")).stream().anyMatch(t->t.id().equals("winlandcraft:video_player")),"file manager handler");
-        check(apps.appEntries().stream().anyMatch(e->e.panel() instanceof VideoPlayerPanel),"launcher app");
-        MediaPlayerChecks.run();
+        check(apps.fileTargets(Path.of("movie.mp4")).stream().noneMatch(t->t.id().equals("winlandcraft:video_player")),"no built-in video handler");
+        check(apps.appEntries().stream().noneMatch(e->e.panel().getClass().getSimpleName().equals("VideoPlayerPanel")),"no built-in video app");
         Path picture=Files.createTempFile("wlc-image-", ".png");
         byte[] png=Base64.getDecoder().decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP4sAAAAASUVORK5CYII=");Files.write(picture,png);
         try(var server=new VideoFileServer();var client=HttpClient.newHttpClient()){
@@ -26,7 +25,7 @@ public final class VideoPlayerChecks {
             server.select(picture.resolveSibling("missing.png"));check(get(client,server.url().replace("index.html","media"),null).statusCode()==404,"missing image");
         }finally{Files.deleteIfExists(picture);}
         System.out.println("Image Viewer: page, MIME, image bytes, missing files and associations passed.");
-        System.out.println("Video Player: native panel, app associations passed (see Media player above).");
+        System.out.println("Video Player: built-in player removed; video files defer to plugin handlers.");
     }
     private static HttpResponse<byte[]> get(HttpClient client,String url,String range)throws Exception{var request=HttpRequest.newBuilder(URI.create(url));if(range!=null)request.header("Range",range);return client.send(request.build(),HttpResponse.BodyHandlers.ofByteArray());}
     private static void check(boolean value,String message){if(!value)throw new AssertionError(message);}

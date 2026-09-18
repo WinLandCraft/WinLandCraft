@@ -7,14 +7,12 @@ import java.util.concurrent.ArrayBlockingQueue;
 /** CEF capture replaces native playback, so keep the each captured browser tab audible locally.
  *  Reopens the output line instead of dying when the OS switches or loses audio devices. */
 final class StreamAudioMonitor implements AutoCloseable {
-    // Deep enough to ride out Bluetooth handoffs and decoder jitter (~0.5-2 s).
-    private final ArrayBlockingQueue<StreamAudio.Packet> queue;
+    private final ArrayBlockingQueue<StreamAudio.Packet> queue=new ArrayBlockingQueue<>(8);
     private volatile boolean closed;
     private volatile SourceDataLine line;
     private final Thread worker;
     private long nextWarning;
-    StreamAudioMonitor(){this(8);}
-    StreamAudioMonitor(int capacity){queue=new ArrayBlockingQueue<>(capacity);worker=Thread.ofVirtual().name("WinLandCraft local browser audio").start(this::run);}
+    StreamAudioMonitor(){worker=Thread.ofVirtual().name("WinLandCraft local browser audio").start(this::run);}
     /** Consumes one shared audio-packet owner in all cases. */
     synchronized void offer(StreamAudio.Packet packet){
         if(closed){packet.release();return;}

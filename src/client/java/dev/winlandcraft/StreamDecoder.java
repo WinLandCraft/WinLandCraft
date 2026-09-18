@@ -24,7 +24,7 @@ final class StreamDecoder implements AutoCloseable {
     private static final AtomicInteger NEXT_ID = new AtomicInteger();
 
     /** Newest decoded top-down RGBA frame. The decoder never reuses a published buffer. */
-    record Frame(byte[] rgba, int width, int height, long sequence) {}
+    record Frame(byte[] rgba, int width, int height, long sequence, double pts) {}
 
     final int id = NEXT_ID.incrementAndGet();
     final StreamQueue incoming = new StreamQueue();
@@ -233,7 +233,7 @@ final class StreamDecoder implements AutoCloseable {
                 boolean rendered = false;
                 while (avcodec.avcodec_receive_frame(context, decoded) == 0) {
                     try {
-                        render(decoded, sequence);
+                        render(decoded, sequence, timeUs);
                         rendered = true;
                     } finally {
                         avutil.av_frame_unref(decoded);
@@ -246,7 +246,7 @@ final class StreamDecoder implements AutoCloseable {
             }
         }
 
-        private void render(AVFrame frame, long sequence) {
+        private void render(AVFrame frame, long sequence, long timeUs) {
             int w = frame.width(), h = frame.height();
             if (w != width || h != height) throw new IllegalStateException("Decoder dimensions changed mid-stream");
             String key = frame.format() + ":" + w + "x" + h;
@@ -278,7 +278,7 @@ final class StreamDecoder implements AutoCloseable {
             rgbaBuffer.get(bytes, 0, size);
             // The panel may still be copying the published buffer; only panel-released
             // buffers return to the pool (see releaseFrame), never the retired one.
-            current = new Frame(bytes, w, h, sequence);
+            current = new Frame(bytes, w, h, sequence, timeUs / 1_000_000.0);
         }
 
         @Override public void close() {

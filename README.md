@@ -179,21 +179,11 @@ To group nearby apps, hover their edge pill and click **Group**. Hovering that b
 
 ### Video Player
 
-Open **Apps > Video Player**, then drag a video from File Manager onto its panel.
-Double-clicking MP4/M4V, WebM, OGV/OGG, MOV or MKV files also offers Video Player
-through the existing placement arrows. File opens create separate players (up to
-16), and dropping another file replaces the current video. A purple play icon
-identifies players in Apps and the taskbar.
-
-The player is native: files play straight off disk through the bundled FFmpeg
-(any container/codec it reads: H.264, HEVC, VP9, AV1, MPEG-4 and more) with
-hardware-preferred decoding (D3D11VA/CUDA on Windows, VAAPI/CUDA on Linux,
-VideoToolbox on macOS, software fallback everywhere). Its own control bar has
-play/pause, a seek slider, time display, volume and mute; click the video to
-toggle playback. Aspect ratio is preserved on resize. Unsupported/unreadable
-videos show an error in the player. No browser view, file server, or external
-player executable is involved. Player audio plays locally; streamed replicas
-currently carry video only, like other native apps.
+There is no built-in video player: video playback lives in plugin mods through the
+[v2 plugin API](PLUGINS-V2.md), which accepts CPU pixel frames, optional GPU textures,
+and PCM audio from external engines. A plugin registers video extensions through its
+app definition's file associations, and then appears in File Manager's placement
+options and accepts drag-dropped files exactly like the old built-in player did.
 
 To share an already running app, hover its floating titlebar pill and click **Start stream**. The pill then shows the existing quality settings and **Stop streaming** controls. Starting a stream uses the current window without reopening it; existing server requirements and single-stream ownership rules still apply.
 

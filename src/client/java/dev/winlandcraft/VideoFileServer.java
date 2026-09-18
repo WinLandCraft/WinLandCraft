@@ -22,7 +22,6 @@ final class VideoFileServer implements AutoCloseable {
     }
     String url(){return origin+"/"+token+"/"+selected.id()+"/index.html";}
     void select(Path path){selected=new Selection(path==null?null:path.toAbsolutePath().normalize(),UUID.randomUUID().toString());}
-    static boolean supports(Path path){return Set.of("mp4","m4v","webm","ogv","ogg","mov","mkv").contains(extension(path));}
     private static String extension(Path path){String n=path.getFileName().toString().toLowerCase(Locale.ROOT);return n.substring(n.lastIndexOf('.')+1);}
     private void handle(HttpExchange exchange) throws IOException {
         try(exchange){
