@@ -28,6 +28,7 @@ final class ModSettingsScreen extends Screen {
     private Component pointerLabel(){return Component.literal("Panel pointer: "+(ModSettings.laserPanelPointer()?"Laser":"Gaze hover"));}
     private Component lightingLabel(){return Component.literal("Lighting "+(ModSettings.screenLighting?"ON":"OFF"));}
     private Component smoothingLabel(){return Component.literal("Panel smoothing: "+(ModSettings.panelSmoothing?"ON":"OFF"));}
+    private Component chromiumFpsLabel(){return Component.literal("Browser FPS: "+ModSettings.chromiumFps);}
     private Component lightPowerLabel(){return Component.literal(String.format(java.util.Locale.ROOT,"Power %.1fx",ModSettings.screenLightIntensity));}
     private Component lightRangeLabel(){return Component.literal("Range "+Math.round(ModSettings.screenLightRange)+"+");}
     @Override protected void init() {
@@ -84,8 +85,15 @@ final class ModSettingsScreen extends Screen {
             ModSettings.screenLightRange=ModSettings.nextScreenLightRange(ModSettings.screenLightRange);
             saveFailed=!ModSettings.save();button.setMessage(lightRangeLabel());
         }).bounds(width/2+53,252,72,20).build());
+        addRenderableWidget(Button.builder(chromiumFpsLabel(),button->{
+            ModSettings.chromiumFps=StreamQuality.nearest(ModSettings.chromiumFps,ModSettings.CHROMIUM_FPS);
+            // cycle to next
+            for(int i=0;i<ModSettings.CHROMIUM_FPS.length;i++)if(ModSettings.CHROMIUM_FPS[i]==ModSettings.chromiumFps){ModSettings.chromiumFps=ModSettings.CHROMIUM_FPS[(i+1)%ModSettings.CHROMIUM_FPS.length];break;}
+            saveFailed=!ModSettings.save();button.setMessage(chromiumFpsLabel());
+        }).bounds(width/2-125,288,250,20)
+                .tooltip(Tooltip.create(Component.literal("New browsers use this FPS immediately; open browsers need a reopen. Higher burns more GPU/CPU."))).build());
         addRenderableWidget(Button.builder(Component.literal("Create Solas lighting-compatible copy"),button->patchSolas())
-                .bounds(width/2-125,288,250,20).build());
+                .bounds(width/2-125,318,250,20).build());
         addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
                 .bounds(width / 2 - 100, height - 30, 200, 20).build());
     }

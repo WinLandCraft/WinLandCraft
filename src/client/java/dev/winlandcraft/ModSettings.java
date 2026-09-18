@@ -7,7 +7,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-final class ModSettings {
+public final class ModSettings {
     static final int POINTER_GAZE=0,POINTER_LASER=1;
     static final float DEFAULT_SCREEN_LIGHT_INTENSITY=3.5f,MIN_SCREEN_LIGHT_RANGE=24.0f;
     private static final float[] SCREEN_LIGHT_INTENSITIES={.5f,1f,1.5f,2f,2.5f,3f,3.5f,4f,5f,6f,8f};
@@ -25,6 +25,8 @@ final class ModSettings {
     static float screenLightIntensity=DEFAULT_SCREEN_LIGHT_INTENSITY,screenLightRange=MIN_SCREEN_LIGHT_RANGE;
     static boolean laserEnabled=true;
     static int laserColor;
+    static final int[] CHROMIUM_FPS={20,24,30,45,60,90,120};
+    static int chromiumFps=30;
     static boolean validInteractionRange(double value) { return Double.isFinite(value) && value > 0 && value <= 4096; }
     static double interactionRange(double normalRange) { return extendInteractionRange ? interactionRange : normalRange; }
     private static Path path() { return FabricLoader.getInstance().getConfigDir().resolve("winlandcraft.json"); }
@@ -59,6 +61,7 @@ final class ModSettings {
                 if(json.has("screenLightRange"))screenLightRange=nearest(json.get("screenLightRange").getAsFloat(),SCREEN_LIGHT_RANGES);
                 if(json.has("laserEnabled"))laserEnabled=json.get("laserEnabled").getAsBoolean();
                 if(json.has("laserColor"))laserColor=LaserPointer.normalizeColor(json.get("laserColor").getAsInt());
+                if(json.has("chromiumFps"))chromiumFps=StreamQuality.nearest(json.get("chromiumFps").getAsInt(),CHROMIUM_FPS);
                 LaserTuning.load(json);
                 if (json.has("freePanelRotation")) freePanelRotation = json.get("freePanelRotation").getAsBoolean();
                 if (json.has("removeSizingLimitations")) removeSizingLimitations = json.get("removeSizingLimitations").getAsBoolean();
@@ -101,6 +104,7 @@ final class ModSettings {
             json.addProperty("screenLightRange",screenLightRange);
             json.addProperty("laserEnabled",laserEnabled);
             json.addProperty("laserColor",LaserPointer.normalizeColor(laserColor));
+            json.addProperty("chromiumFps",chromiumFps);
             LaserTuning.save(json);
             Files.createDirectories(path().getParent());
             Files.writeString(path(), new GsonBuilder().setPrettyPrinting().create().toJson(json));
