@@ -11,6 +11,8 @@ A Minecraft 1.21.4 / Fabric mod that adds a VR-like desktop environment experien
 
 Dedicated servers only need the WinLandCraft JAR plus Fabric API.
 
+Do keep in mind this mod does work client-side only, although not tested thoroughly. On a server without with the required mods, you should still be able to use this mod on your side.
+
 ## Quick start
 
 1. Open **Options > Controls > Key Binds > WinLandCraft** and bind **Get controls**.
@@ -26,16 +28,15 @@ Want a site as its own app window without the browser sidebar?
 2. Enter a name and URL, then **Save and get icon**.
 3. Open it anytime from **Apps**. Each webapp stays open alongside the Browser and other apps.
 
-Edit or delete webapps from the same settings screen. Editing a URL or deleting an app closes its open window.
-
 ## Built-in apps
 
 Open these from **Apps**:
 
-- **File Manager** — browse your computer's files. Double-click a folder to enter it. Double-click a supported file to pick which app opens it beside File Manager. It can only read files; it can't create, rename, or delete them.
-- **Notepad** — plain-text editor. Drag a text file from File Manager onto it (hold left-click on the file, aim at Notepad, release). Supports multiple tabs, undo/redo, and Save / Save As. Save your work before quitting Minecraft — unsaved drafts are lost.
+- **File Manager** — browse your computer's files, also supports opening files, if there is an app that supports such filetypes. It can only read files; it can't create, rename, or delete them.
+- **Notepad** — plain-text editor, inspired by Windows 11's notepad. Drag a text file from File Manager onto it, or just open a file. Save your work before quitting Minecraft — unsaved drafts are lost.
 - **Image Viewer** — drop an image onto it or double-click an image file to view it. Supports PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, and SVG.
 - **Task Manager** — shows how much CPU/RAM the browser processes are using.
+- **Browser** — Click the URL bar, type a website or search. Click a text field on a page, then press **G** to type, this locks your keys on a window, works with anything, not just the browser. Press **Esc** to stop typing and get your Minecraft keys back. Tabs are not saved between sessions.
 
 ## Moving and resizing windows
 
@@ -70,14 +71,5 @@ See [PLUGINS.md](PLUGINS.md) for the v1 native/Chromium API and [PLUGINS-V2.md](
 
 - Window positions are temporary: they reset when you die, change dimension, disconnect, or quit.
 - The first launch takes a while — MCEF downloads and verifies its browser runtime.
-
-### Browser basics
-
-- The left sidebar has the URL bar, Back / Forward / Reload, New tab, and your tab list. Each tab keeps its own page and history.
-- Click the URL bar, type a website or search phrase, and press Enter. Bare domains like `example.com` just work.
-- Click a text field on a page, then press **G** to type. Press **Esc** to stop typing and get your Minecraft keys back.
-- Scroll over a panel to scroll the page (this won't change your hotbar slot).
-- Right-click on a page for Back, Forward, Reload, and link options.
-- Closing the browser from the taskbar X closes all tabs. Tabs are not saved between sessions.
 
 The full technical details, including adblocking, icons, rendering, and screen lighting, live in [docs/](docs/). The previous long README is kept as [README.backup.md](README.backup.md).
