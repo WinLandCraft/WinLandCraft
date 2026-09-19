@@ -28,6 +28,10 @@ import org.slf4j.LoggerFactory;
 public final class WinLandCraftClient implements ClientModInitializer {
     public static final Logger LOGGER = LoggerFactory.getLogger("winlandcraft");
     public static WindowControls controls;
+    /** True when the current server negotiated WinLandCraft channels. False on vanilla servers: no
+     * control items are given, the Get-controls key opens Tasks directly, and gaze controls are forced. */
+    public static volatile boolean serverHasMod = false;
+    public static boolean clientSideOnly() { return !serverHasMod; }
     @Override public void onInitializeClient() {
         ModSettings.load();
         AdBlock.install();
@@ -72,7 +76,10 @@ public final class WinLandCraftClient implements ClientModInitializer {
             while (give.consumeClick()) {
                 if (client.player == null || client.screen != null || client.player.isSpectator() || controls.isTyping()) continue;
                 if (ClientPlayNetworking.canSend(RequestTasksPayload.TYPE)) ClientPlayNetworking.send(RequestTasksPayload.INSTANCE);
-                else client.player.displayClientMessage(Component.literal("Controls require a world running WinLandCraft."), true);
+                else if (clientSideOnly() && client.level != null) {
+                    apps.tasks.open(client);
+                    client.player.displayClientMessage(Component.translatable("message.winlandcraft.tasks_opened"), true);
+                } else client.player.displayClientMessage(Component.literal("Controls require a world running WinLandCraft."), true);
             }
         });
         UseItemCallback.EVENT.register(WinLandCraftClient::use);
@@ -94,7 +101,13 @@ public final class WinLandCraftClient implements ClientModInitializer {
         WorldRenderEvents.END.register(context -> streams.renderCapture());
         // Fabric can notify disconnect on Netty's IO thread. Input state and CEF/GL resources
         // belong to the client/render thread, including when disconnect races a world tick.
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(() -> {
+            serverHasMod = ClientPlayNetworking.canSend(RequestTasksPayload.TYPE);
+            if (clientSideOnly() && client.player != null)
+                client.player.displayClientMessage(Component.translatable("message.winlandcraft.client_side_mode"), false);
+        }));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
+            serverHasMod = false;
             controls.cancel();
             streams.clear();
             apps.windows.forEach(WorldPanel::close);

@@ -25,7 +25,14 @@ final class ModSettingsScreen extends Screen {
     }
     private Component sizingLabel(){return Component.literal("Remove sizing limitations: "+(ModSettings.removeSizingLimitations?"ON":"OFF"));}
     private Component rangeLabel(){return Component.literal("Extend interaction range: "+(ModSettings.extendInteractionRange?"ON":"OFF"));}
-    private Component pointerLabel(){return Component.literal("Panel pointer: "+(ModSettings.laserPanelPointer()?"Laser":"Gaze hover"));}
+    private Component pointerLabel(){
+        if (pointerForced()) return Component.literal("Panel pointer: Gaze hover (client-side)");
+        return Component.literal("Panel pointer: "+(ModSettings.laserPanelPointer()?"Laser":"Gaze hover"));
+    }
+    /** Forced only while in a world whose server lacks the mod; the main-menu screen stays editable. */
+    private boolean pointerForced() {
+        return WinLandCraftClient.clientSideOnly() && minecraft != null && minecraft.level != null;
+    }
     private Component lightingLabel(){return Component.literal("Lighting "+(ModSettings.screenLighting?"ON":"OFF"));}
     private Component smoothingLabel(){return Component.literal("Panel smoothing: "+(ModSettings.panelSmoothing?"ON":"OFF"));}
     private Component chromiumFpsLabel(){return Component.literal("Browser FPS: "+ModSettings.chromiumFps);}
@@ -73,7 +80,8 @@ final class ModSettingsScreen extends Screen {
             ModSettings.panelPointerMode=ModSettings.laserPanelPointer()?ModSettings.POINTER_GAZE:ModSettings.POINTER_LASER;
             changed.run();saveFailed=!ModSettings.save();button.setMessage(pointerLabel());
         }).bounds(width/2-125,216,250,20)
-                .tooltip(Tooltip.create(Component.literal("Gaze hover uses the screen cursor. Laser requires a powered laser pointer in either hand and uses its beam dot."))).build());
+                .tooltip(Tooltip.create(Component.literal("Gaze hover uses the screen cursor. Laser requires a powered laser pointer in either hand and uses its beam dot.")))
+                .build()).active=!pointerForced();
         addRenderableWidget(Button.builder(lightingLabel(),button->{
             ModSettings.screenLighting=!ModSettings.screenLighting;saveFailed=!ModSettings.save();button.setMessage(lightingLabel());
         }).bounds(width/2-125,252,96,20).build());
@@ -109,6 +117,8 @@ final class ModSettingsScreen extends Screen {
                 : "Blocks (max 4096). OFF uses normal Minecraft reach.", width / 2, 168,
                 invalidRange && ModSettings.extendInteractionRange ? 0xFFFF5555 : 0xFF9BAABD);
         graphics.drawCenteredString(font,"Choose exactly one pointer source; Laser mode requires the powered item.",width/2,240,0xFFB8CBDE);
+        if (pointerForced())
+            graphics.drawCenteredString(font,"Client-side server: crosshair controls forced, no control items.",width/2,228,0xFFFFC857);
         graphics.drawCenteredString(font,"Power is linear; range is a minimum that grows with panel size.",width/2,276,0xFFB8CBDE);
         if(!patchStatus.isEmpty())graphics.drawCenteredString(font,font.plainSubstrByWidth(patchStatus,width-20),width/2,314,
                 patching?0xFFB8CBDE:patchStatus.startsWith("Created")?0xFF80E6AE:0xFFFF8888);

@@ -169,7 +169,7 @@ public final class WindowControls {
         if (action != GLFW.GLFW_PRESS) return false;
         if (resizing != null || dragging != null || curving) { buttons.add(button); return true; }
         Hit hit=pointer==null?interactionPick(c):null;
-        boolean laserHeld=ModSettings.laserPanelPointer()&&LaserPointer.heldHand(c)!=null;
+        boolean laserHeld=effectiveLaserMode()&&LaserPointer.heldHand(c)!=null;
         // The laser yields to panel input; its controls only apply when this raycast missed.
         if (pointer == null && button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
                 && (WinLandCraft.isControl(c.player.getMainHandItem())
@@ -328,7 +328,7 @@ public final class WindowControls {
     public int cursor() {
         var client = Minecraft.getInstance();
         if (!active(client) || client.options.hideGui) return 0;
-        if(ModSettings.laserPanelPointer()&&LaserPointer.active(client)&&!fileDragging)return -1;
+        if(ModSettings.laserPanelPointer()&&!WinLandCraftClient.clientSideOnly()&&LaserPointer.active(client)&&!fileDragging)return -1;
         int corner = resizing != null ? resizing.corner : hoveredCorner;
         if (corner != 0) {
             int diagonal=((corner&1)!=0)==((corner&4)!=0)?3:2;
@@ -481,8 +481,13 @@ public final class WindowControls {
     static boolean panelPointerAvailable(boolean laserMode,boolean activeLaser) {
         return !laserMode||activeLaser;
     }
+    /** Client-side fallback on servers without the mod has no control items, so the laser can
+     * never be held: force gaze/crosshair routing even if Laser mode is configured. */
+    private static boolean effectiveLaserMode() {
+        return ModSettings.laserPanelPointer() && !WinLandCraftClient.clientSideOnly();
+    }
     private Hit interactionPick(Minecraft c) {
-        return panelPointerAvailable(ModSettings.laserPanelPointer(),LaserPointer.active(c))?pick(c):null;
+        return panelPointerAvailable(effectiveLaserMode(),LaserPointer.active(c))?pick(c):null;
     }
     private Hit pick(Minecraft c,double range) {
         if (c.options.hideGui) return null;
