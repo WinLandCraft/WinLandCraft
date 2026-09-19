@@ -3,6 +3,7 @@
   "item.winlandcraft.window_drag": "Window Drag",
   "key.categories.winlandcraft": "WinLandCraft",
   "key.winlandcraft.give_tasks": "Get controls",
+  "key.winlandcraft.open_desktop": "Open desktop",
   "panel.winlandcraft.no_apps": "No active apps",
   "message.winlandcraft.already_have_controls": "You already have all window controls.",
   "message.winlandcraft.inventory_full": "Make room and press Get controls again to receive the missing controls.",

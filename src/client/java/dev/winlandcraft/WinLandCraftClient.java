@@ -40,6 +40,8 @@ public final class WinLandCraftClient implements ClientModInitializer {
         WebApps.load();
         var give = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.winlandcraft.give_tasks",
                 InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), "key.categories.winlandcraft"));
+        var desktop = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.winlandcraft.open_desktop",
+                InputConstants.Type.KEYSYM, InputConstants.UNKNOWN.getValue(), "key.categories.winlandcraft"));
         var typing = KeyBindingHelper.registerKeyBinding(new KeyMapping("key.winlandcraft.typing",
                 InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_G, "key.categories.winlandcraft"));
         var apps = new AppWindows();
@@ -80,6 +82,11 @@ public final class WinLandCraftClient implements ClientModInitializer {
                     apps.tasks.open(client);
                     client.player.displayClientMessage(Component.translatable("message.winlandcraft.tasks_opened"), true);
                 } else client.player.displayClientMessage(Component.literal("Controls require a world running WinLandCraft."), true);
+            }
+            while (desktop.consumeClick()) {
+                if (client.player == null || client.screen != null || client.level == null
+                        || client.player.isSpectator() || controls.isTyping()) continue;
+                client.setScreen(new DesktopScreen(apps));
             }
         });
         UseItemCallback.EVENT.register(WinLandCraftClient::use);
