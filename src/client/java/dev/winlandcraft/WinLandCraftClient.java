@@ -97,6 +97,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
             apps.windows.forEach(window -> window.render(context));
             controls.renderLaser(context);
             controls.renderHandles(context);
+            controls.renderBeacons(context);
         });
         HudLayerRegistrationCallback.EVENT.register(layers -> layers.addLayer(IdentifiedLayer.of(
                 ResourceLocation.fromNamespaceAndPath("winlandcraft", "interaction_hints"), (graphics, delta) -> {

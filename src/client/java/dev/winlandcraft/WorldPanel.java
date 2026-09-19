@@ -75,6 +75,13 @@ public abstract class WorldPanel {
     protected ClientLevel level;
     protected Vec3 position;
     protected Quaternionf orientation;
+    private long beaconUntil;
+    /** Marks a spawn that landed inside blocks; the beacon outline fades over ten seconds. */
+    void markBeacon() { beaconUntil = System.nanoTime() + Beacon.DURATION_NANOS; }
+    float beaconAlpha() {
+        if (position == null) return 0;
+        return Math.clamp((beaconUntil - System.nanoTime()) / (float) Beacon.DURATION_NANOS, 0, 1);
+    }
     private final net.minecraft.resources.ResourceLocation surfaceLocation=PanelSurface.location();
     private PanelSurface.Target surfaceTarget;
     /** Live composited texture for the 2D desktop hybrid, or null before the first front-facing render. */
@@ -210,9 +217,14 @@ public abstract class WorldPanel {
         Vec3 oldPosition = position; Quaternionf oldRotation = orientation;
         orientation = PanelRotation.allowed(camera.rotation());
         Vector3f offset = new Vector3f(0, verticalOffset, -2.5f).rotate(camera.rotation());
-        position = camera.getPosition().add(offset.x, offset.y, offset.z);
+        Vec3 fallback = camera.getPosition().add(offset.x, offset.y, offset.z);
+        float title = titlebarHeight() * worldHeight() / Math.max(1, pixelHeight());
+        var placement = SpawnSpace.resolve(world, camera, fallback, orientation,
+                worldWidth(), worldHeight() / 2 + title, worldHeight() / 2);
+        position = placement.position();
         level = world;
         WindowGroups.moved(this, oldPosition, oldRotation);
+        if (placement.blocked()) Beacon.mark(this);
     }
 
     public void close() {

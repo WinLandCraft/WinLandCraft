@@ -388,6 +388,13 @@ public final class WindowControls {
     public void renderLaser(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
         LaserPointer.prepare(context.camera(),hoveredPoint);
     }
+    public void renderBeacons(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+        for (WorldPanel window : apps.windows) {
+            if (!window.isOpen() || window.level != Minecraft.getInstance().level) continue;
+            float alpha = window.beaconAlpha();
+            if (alpha > 0) Beacon.draw(context, window, alpha);
+        }
+    }
     public void update(Camera camera) {
         var c = Minecraft.getInstance(); tick(c);
         if (!active(c)) return;

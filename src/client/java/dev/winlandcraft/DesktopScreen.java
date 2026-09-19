@@ -165,6 +165,21 @@ final class DesktopScreen extends Screen {
                 panel.orientation = PanelRotation.allowed(new Quaternionf().rotationY(
                         (float) Math.atan2(eye.x - panel.position.x, eye.z - panel.position.z)));
                 WindowGroups.moved(panel, oldPosition, oldRotation);
+                if (client.player != null) {
+                    float title = panel.titlebarHeight() * panel.worldHeight() / Math.max(1, panel.pixelHeight());
+                    float halfH = panel.worldHeight() / 2;
+                    if (SpawnSpace.blocked(client.level, client.player, eye, panel.position, panel.orientation,
+                            panel.worldWidth(), halfH + title, halfH)) {
+                        Vec3 retry = panel.position.add(Math.sin(yaw) * 2.0, 0, Math.cos(yaw) * 2.0);
+                        if (SpawnSpace.blocked(client.level, client.player, eye, retry, panel.orientation,
+                                panel.worldWidth(), halfH + title, halfH)) Beacon.mark(panel);
+                        else {
+                            Vec3 pushed = panel.position;
+                            panel.position = retry;
+                            WindowGroups.moved(panel, pushed, new Quaternionf(panel.orientation));
+                        }
+                    }
+                }
             }
         }
         status = "Recalled " + units.size() + " window" + (units.size() == 1 ? "." : "s.");
