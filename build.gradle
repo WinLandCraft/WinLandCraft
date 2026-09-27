@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.9.2'
+    id 'net.fabricmc.fabric-loom' version '1.18.2'
 }
 
 version = project.mod_version
@@ -26,6 +26,7 @@ def stageAdblockNative = tasks.register('stageAdblockNative', Sync) {
     if (adblockNativeBundleDir.isPresent()) from(file(adblockNativeBundleDir.get()))
 }
 repositories {
+    mavenLocal()
     maven { url = 'https://mcef-download.cinemamod.com/repositories/releases' }
     mavenCentral()
 }
@@ -42,15 +43,15 @@ loom {
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-    modImplementation "com.cinemamod:mcef-fabric:${project.mcef_version}"
+    // 26.x ships unobfuscated under official names: no mappings layer.
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    implementation "com.cinemamod:mcef-fabric:${project.mcef_version}"
     // FFmpeg sender/receiver codecs (GPU H.264 encode, software decode, Opus).
     // The full jar is large: every platform native rides inside the mod JAR until
     // per-platform artifacts or a runtime download replace this.
-    modImplementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}"
-    modImplementation "org.bytedeco:javacpp:${project.javacpp_version}"
+    implementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}"
+    implementation "org.bytedeco:javacpp:${project.javacpp_version}"
     include "org.bytedeco:ffmpeg:${project.ffmpeg_version}"
     include "org.bytedeco:javacpp:${project.javacpp_version}"
     // No upstream FFmpeg build exists for Windows ARM64; streaming stays
@@ -58,11 +59,11 @@ dependencies {
     // are used because only they bundle libx264, the software fallback; without
     // them machines without a supported GPU would have no H.264 encoder at all.
     for (platform in ['windows-x86_64', 'linux-x86_64', 'linux-arm64', 'macosx-x86_64', 'macosx-arm64']) {
-        modImplementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}-gpl"
+        implementation "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}-gpl"
         include "org.bytedeco:ffmpeg:${project.ffmpeg_version}:${platform}-gpl"
     }
     for (platform in ['windows-x86_64', 'windows-arm64', 'linux-x86_64', 'linux-arm64', 'macosx-x86_64', 'macosx-arm64']) {
-        modImplementation "org.bytedeco:javacpp:${project.javacpp_version}:${platform}"
+        implementation "org.bytedeco:javacpp:${project.javacpp_version}:${platform}"
         include "org.bytedeco:javacpp:${project.javacpp_version}:${platform}"
     }
 }
@@ -81,12 +82,12 @@ jar {
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
     withSourcesJar()
 }
 
 tasks.withType(JavaCompile).configureEach {
-    options.release = 21
+    options.release = 25
 }
 
 // Dependency-free geometry checks against the actual client window implementation.
@@ -132,12 +133,14 @@ tasks.register('smokeResourceCounters', JavaExec) {
 }
 check.dependsOn project(':adblockNative').tasks.named('cargoTest')
 
-// Development launches can hide missing refmap declarations. Check the distributable JAR.
+// Development launches can hide missing mixin declarations. Check the distributable JAR.
+// 26.x ships unobfuscated, so mixin targets are official names directly and
+// no refmap is generated or required; the loader validates targets at launch.
 tasks.register('verifyMixinPackaging') {
-    dependsOn remapJar
+    dependsOn jar
     doLast {
         def parser = new groovy.json.JsonSlurper()
-        new java.util.zip.ZipFile(tasks.remapJar.archiveFile.get().asFile).withCloseable { zip ->
+        new java.util.zip.ZipFile(tasks.jar.archiveFile.get().asFile).withCloseable { zip ->
             def readJson = { String path ->
                 def entry = zip.getEntry(path)
                 if (entry == null) throw new GradleException("Missing packaged resource: ${path}")
@@ -156,18 +159,11 @@ tasks.register('verifyMixinPackaging') {
                 throw new GradleException('Input mixin configuration is not registered')
             }
             def config = readJson('winlandcraft.client.mixins.json')
-            if (!config.refmap) throw new GradleException('Input mixins have no refmap configured')
-            def refmap = readJson(config.refmap)
+            if (config.refmap) throw new GradleException('Stale refmap on unobfuscated 26.x: ' + config.refmap)
             expected.each { mixin, methods ->
                 if (!config.client.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
                 def className = config.package.replace('.', '/') + '/' + mixin
                 if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
-                methods.each { method ->
-                    def target = refmap.mappings[className]?.get(method)
-                    if (!(target instanceof String) || !target.startsWith('Lnet/minecraft/class_')) {
-                        throw new GradleException("Missing production mapping: ${className}.${method}")
-                    }
-                }
             }
             if (zip.getEntry('META-INF/ADBLOCK-NOTICE.txt') == null)
                 throw new GradleException('Missing adblock third-party notice')

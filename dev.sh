@@ -16,7 +16,7 @@ if [[ -z "$java_root" ]] && command -v javac >/dev/null 2>&1; then
 fi
 
 if [[ -z "$java_root" ]]; then
-  for candidate in /usr/lib/jvm/temurin-21-jdk /usr/lib/jvm/java-21-openjdk /usr/lib/jvm/java-21-openjdk-* /usr/lib/jvm/temurin-21-*; do
+  for candidate in /usr/lib/jvm/temurin-25-jdk /usr/lib/jvm/java-25-openjdk /usr/lib/jvm/java-25-openjdk-* /usr/lib/jvm/temurin-25-*; do
     if [[ -x "$candidate/bin/javac" ]]; then
       java_root=$candidate
       break
@@ -25,13 +25,13 @@ if [[ -z "$java_root" ]]; then
 fi
 
 if [[ -z "$java_root" ]]; then
-  printf '%s\n' 'JDK 21 was not found. Install a JDK 21 package or set JAVA_HOME to its directory.' >&2
+  printf '%s\n' 'JDK 25 was not found. Install a JDK 25 package or set JAVA_HOME to its directory.' >&2
   exit 1
 fi
 
 javac_version=$("$java_root/bin/javac" -version 2>&1)
-if [[ ! "$javac_version" =~ ^javac[[:space:]]+21([.]|$) ]]; then
-  printf 'WinLandCraft requires JDK 21; found %s at %s\n' "$javac_version" "$java_root" >&2
+if [[ ! "$javac_version" =~ ^javac[[:space:]]+25([.]|$) ]]; then
+  printf 'WinLandCraft requires JDK 25; found %s at %s\n' "$javac_version" "$java_root" >&2
   exit 1
 fi
 
