@@ -4,16 +4,16 @@ import java.util.UUID;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /** Bounded H.264/VP9/Opus relay protocol. No client or codec dependencies on the server. */
 public final class StreamProtocol {
     public static final int PART_BYTES = 24_000, MAX_FRAME_BYTES = 768_000, MAX_PARTS = 32;
     public static final int MAX_STREAMS = 16, MAX_IMAGE_WIDTH = 1920, MAX_IMAGE_HEIGHT = 1080;
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> type(String name) {
-        return new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("winlandcraft", name+"_v5"));
+        return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath("winlandcraft", name+"_v5"));
     }
-    public record State(UUID owner, UUID session, ResourceLocation dimension,
+    public record State(UUID owner, UUID session, Identifier dimension,
                         double x, double y, double z, float qx, float qy, float qz, float qw,
                         float width, float height, int pixelsWide, int pixelsHigh, int titlebarPixels, float curve, int facing,
                         boolean remoteControl) implements CustomPacketPayload {

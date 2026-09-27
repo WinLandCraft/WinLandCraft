@@ -11,7 +11,7 @@ import net.minecraft.server.level.ServerPlayer;
 public final class StreamRelay {
     private static final org.slf4j.Logger LOGGER=org.slf4j.LoggerFactory.getLogger("winlandcraft/stream-relay");
     private static final Map<UUID,Session> streams=new HashMap<>();
-    private static final Map<UUID,net.minecraft.resources.ResourceLocation> viewers=new HashMap<>();
+    private static final Map<UUID,net.minecraft.resources.Identifier> viewers=new HashMap<>();
     static final class ControlBudget {
         double tokens=240;
         long updated,lastSeen;
@@ -39,11 +39,11 @@ public final class StreamRelay {
             byteBudget-=bytes;packetBudget--;return true;
         }
     }
-    static boolean owns(UUID sender,StreamProtocol.State state,net.minecraft.resources.ResourceLocation dimension) {
+    static boolean owns(UUID sender,StreamProtocol.State state,net.minecraft.resources.Identifier dimension) {
         return sender.equals(state.owner())&&dimension.equals(state.dimension())&&state.valid();
     }
     static boolean mayControl(UUID sender,StreamProtocol.Control control,StreamProtocol.State state,
-                              net.minecraft.resources.ResourceLocation dimension) {
+                              net.minecraft.resources.Identifier dimension) {
         return !sender.equals(state.owner())&&sender.equals(control.controller())&&dimension.equals(state.dimension())
                 &&(state.remoteControl()||control.event()==StreamProtocol.Control.CANCEL)&&control.valid(state);
     }
@@ -59,12 +59,12 @@ public final class StreamRelay {
         PayloadTypeRegistry.playS2C().register(StreamProtocol.Control.TYPE,StreamProtocol.Control.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(StreamProtocol.State.TYPE,(p,c)->{
             var player=c.player();long now=System.currentTimeMillis();
-            if(!player.isAlive()||!owns(player.getUUID(),p,player.serverLevel().dimension().location()))return;
+            if(!player.isAlive()||!owns(player.getUUID(),p,player.level().dimension().location()))return;
             var old=streams.get(p.owner());
             if(old!=null&&now-old.lastState<40)return;
             if(old==null&&streams.size()>=StreamProtocol.MAX_STREAMS) {
                 ServerPlayNetworking.send(player,new StreamProtocol.Stop(p.owner(),p.session()));
-                player.displayClientMessage(net.minecraft.network.chat.Component.literal("The relay test supports up to 16 simultaneous streams."),false);
+                player.sendSystemMessage(net.minecraft.network.chat.Component.literal("The relay test supports up to 16 simultaneous streams."),false);
                 return;
             }
             if(old!=null&&!old.state.session().equals(p.session()))stop(c.server(),p.owner(),"session replaced");
@@ -72,7 +72,7 @@ public final class StreamRelay {
             var session=streams.computeIfAbsent(p.owner(),ignored->new Session(p,now));
             if(session.state.remoteControl()&&!p.remoteControl())cancelControllers(c.server(),session);
             session.state=p;session.lastState=now;
-            if(created)LOGGER.info("Started stream relay for {} ({}, session {}, dimension {})",player.getGameProfile().getName(),shortId(p.owner()),shortId(p.session()),p.dimension());
+            if(created)LOGGER.info("Started stream relay for {} ({}, session {}, dimension {})",player.getGameProfile().name(),shortId(p.owner()),shortId(p.session()),p.dimension());
             for(var viewer:c.server().getPlayerList().getPlayers())if(watches(viewer,p))ServerPlayNetworking.send(viewer,p);
             updateDemand(c.server(),session);
         });
@@ -80,7 +80,7 @@ public final class StreamRelay {
             var s=streams.get(c.player().getUUID());long now=System.currentTimeMillis();
             if(s==null)return;
             if(!p.owner().equals(c.player().getUUID())||!p.session().equals(s.state.session())||!p.valid()
-                    ||!c.player().serverLevel().dimension().location().equals(s.state.dimension())){s.invalidUnits++;return;}
+                    ||!c.player().level().dimension().location().equals(s.state.dimension())){s.invalidUnits++;return;}
             byte[] bytes=s.assembly.accept(p,now);
             if(bytes==null)return;
             s.receivedUnits++;
@@ -97,7 +97,7 @@ public final class StreamRelay {
         ServerPlayNetworking.registerGlobalReceiver(StreamProtocol.Control.TYPE,(p,c)->{
             var player=c.player();var s=streams.get(p.owner());long now=System.currentTimeMillis();
             if(s==null)return;
-            if(!player.isAlive()||player.isSpectator()||!mayControl(player.getUUID(),p,s.state,player.serverLevel().dimension().location())){
+            if(!player.isAlive()||player.isSpectator()||!mayControl(player.getUUID(),p,s.state,player.level().dimension().location())){
                 s.invalidControls++;return;
             }
             if(p.event()==StreamProtocol.Control.CANCEL){cancelController(c.server(),s,player.getUUID(),true);return;}
@@ -118,7 +118,7 @@ public final class StreamRelay {
                 var player=server.getPlayerList().getPlayer(entry.getKey());var s=entry.getValue();
                 if(player==null)stop(server,entry.getKey(),"owner missing");
                 else if(!player.isAlive())stop(server,entry.getKey(),"owner not alive");
-                else if(!player.serverLevel().dimension().location().equals(s.state.dimension()))stop(server,entry.getKey(),"owner changed dimension");
+                else if(!player.level().dimension().location().equals(s.state.dimension()))stop(server,entry.getKey(),"owner changed dimension");
                 else if(now-s.lastState>10_000)stop(server,entry.getKey(),"state heartbeat timed out");
                 else if(now>=s.nextReport){
                     s.nextReport=now+10_000;var parts=s.assembly.stats();
@@ -131,12 +131,12 @@ public final class StreamRelay {
                 for(var controller:List.copyOf(s.controllers.entrySet())) {
                     var viewer=server.getPlayerList().getPlayer(controller.getKey());
                     if(now-controller.getValue().lastSeen>3_000||viewer==null||!viewer.isAlive()||viewer.isSpectator()
-                            ||!viewer.serverLevel().dimension().location().equals(s.state.dimension()))
+                            ||!viewer.level().dimension().location().equals(s.state.dimension()))
                         cancelController(server,s,controller.getKey(),false);
                 }
             }
             for(var player:server.getPlayerList().getPlayers()) {
-                var dim=player.serverLevel().dimension().location();
+                var dim=player.level().dimension().location();
                 if(dim.equals(viewers.put(player.getUUID(),dim)))continue;
                 for(var s:streams.values())if(watches(player,s.state)) {
                     ServerPlayNetworking.send(player,s.state);
@@ -147,7 +147,7 @@ public final class StreamRelay {
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{streams.clear();viewers.clear();});
     }
     private static boolean watches(ServerPlayer player,StreamProtocol.State state) {
-        return !player.getUUID().equals(state.owner())&&player.serverLevel().dimension().location().equals(state.dimension())
+        return !player.getUUID().equals(state.owner())&&player.level().dimension().location().equals(state.dimension())
                 &&ServerPlayNetworking.canSend(player,StreamProtocol.State.TYPE)&&ServerPlayNetworking.canSend(player,StreamProtocol.Frame.TYPE);
     }
     private static void updateDemand(MinecraftServer server,Session session) {

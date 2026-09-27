@@ -8,26 +8,26 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 public final class WinLandCraft implements ModInitializer {
-    public static final ResourceLocation TASKS_ID = ResourceLocation.fromNamespaceAndPath("winlandcraft", "tasks");
+    public static final Identifier TASKS_ID = Identifier.fromNamespaceAndPath("winlandcraft", "tasks");
     public static final Item TASKS = new Item(new Item.Properties()
             .setId(ResourceKey.create(Registries.ITEM, TASKS_ID)).stacksTo(1));
     // Read old inventories without an unknown-item registry error; never give these items again.
     private static final Item LEGACY_INTERACT = createItem("interact");
     private static final Item LEGACY_APPS = createItem("apps");
     private static final Item LEGACY_WINDOW_DRAG = createItem("window_drag");
-    public static final ResourceLocation LASER_POINTER_ID = ResourceLocation.fromNamespaceAndPath("winlandcraft", "laser_pointer");
+    public static final Identifier LASER_POINTER_ID = Identifier.fromNamespaceAndPath("winlandcraft", "laser_pointer");
     public static final Item LASER_POINTER = new Item(new Item.Properties()
             .setId(ResourceKey.create(Registries.ITEM, LASER_POINTER_ID)).stacksTo(1));
     public static final Item[] CONTROLS = {TASKS, LASER_POINTER};
 
     private static Item createItem(String name) {
         return new Item(new Item.Properties().setId(ResourceKey.create(Registries.ITEM,
-                ResourceLocation.fromNamespaceAndPath("winlandcraft", name))).stacksTo(1));
+                Identifier.fromNamespaceAndPath("winlandcraft", name))).stacksTo(1));
     }
 
     public static boolean isControl(ItemStack stack) {
@@ -39,9 +39,9 @@ public final class WinLandCraft implements ModInitializer {
     public void onInitialize() {
         StreamRelay.register();
         Registry.register(BuiltInRegistries.ITEM, TASKS_ID, TASKS);
-        Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "interact"), LEGACY_INTERACT);
-        Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "apps"), LEGACY_APPS);
-        Registry.register(BuiltInRegistries.ITEM, ResourceLocation.fromNamespaceAndPath("winlandcraft", "window_drag"), LEGACY_WINDOW_DRAG);
+        Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "interact"), LEGACY_INTERACT);
+        Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "apps"), LEGACY_APPS);
+        Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "window_drag"), LEGACY_WINDOW_DRAG);
         Registry.register(BuiltInRegistries.ITEM, LASER_POINTER_ID, LASER_POINTER);
         PayloadTypeRegistry.playC2S().register(RequestTasksPayload.TYPE, RequestTasksPayload.CODEC);
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> removeLegacyInteract(handler.player));
@@ -68,7 +68,7 @@ public final class WinLandCraft implements ModInitializer {
                 }
             }
             player.containerMenu.broadcastChanges();
-            player.displayClientMessage(Component.translatable(full ? "message.winlandcraft.inventory_full"
+            player.sendSystemMessage(Component.translatable(full ? "message.winlandcraft.inventory_full"
                     : added ? "message.winlandcraft.controls_given" : "message.winlandcraft.already_have_controls"), true);
         });
     }
