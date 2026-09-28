@@ -27,7 +27,7 @@ public final class PanelCanvas implements AutoCloseable {
     private final WorldPass pass;
     private final WorldPanel panel;
     private final Matrix4f worldMatrix;
-    private final Matrix4f inverse;
+    private Matrix4f inverse;
     private final Vec3 cameraPos;
     private final boolean worldSpace;
     private int baseOrder;
@@ -38,14 +38,12 @@ public final class PanelCanvas implements AutoCloseable {
         this(pass, panel, panel.position, panel.orientation,
                 panel.worldWidth() / panel.pixelWidth(), panel.worldHeight() / panel.pixelHeight(),
                 panel.pixelWidth(), panel.pixelHeight());
-        Matrix4f bendInverse = null;
         if (panel.curve != null && panel.curve.amount >= .0001f) {
             curved = true;
             // Undo the panel transform to obtain its logical pixels, then bend all geometry,
             // including icons and rects, onto the same cylindrical surface.
-            bendInverse = new Matrix4f(pose.last().pose()).invert();
+            inverse = new Matrix4f(pose.last().pose()).invert();
         }
-        inverse = bendInverse;
         if (!panel.frontFacing(pass.camera().pos)) {
             front = false;
             backside(panel);
