@@ -1,8 +1,6 @@
 package dev.winlandcraft;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -43,36 +41,36 @@ public final class WinLandCraft implements ModInitializer {
         Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "apps"), LEGACY_APPS);
         Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "window_drag"), LEGACY_WINDOW_DRAG);
         Registry.register(BuiltInRegistries.ITEM, LASER_POINTER_ID, LASER_POINTER);
-        PayloadTypeRegistry.playC2S().register(RequestTasksPayload.TYPE, RequestTasksPayload.CODEC);
-        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> removeLegacyInteract(handler.player));
-        ServerPlayNetworking.registerGlobalReceiver(RequestTasksPayload.TYPE, (payload, context) -> {
-            var player = context.player();
-            removeLegacyInteract(player);
-            if (player.isSpectator() || !player.isAlive()) {
-                return;
-            }
-            boolean added = false;
-            boolean full = false;
-            for (Item control : CONTROLS) {
-                boolean owned = player.containerMenu.getCarried().is(control);
-                for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
-                    owned |= player.getInventory().getItem(slot).is(control);
-                }
-                if (owned) {
-                    continue;
-                }
-                if (player.getInventory().getFreeSlot() == -1) {
-                    full = true;
-                } else {
-                    added |= player.getInventory().add(new ItemStack(control));
-                }
-            }
-            player.containerMenu.broadcastChanges();
-            player.sendSystemMessage(Component.translatable(full ? "message.winlandcraft.inventory_full"
-                    : added ? "message.winlandcraft.controls_given" : "message.winlandcraft.already_have_controls"), true);
-        });
     }
-    private static void removeLegacyInteract(net.minecraft.server.level.ServerPlayer player) {
+
+    /** Called on the server thread by the payload dispatch mixin. */
+    public static void receiveTasks(net.minecraft.server.level.ServerPlayer player) {
+        removeLegacyInteract(player);
+        if (player.isSpectator() || !player.isAlive()) {
+            return;
+        }
+        boolean added = false;
+        boolean full = false;
+        for (Item control : CONTROLS) {
+            boolean owned = player.containerMenu.getCarried().is(control);
+            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+                owned |= player.getInventory().getItem(slot).is(control);
+            }
+            if (owned) {
+                continue;
+            }
+            if (player.getInventory().getFreeSlot() == -1) {
+                full = true;
+            } else {
+                added |= player.getInventory().add(new ItemStack(control));
+            }
+        }
+        player.containerMenu.broadcastChanges();
+        player.sendSystemMessage(Component.translatable(full ? "message.winlandcraft.inventory_full"
+                : added ? "message.winlandcraft.controls_given" : "message.winlandcraft.already_have_controls"), true);
+    }
+
+    static void removeLegacyInteract(net.minecraft.server.level.ServerPlayer player) {
         for (Item legacy : new Item[]{LEGACY_INTERACT, LEGACY_APPS, LEGACY_WINDOW_DRAG}) {
             for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++)
                 if (player.getInventory().getItem(slot).is(legacy)) player.getInventory().setItem(slot, ItemStack.EMPTY);

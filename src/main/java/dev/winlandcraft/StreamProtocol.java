@@ -1,7 +1,7 @@
 package dev.winlandcraft;
 
 import java.util.UUID;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
@@ -18,13 +18,13 @@ public final class StreamProtocol {
                         float width, float height, int pixelsWide, int pixelsHigh, int titlebarPixels, float curve, int facing,
                         boolean remoteControl) implements CustomPacketPayload {
         public static final Type<State> TYPE = StreamProtocol.type("stream_state");
-        public static final StreamCodec<RegistryFriendlyByteBuf, State> CODEC = new StreamCodec<>() {
-            public State decode(RegistryFriendlyByteBuf b) {
-                return new State(b.readUUID(),b.readUUID(),b.readResourceLocation(),b.readDouble(),b.readDouble(),b.readDouble(),
+        public static final StreamCodec<FriendlyByteBuf, State> CODEC = new StreamCodec<>() {
+            public State decode(FriendlyByteBuf b) {
+                return new State(b.readUUID(),b.readUUID(),b.readIdentifier(),b.readDouble(),b.readDouble(),b.readDouble(),
                         b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readFloat(),b.readVarInt(),b.readVarInt(),b.readVarInt(),b.readFloat(),b.readByte(),b.readBoolean());
             }
-            public void encode(RegistryFriendlyByteBuf b, State p) {
-                b.writeUUID(p.owner);b.writeUUID(p.session);b.writeResourceLocation(p.dimension);
+            public void encode(FriendlyByteBuf b, State p) {
+                b.writeUUID(p.owner);b.writeUUID(p.session);b.writeIdentifier(p.dimension);
                 b.writeDouble(p.x);b.writeDouble(p.y);b.writeDouble(p.z);b.writeFloat(p.qx);b.writeFloat(p.qy);b.writeFloat(p.qz);b.writeFloat(p.qw);
                 b.writeFloat(p.width);b.writeFloat(p.height);b.writeVarInt(p.pixelsWide);b.writeVarInt(p.pixelsHigh);b.writeVarInt(p.titlebarPixels);
                 b.writeFloat(p.curve);b.writeByte(p.facing);b.writeBoolean(p.remoteControl);
@@ -43,27 +43,27 @@ public final class StreamProtocol {
     }
     public record Demand(UUID owner,UUID session,boolean active) implements CustomPacketPayload {
         public static final Type<Demand> TYPE=StreamProtocol.type("stream_demand");
-        public static final StreamCodec<RegistryFriendlyByteBuf,Demand> CODEC=new StreamCodec<>() {
-            public Demand decode(RegistryFriendlyByteBuf b){return new Demand(b.readUUID(),b.readUUID(),b.readBoolean());}
-            public void encode(RegistryFriendlyByteBuf b,Demand p){b.writeUUID(p.owner);b.writeUUID(p.session);b.writeBoolean(p.active);}
+        public static final StreamCodec<FriendlyByteBuf,Demand> CODEC=new StreamCodec<>() {
+            public Demand decode(FriendlyByteBuf b){return new Demand(b.readUUID(),b.readUUID(),b.readBoolean());}
+            public void encode(FriendlyByteBuf b,Demand p){b.writeUUID(p.owner);b.writeUUID(p.session);b.writeBoolean(p.active);}
         };
         public boolean valid(State state){return state!=null&&owner.equals(state.owner)&&session.equals(state.session);}
         @Override public Type<Demand> type(){return TYPE;}
     }
     public record Frame(UUID owner, UUID session, long sequence, int part, int count, byte[] bytes) implements CustomPacketPayload {
         public static final Type<Frame> TYPE = StreamProtocol.type("stream_frame");
-        public static final StreamCodec<RegistryFriendlyByteBuf, Frame> CODEC = new StreamCodec<>() {
-            public Frame decode(RegistryFriendlyByteBuf b) {return new Frame(b.readUUID(),b.readUUID(),b.readLong(),b.readVarInt(),b.readVarInt(),b.readByteArray(PART_BYTES));}
-            public void encode(RegistryFriendlyByteBuf b,Frame p) {b.writeUUID(p.owner);b.writeUUID(p.session);b.writeLong(p.sequence);b.writeVarInt(p.part);b.writeVarInt(p.count);b.writeByteArray(p.bytes);}
+        public static final StreamCodec<FriendlyByteBuf, Frame> CODEC = new StreamCodec<>() {
+            public Frame decode(FriendlyByteBuf b) {return new Frame(b.readUUID(),b.readUUID(),b.readLong(),b.readVarInt(),b.readVarInt(),b.readByteArray(PART_BYTES));}
+            public void encode(FriendlyByteBuf b,Frame p) {b.writeUUID(p.owner);b.writeUUID(p.session);b.writeLong(p.sequence);b.writeVarInt(p.part);b.writeVarInt(p.count);b.writeByteArray(p.bytes);}
         };
         public boolean valid(){return sequence>=0&&count>0&&count<=MAX_PARTS&&part>=0&&part<count&&bytes.length>0&&bytes.length<=PART_BYTES&&(part==count-1||bytes.length==PART_BYTES);}
         @Override public Type<Frame> type(){return TYPE;}
     }
     public record Stop(UUID owner, UUID session) implements CustomPacketPayload {
         public static final Type<Stop> TYPE = StreamProtocol.type("stream_stop");
-        public static final StreamCodec<RegistryFriendlyByteBuf, Stop> CODEC = new StreamCodec<>() {
-            public Stop decode(RegistryFriendlyByteBuf b){return new Stop(b.readUUID(),b.readUUID());}
-            public void encode(RegistryFriendlyByteBuf b,Stop p){b.writeUUID(p.owner);b.writeUUID(p.session);}
+        public static final StreamCodec<FriendlyByteBuf, Stop> CODEC = new StreamCodec<>() {
+            public Stop decode(FriendlyByteBuf b){return new Stop(b.readUUID(),b.readUUID());}
+            public void encode(FriendlyByteBuf b,Stop p){b.writeUUID(p.owner);b.writeUUID(p.session);}
         };
         @Override public Type<Stop> type(){return TYPE;}
     }
@@ -71,9 +71,9 @@ public final class StreamProtocol {
         public static final int MOVE=0,MOUSE_DOWN=1,MOUSE_UP=2,SCROLL=3,KEY=4,CHARACTER=5,CANCEL=6,KEEPALIVE=7;
         private static final int SAFE_MODIFIERS=0x31; // Shift, Caps Lock and Num Lock only.
         public static final Type<Control> TYPE=StreamProtocol.type("stream_control");
-        public static final StreamCodec<RegistryFriendlyByteBuf,Control> CODEC=new StreamCodec<>() {
-            public Control decode(RegistryFriendlyByteBuf b){return new Control(b.readUUID(),b.readUUID(),b.readUUID(),b.readUnsignedByte(),b.readInt(),b.readInt(),b.readInt(),b.readInt(),b.readUnsignedByte(),b.readUnsignedByte(),b.readDouble());}
-            public void encode(RegistryFriendlyByteBuf b,Control p){b.writeUUID(p.owner);b.writeUUID(p.session);b.writeUUID(p.controller);b.writeByte(p.event);b.writeInt(p.x);b.writeInt(p.y);b.writeInt(p.value);b.writeInt(p.scan);b.writeByte(p.action);b.writeByte(p.modifiers);b.writeDouble(p.amount);}
+        public static final StreamCodec<FriendlyByteBuf,Control> CODEC=new StreamCodec<>() {
+            public Control decode(FriendlyByteBuf b){return new Control(b.readUUID(),b.readUUID(),b.readUUID(),b.readUnsignedByte(),b.readInt(),b.readInt(),b.readInt(),b.readInt(),b.readUnsignedByte(),b.readUnsignedByte(),b.readDouble());}
+            public void encode(FriendlyByteBuf b,Control p){b.writeUUID(p.owner);b.writeUUID(p.session);b.writeUUID(p.controller);b.writeByte(p.event);b.writeInt(p.x);b.writeInt(p.y);b.writeInt(p.value);b.writeInt(p.scan);b.writeByte(p.action);b.writeByte(p.modifiers);b.writeDouble(p.amount);}
         };
         public static Control pointer(UUID owner,UUID session,UUID controller,int event,int x,int y,int button){return new Control(owner,session,controller,event,x,y,button,0,0,0,0);}
         public static Control scroll(UUID owner,UUID session,UUID controller,int x,int y,double amount){return new Control(owner,session,controller,SCROLL,x,y,0,0,0,0,amount);}

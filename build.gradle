@@ -154,7 +154,14 @@ tasks.register('verifyMixinPackaging') {
                             GameRendererLightMixin: ['renderLevel'],
                             ItemInHandRendererMixin: ['renderItem', 'renderHandsWithItems'],
                             ItemStackRenderStateMixin: ['render'],
-                            ItemStackLayerRenderStateMixin: ['render']]
+                            ItemStackLayerRenderStateMixin: ['render'],
+                            StreamCodecC2SMixin: ['<clinit>'],
+                            StreamCodecS2CMixin: ['<clinit>'],
+                            StreamClientMixin: ['handleCustomPayload']]
+            def expectedServer = [StreamCodecC2SMixin: ['<clinit>'],
+                            StreamCodecS2CMixin: ['<clinit>'],
+                            StreamServerMixin: ['handleCustomPayload'],
+                            StreamServerJoinMixin: ['placeNewPlayer', 'remove']]
             if (!mod.mixins.contains('winlandcraft.client.mixins.json')) {
                 throw new GradleException('Input mixin configuration is not registered')
             }
@@ -162,6 +169,11 @@ tasks.register('verifyMixinPackaging') {
             if (config.refmap) throw new GradleException('Stale refmap on unobfuscated 26.x: ' + config.refmap)
             expected.each { mixin, methods ->
                 if (!config.client.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
+                def className = config.package.replace('.', '/') + '/' + mixin
+                if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
+            }
+            expectedServer.each { mixin, methods ->
+                if (!config.server.contains(mixin)) throw new GradleException("Missing server mixin: ${mixin}")
                 def className = config.package.replace('.', '/') + '/' + mixin
                 if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
             }
