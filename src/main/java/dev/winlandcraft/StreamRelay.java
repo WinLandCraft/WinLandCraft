@@ -47,6 +47,9 @@ public final class StreamRelay {
                 &&(state.remoteControl()||control.event()==StreamProtocol.Control.CANCEL)&&control.valid(state);
     }
     public static void register() {
+        registerTick();
+    }
+
     /** Called on the server thread by the payload dispatch mixin. */
     public static void receiveState(ServerPlayer player, StreamProtocol.State p) {
         var server = player.level().getServer();
@@ -125,6 +128,8 @@ public final class StreamRelay {
         viewers.remove(player.getUUID());
         for (var session : streams.values()) cancelController(server, session, player.getUUID(), false);
     }
+
+    private static void registerTick() {
         ServerTickEvents.END_SERVER_TICK.register(server->{
             long now=System.currentTimeMillis();
             for(var entry:List.copyOf(streams.entrySet())) {
