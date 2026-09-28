@@ -1,7 +1,6 @@
 package dev.winlandcraft;
 
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.resources.Identifier;
 
 /** Selected Pixelarticons packed into one texture to keep panel rendering batched. */
@@ -20,9 +19,9 @@ enum PixelIcon {
                 column / (float) COLUMNS, row / 3f, (column + 1) / (float) COLUMNS, (row + 1) / 3f);
     }
 
-    void draw(GuiGraphics graphics, int x, int y, int size) {
+    void draw(GuiGraphicsExtractor graphics, int x, int y, int size) {
         int column = ordinal() % COLUMNS, row = ordinal() / COLUMNS;
-        graphics.blit(RenderType::guiTextured, ATLAS, x, y, column * CELL, row * CELL,
-                size, size, CELL, CELL, WIDTH, HEIGHT);
+        graphics.blit(ATLAS, x, y, size, size, column / (float) COLUMNS, row / 3f,
+                (column + 1) / (float) COLUMNS, (row + 1) / 3f);
     }
 }

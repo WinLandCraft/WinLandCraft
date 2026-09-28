@@ -336,7 +336,7 @@ public final class WindowControls {
         }
         return hovered != null || pointer != null || dragging != null || curving ? 1 : 0;
     }
-    public void renderResizeHint(net.minecraft.client.gui.GuiGraphics graphics) {
+    public void renderResizeHint(net.minecraft.client.gui.GuiGraphicsExtractor graphics) {
         var client = Minecraft.getInstance();
         WorldPanel target = active(client) && !client.options.hideGui && resizing == null && dragging == null
                 && pointer == null && !curving && hoveredCorner != 0 ? hovered : null;
@@ -349,7 +349,7 @@ public final class WindowControls {
         String text = "Hold CTRL to scale instead of resize";
         int x = (graphics.guiWidth() - client.font.width(text)) / 2, y = graphics.guiHeight() / 2 + 20;
         graphics.fill(x-5,y-4,x+client.font.width(text)+5,y+13,0xE018212D);
-        graphics.drawString(client.font,text,x,y,0xFFE1F2FA,true);
+        graphics.text(client.font,text,x,y,0xFFE1F2FA,true);
     }
     public void renderHandles(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
         if(fileDragging&&draggedFile!=null) {

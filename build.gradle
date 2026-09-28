@@ -157,7 +157,10 @@ tasks.register('verifyMixinPackaging') {
                             ItemStackLayerRenderStateMixin: ['render'],
                             StreamCodecC2SMixin: ['<clinit>'],
                             StreamCodecS2CMixin: ['<clinit>'],
-                            StreamClientMixin: ['handleCustomPayload']]
+                            StreamClientMixin: ['handleCustomPayload'],
+                            ClientConnectionMixin: ['handleLogin', 'onDisconnect'],
+                            OptionsScreenMixin: ['init'],
+                            OptionsKeyMappingsMixin: ['keyMappings']]
             def expectedServer = [StreamCodecC2SMixin: ['<clinit>'],
                             StreamCodecS2CMixin: ['<clinit>'],
                             StreamServerMixin: ['handleCustomPayload'],

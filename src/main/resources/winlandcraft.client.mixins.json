@@ -2,7 +2,7 @@
   "required": true,
   "package": "dev.winlandcraft.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": ["MouseHandlerMixin", "KeyboardHandlerMixin", "GuiMixin", "MinecraftMixin", "GameRendererLightMixin", "ItemInHandRendererMixin", "ItemStackRenderStateMixin", "ItemStackLayerRenderStateMixin", "CefBrowserOsrFpsMixin", "StreamCodecC2SMixin", "StreamCodecS2CMixin", "StreamClientMixin"],
+  "client": ["MouseHandlerMixin", "KeyboardHandlerMixin", "GuiMixin", "HudMixin", "MinecraftMixin", "GameRendererLightMixin", "ItemInHandRendererMixin", "ItemStackRenderStateMixin", "ItemStackLayerRenderStateMixin", "CefBrowserOsrFpsMixin", "StreamCodecC2SMixin", "StreamCodecS2CMixin", "StreamClientMixin", "ClientConnectionMixin", "OptionsScreenMixin", "OptionsKeyMappingsMixin"],
   "server": ["StreamCodecC2SMixin", "StreamCodecS2CMixin", "StreamServerMixin", "StreamServerJoinMixin"],
   "injectors": {"defaultRequire": 1}
 }
