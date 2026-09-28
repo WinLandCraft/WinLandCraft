@@ -43,8 +43,8 @@ public final class StreamChecks {
             check(!StreamRelay.mayControl(controller,control,controlled,Identifier.withDefaultNamespace("the_nether")),"remote dimension spoof rejected");
             check(StreamRelay.mayControl(controller,StreamProtocol.Control.cancel(OWNER,SESSION,controller),s,s.dimension()),"release accepted after permission is disabled");
             check(StreamProtocol.Control.keepalive(OWNER,SESSION,controller).valid(controlled),"controller keepalive is bounded");
-            check(!StreamProtocol.Control.key(OWNER,SESSION,controller,67,46,1,2).valid(controlled),"remote control modifier rejected");
-            check(!StreamProtocol.Control.key(OWNER,SESSION,controller,341,29,1,0).valid(controlled),"remote system modifier key rejected");
+            check(!StreamProtocol.Control.key(OWNER,SESSION,controller,67,46,1,0x40).valid(controlled),"remote control modifier rejected");
+            check(!StreamProtocol.Control.key(OWNER,SESSION,controller,1073742048,29,1,0).valid(controlled),"remote system modifier key rejected");
             var budget=new StreamRelay.ControlBudget(1_000);
             for(int i=0;i<240;i++)check(budget.allow(1_000),"initial control burst bounded");
             check(!budget.allow(1_000)&&budget.allow(2_000),"control budget refills over time");
