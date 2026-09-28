@@ -172,12 +172,12 @@ tasks.register('verifyMixinPackaging') {
             def config = readJson('winlandcraft.client.mixins.json')
             if (config.refmap) throw new GradleException('Stale refmap on unobfuscated 26.x: ' + config.refmap)
             expected.each { mixin, methods ->
-                if (!config.client.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
+                if (!config.mixins.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
                 def className = config.package.replace('.', '/') + '/' + mixin
                 if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
             }
             expectedServer.each { mixin, methods ->
-                if (!config.server.contains(mixin)) throw new GradleException("Missing server mixin: ${mixin}")
+                if (!config.mixins.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
                 def className = config.package.replace('.', '/') + '/' + mixin
                 if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
             }
