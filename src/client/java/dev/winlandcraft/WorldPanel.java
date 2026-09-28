@@ -35,7 +35,7 @@ public abstract class WorldPanel {
     protected final boolean hovered(int x,int y,int width,int height){return hoverX>=x&&hoverX<x+width&&hoverY>=y&&hoverY<y+height;}
     protected final int hoverColor(int x,int y,int width,int height,int normal,int hot){return hovered(x,y,width,height)?hot:normal;}
     public void open(net.minecraft.client.Minecraft client) {
-        if (client.level != null) bringToView(client.level, client.gameRenderer.getMainCamera(), 0.6f);
+        if (client.level != null) bringToView(client.level, client.gameRenderer.mainCamera(), 0.6f);
     }
     public int pixelWidth() { return 400; }
     public int pixelHeight() { return 48; }

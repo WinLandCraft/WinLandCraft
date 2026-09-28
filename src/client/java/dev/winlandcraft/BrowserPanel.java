@@ -110,7 +110,7 @@ public class BrowserPanel extends WorldPanel {
     @Override public void keyboardStopped() { editing = false; selectAll = false; }
 
     public void open(Minecraft client) {
-        bringToView(client.level, client.gameRenderer.getMainCamera(), 0.6f);
+        bringToView(client.level, client.gameRenderer.mainCamera(), 0.6f);
         failed = false;
     }
 

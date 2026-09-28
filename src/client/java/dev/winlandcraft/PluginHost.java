@@ -44,6 +44,6 @@ final class PluginHost {
         var launcher=launchers.get(id);if(launcher==null||!launcher.definition.accepts(path)||!source.isOpen())return false;
         var panel=extra.stream().filter(p->!p.isOpen()&&p.definition.id().equals(id)).findFirst().orElse(null);
         if(panel==null){if(extra.size()>=64)return false;panel=new PluginPanel(launcher.definition);extra.add(panel);apps.windows.add(panel);}
-        FileAppPlacement.place(source,panel,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());panel.dropFile(path);return true;
+        FileAppPlacement.place(source,panel,side,Minecraft.getInstance().gameRenderer.mainCamera().getPosition());panel.dropFile(path);return true;
     }
 }

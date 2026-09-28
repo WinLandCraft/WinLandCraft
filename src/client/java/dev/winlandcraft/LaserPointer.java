@@ -5,9 +5,8 @@ import dev.winlandcraft.LaserTuning.Parameter;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.block.model.ItemTransform;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.TextColor;
@@ -90,17 +89,18 @@ public final class LaserPointer {
         sampledSpinDegrees=spin<0?0:spinDegrees(spin);
     }
 
-    public static void captureModelTransform(PoseStack source,ItemTransform transform,MultiBufferSource buffers) {
-        if(captureContext==null)return;
+    /** Captures the calibrated muzzle and draws the beam in the submitting pass. The pose
+     * already carries the hand and item transforms; everything stays in that space. */
+    public static void captureAndDraw(PoseStack source,SubmitNodeCollector collector,ItemDisplayContext context) {
+        if(captureContext==null||context!=captureContext)return;
         PoseStack pose=new PoseStack();
         pose.mulPose(source.last().pose());
-        transform.apply(captureContext==ItemDisplayContext.FIRST_PERSON_LEFT_HAND,pose);
         applyCalibration(pose);
         pose.translate(-.5f,-.5f,-.5f);
         Matrix4f matrix=pose.last().pose();
         Vector3f muzzle=matrix.transformPosition(new Vector3f(.5f+Parameter.BEAM_X.value()/16,
                 .5f+Parameter.BEAM_Y.value()/16,Parameter.BEAM_INSET.value()/16));
-        renderBeam(buffers,muzzle);
+        renderBeam(collector,source,matrix,muzzle);
     }
 
     public static void applyCalibration(PoseStack pose) {
@@ -126,12 +126,12 @@ public final class LaserPointer {
             preparedAim=null;
             return;
         }
-        Vec3 eye=camera.getPosition();
+        Vec3 eye=camera.position();
         if(target==null) {
             HitResult crosshair=client.hitResult;
             if(crosshair!=null&&crosshair.getType()!=HitResult.Type.MISS)target=crosshair.getLocation();
             else {
-                Vector3f forward=camera.getLookVector();
+                Vector3f forward=new Vector3f(camera.forwardVector());
                 Vec3 reach=eye.add(forward.x*64,forward.y*64,forward.z*64);
                 HitResult block=client.level.clip(new ClipContext(eye,reach,ClipContext.Block.OUTLINE,ClipContext.Fluid.NONE,client.player));
                 target=block.getType()==HitResult.Type.MISS?reach:block.getLocation();
@@ -140,37 +140,46 @@ public final class LaserPointer {
         preparedAim=new Aim(target,System.nanoTime());
     }
 
-    private static void renderBeam(MultiBufferSource buffers,Vector3f from) {
-        Minecraft client=Minecraft.getInstance();
-        Aim aim=preparedAim;
-        if(!active(client)||client.options.hideGui||aim==null||client.level==null
-                ||handRoot==null||System.nanoTime()-aim.preparedAt>AIM_MAX_AGE_NANOS)return;
-        Camera camera=client.gameRenderer.getMainCamera();
-        Vec3 eye=camera.getPosition();
-        Matrix4f worldToHand=new Matrix4f(handRoot).mul(new Matrix4f().rotation(
-                new Quaternionf(camera.rotation()).conjugate()));
-        Vector3f to=worldToHand.transformPosition(relative(aim.target,eye));
-        Vector3f viewer=worldToHand.transformPosition(new Vector3f());
-        double distance=new Vector3f(from).sub(to).length();
-        if(distance<.05)return;
-
-        Vector3f up=worldToHand.transformDirection(new Vector3f(camera.getUpVector())).normalize();
-        Vector3f left=worldToHand.transformDirection(new Vector3f(camera.getLeftVector())).normalize();
-        Vector3f axis=new Vector3f(to).sub(from).normalize();
-        Vector3f view=new Vector3f(from).add(to).mul(.5f).negate().add(viewer);
-        Vector3f side=new Vector3f(axis).cross(view);
-        if(side.lengthSquared()<1.0e-8f)side.set(axis).cross(up);
-        if(side.lengthSquared()<1.0e-8f)side.set(left);
+    private static void renderBeam(SubmitNodeCollector collector, Matrix4f submitMatrix, Vector3f fromSubmit) {
+        Minecraft client = Minecraft.getInstance();
+        Aim aim = preparedAim;
+        if (!active(client) || client.options.hideGui || aim == null || client.level == null
+                || handRoot == null || System.nanoTime() - aim.preparedAt > AIM_MAX_AGE_NANOS) return;
+        Camera camera = client.gameRenderer.mainCamera();
+        // The muzzle arrives in the submitting (view) space; everything below is world space.
+        Matrix4f viewToWorld = new Matrix4f().translation(v(camera.position())).rotate(camera.rotation());
+        Vector3f from = viewToWorld.transformPosition(new Vector3f(fromSubmit));
+        Vector3f to = v(aim.target);
+        Vector3f viewer = v(camera.position());
+        Vector3f up = new Vector3f(camera.upVector());
+        Vector3f left = new Vector3f(camera.leftVector());
+        Vector3f axis = new Vector3f(to).sub(from).normalize();
+        Vector3f view = new Vector3f(from).add(to).mul(.5f).negate().add(viewer);
+        Vector3f side = new Vector3f(axis).cross(view);
+        if (side.lengthSquared() < 1.0e-8f) side.set(axis).cross(up);
+        if (side.lengthSquared() < 1.0e-8f) side.set(left);
         side.normalize();
-        if(new Vector3f(axis).cross(side).dot(view)<0)side.negate();
+        if (new Vector3f(axis).cross(side).dot(view) < 0) side.negate();
 
-        float startWidth=beamWidth(.34),endWidth=beamWidth(distance);
-        int rgb=color().rgb;
-        VertexConsumer vertices=buffers.getBuffer(RenderType.lightning());
-        Matrix4f matrix=new Matrix4f();
-        ribbon(vertices,matrix,from,to,side,startWidth*3.4f,endWidth*3.4f,withAlpha(rgb,42));
-        ribbon(vertices,matrix,from,to,side,startWidth,endWidth,withAlpha(brighten(rgb),230));
-        target(vertices,matrix,to,viewer,left,up,targetRadius(distance),rgb);
+        double distance = new Vector3f(from).sub(to).length();
+        if (distance < .05) return;
+        float startWidth = beamWidth(.34), endWidth = beamWidth(distance);
+        int rgb = color().rgb;
+        // Identity pose: vertices are already world space.
+        collector.order(4).submitCustomGeometry(new PoseStack(), RenderTypes.debugQuads(), (pose, vertices) -> {
+            Matrix4f matrix = pose.pose();
+            ribbon(vertices, matrix, from, to, side, startWidth * 3.4f, endWidth * 3.4f, withAlpha(rgb, 42));
+            ribbon(vertices, matrix, from, to, side, startWidth, endWidth, withAlpha(brighten(rgb), 230));
+            target(vertices, matrix, to, viewer, left, up, targetRadius(distance), rgb);
+        });
+    }
+
+    private static Vector3f v(Vec3 point) {
+        return new Vector3f((float) point.x, (float) point.y, (float) point.z);
+    }
+
+    private static Vector3f v(org.joml.Vector3fc point) {
+        return new Vector3f(point);
     }
 
     static float beamWidth(double distance) {
@@ -255,7 +264,8 @@ public final class LaserPointer {
     }
 
     private static void vertex(VertexConsumer out,Matrix4f matrix,Vector3f point,int color) {
-        out.addVertex(matrix,point.x,point.y,point.z).setColor(color);
+        Vector3f transformed=matrix.transformPosition(new Vector3f(point));
+        out.addVertex(transformed.x,transformed.y,transformed.z).setColor(color);
     }
 
     private static int withAlpha(int rgb,int alpha) {
@@ -290,7 +300,7 @@ public final class LaserPointer {
     }
 
     private static void message(Minecraft client,Component text) {
-        if(client.player!=null)client.player.displayClientMessage(text,true);
+        if(client.player!=null)client.player.sendOverlayMessage(text);
     }
 
     private record Color(String translationKey,int rgb) {

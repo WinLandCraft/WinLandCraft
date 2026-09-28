@@ -39,7 +39,7 @@ public final class AppWindows {
             default->{return plugins.openFile(id,source,path,side);}
         }
         if(panel==null)return false;
-        FileAppPlacement.place(source,panel,side,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
+        FileAppPlacement.place(source,panel,side,Minecraft.getInstance().gameRenderer.mainCamera().getPosition());
         panel.dropFile(path);return true;
     }
     <T extends WorldPanel> T fileWindow(List<T> pool,Supplier<T> factory) {

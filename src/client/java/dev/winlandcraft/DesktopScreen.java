@@ -122,7 +122,7 @@ final class DesktopScreen extends Screen {
             rebuildWidgets();
             return;
         }
-        entry.panel().bringToView(client.level, client.gameRenderer.getMainCamera());
+        entry.panel().bringToView(client.level, client.gameRenderer.mainCamera());
         onClose();
     }
     /** Surround-sphere recall: windows ring the player starting where they look, grouped
@@ -144,7 +144,7 @@ final class DesktopScreen extends Screen {
             rebuildWidgets();
             return;
         }
-        var camera = client.gameRenderer.getMainCamera();
+        var camera = client.gameRenderer.mainCamera();
         Vec3 eye = camera.getPosition();
         var forward = new Vector3f(0, 0, -1).rotate(camera.rotation());
         double lookYaw = Math.atan2(forward.x, forward.z);

@@ -147,14 +147,14 @@ tasks.register('verifyMixinPackaging') {
                 zip.getInputStream(entry).withCloseable { parser.parse(it) }
             }
             def mod = readJson('fabric.mod.json')
-            def expected = [MouseHandlerMixin: ['onPress', 'onScroll'],
+            def expected = [MouseHandlerMixin: ['onButton', 'onScroll'],
                             KeyboardHandlerMixin: ['keyPress', 'charTyped'],
-                            GuiMixin: ['renderCrosshair'],
+                            GuiMixin: ['extractCrosshair'],
+                            HudMixin: ['extractRenderState'],
                             MinecraftMixin: ['startAttack', 'continueAttack', 'startUseItem'],
                             GameRendererLightMixin: ['renderLevel'],
-                            ItemInHandRendererMixin: ['renderItem', 'renderHandsWithItems'],
-                            ItemStackRenderStateMixin: ['render'],
-                            ItemStackLayerRenderStateMixin: ['render'],
+                            ItemInHandRendererMixin: ['submitHandsWithItems'],
+                            LaserItemSubmitMixin: ['submit'],
                             StreamCodecC2SMixin: ['<clinit>'],
                             StreamCodecS2CMixin: ['<clinit>'],
                             StreamClientMixin: ['handleCustomPayload'],

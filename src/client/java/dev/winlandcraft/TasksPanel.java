@@ -10,7 +10,7 @@ public final class TasksPanel extends WorldPanel {
     @Override public boolean canResize() { return false; }
     public TasksPanel(AppWindows apps) { super(2.4f, 0.288f); this.apps = apps; }
     public void open(Minecraft client) {
-        if (client.level != null && client.player != null) bringToView(client.level, client.gameRenderer.getMainCamera());
+        if (client.level != null && client.player != null) bringToView(client.level, client.gameRenderer.mainCamera());
     }
     @Override public void mouseDown(int x, int y, int button) {
         if (button != 0) return;

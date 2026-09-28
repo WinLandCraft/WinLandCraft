@@ -124,7 +124,7 @@ public final class WindowControls {
     public void beginDrag(WorldPanel panel) {
         var c = Minecraft.getInstance();
         if (panel == null || !panel.isOpen() || !panel.canMove() || c.player == null) return;
-        var camera = c.gameRenderer.getMainCamera();
+        var camera = c.gameRenderer.mainCamera();
         Vec3 origin = camera.getPosition();
         Vec3 dir = direction(camera);
         double t = panel.planeDistance(origin, dir);
@@ -187,7 +187,7 @@ public final class WindowControls {
                 && hit.panel.isOpen() && hit.panel.canMove()
                 && (LaserPointer.active(c) || altHeld())) {
             stopTyping();
-            beginMove(hit, c.gameRenderer.getMainCamera());
+            beginMove(hit, c.gameRenderer.mainCamera());
             buttons.add(button);
             return true;
         }
@@ -200,7 +200,7 @@ public final class WindowControls {
             buttons.add(button);
             if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
                 stopTyping(); curving=true;
-                var relative=WindowGroups.local(curveUi,c.gameRenderer.getMainCamera().getPosition());
+                var relative=WindowGroups.local(curveUi,c.gameRenderer.mainCamera().getPosition());
                 curveOwner.curve.facing=relative.z>=0?1:-1;
                 setCurve(hit.point);
             }
@@ -224,7 +224,7 @@ public final class WindowControls {
                 buttons.add(button);
                 if (titlebar == 2) { stopTyping(); hit.panel.close(); }
                 else if (titlebar == 3) WindowGroups.detach(hit.panel);
-                else beginMove(hit, c.gameRenderer.getMainCamera());
+                else beginMove(hit, c.gameRenderer.mainCamera());
                 return true;
             }
         }
@@ -237,7 +237,7 @@ public final class WindowControls {
             if (buttons.add(button)) {
                 pointer.remoteInput.clear(pointer);
                 pointer.mouseDown(pointerX, pointerY, button);
-                if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT){draggedFile=pointer.dragFileAt(pointerX,pointerY);fileStartX=pointerX;fileStartY=pointerY;fileStartRay=direction(c.gameRenderer.getMainCamera());}
+                if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT){draggedFile=pointer.dragFileAt(pointerX,pointerY);fileStartX=pointerX;fileStartY=pointerY;fileStartRay=direction(c.gameRenderer.mainCamera());}
             }
             if (pointer.wantsKeyboard() && !typing) {
                 focused = pointer;
@@ -258,11 +258,11 @@ public final class WindowControls {
             case START_STREAM -> {stopTyping();if(apps.streams!=null)apps.streams.start(edgeUi.owner);edgeUi.sync();edgeUi.touch(System.nanoTime());}
             case STREAM_SETTINGS -> {stopTyping();edgeUi.streamClick(at[0],at[1]);}
             case UNGROUP -> {WindowGroups.detach(edgeUi.owner);edgeUi.touch(System.nanoTime());}
-            case MOVE -> beginMove(hit,client.gameRenderer.getMainCamera());
+            case MOVE -> beginMove(hit,client.gameRenderer.mainCamera());
             case CURVE -> {
                 stopTyping();curving=true;curveOwner=edgeUi.owner;curveUi=null;
                 var curve=GroupCurve.get(curveOwner);
-                curve.facing=WindowGroups.local(curveOwner,client.gameRenderer.getMainCamera().getPosition()).z>=0?1:-1;
+                curve.facing=WindowGroups.local(curveOwner,client.gameRenderer.mainCamera().getPosition()).z>=0?1:-1;
                 setCurve(hit.point);
             }
         }
@@ -499,7 +499,7 @@ public final class WindowControls {
     private Hit pick(Minecraft c,double range) {
         if (c.options.hideGui) return null;
         apps.syncAttachments();
-        Camera camera = c.gameRenderer.getMainCamera();
+        Camera camera = c.gameRenderer.mainCamera();
         Vec3 origin = camera.getPosition(), ray = direction(camera);
         double nearest = range;
         WorldPanel target = null;
@@ -549,7 +549,7 @@ public final class WindowControls {
         return new Hit(target, point, nearest);
     }
     private int corner(WorldPanel panel,Vec3 point) {
-        return WindowGroups.corner(panel,point,Minecraft.getInstance().gameRenderer.getMainCamera().getPosition());
+        return WindowGroups.corner(panel,point,Minecraft.getInstance().gameRenderer.mainCamera().getPosition());
     }
     private boolean scalingHeld() {
         long window=Minecraft.getInstance().getWindow().getWindow();

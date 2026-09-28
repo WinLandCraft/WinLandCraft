@@ -16,6 +16,6 @@ public final class GameRendererLightMixin {
             target="Lnet/minecraft/client/Camera;setup(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/world/entity/Entity;ZZF)V",
             shift=At.Shift.AFTER))
     private void winlandcraft$uploadScreenLights(DeltaTracker delta, CallbackInfo callback) {
-        ScreenLighting.uploadFrame(((GameRenderer)(Object)this).getMainCamera());
+        ScreenLighting.uploadFrame(((GameRenderer)(Object)this).mainCamera());
     }
 }
