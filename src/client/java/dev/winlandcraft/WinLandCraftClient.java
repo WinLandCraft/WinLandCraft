@@ -124,6 +124,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
 
     private static InteractionResult use(Player player, Level level, InteractionHand hand) {
         var item=player.getItemInHand(hand);
+        LOGGER.info("TRIPWIRE use: {}", item.getItem());
         if (player.isSpectator() || !WinLandCraft.isControl(item)) return InteractionResult.PASS;
         if (level.isClientSide()) controls.use(Minecraft.getInstance(), hand);
         return item.is(WinLandCraft.LASER_POINTER)?InteractionResult.CONSUME:InteractionResult.SUCCESS;
