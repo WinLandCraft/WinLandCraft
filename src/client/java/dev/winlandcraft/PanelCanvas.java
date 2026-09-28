@@ -1,158 +1,157 @@
 package dev.winlandcraft;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
-import net.minecraft.client.Minecraft;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.renderer.LightTexture;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import org.joml.Quaternionf;
-import org.lwjgl.opengl.GL11;
-
-import java.util.HashMap;
-import java.util.IdentityHashMap;
 
 /** Top-left pixel coordinates shared by native panels and CEF textures. */
 public final class PanelCanvas implements AutoCloseable {
-    private static final IdentityHashMap<RenderType,HashMap<Integer,RenderType>> offsetTypes=new IdentityHashMap<>();
-    private static final IdentityHashMap<RenderType,RenderType> foregroundTypes=new IdentityHashMap<>();
+    /** Packed full-bright lightmap value for emissive UI quads. */
+    private static final int FULL_BRIGHT = 0xF000F0;
     private final PoseStack pose;
+    private final SubmitNodeCollector collector;
+    private final WorldPass pass;
+    private final WorldPanel panel;
     private final org.joml.Matrix4f worldMatrix;
+    private final Matrix4f inverse;
+    private final Vec3 cameraPos;
     private final boolean worldSpace;
-    private MultiBufferSource buffers;
-    private int layerOffset;
-    private boolean curved,front=true,closed;
-    private boolean foreground;
-    /** Flat app-only render target, also used to capture the native sidebar and titlebar. */
-    PanelCanvas(PoseStack pose, MultiBufferSource buffers) {
-        this.pose=pose;this.buffers=buffers;worldSpace=false;
-        worldMatrix=new org.joml.Matrix4f(pose.last().pose());pose.pushPose();
-    }
-    public PanelCanvas(WorldRenderContext context,WorldPanel panel) {
-        this(context,panel,false);
-    }
-    PanelCanvas(WorldRenderContext context,WorldPanel panel,boolean surface) {
-        this(context,panel.position,panel.orientation,panel.worldWidth()/panel.pixelWidth(),panel.worldHeight()/panel.pixelHeight(),panel.pixelWidth(),panel.pixelHeight());
-        if(panel.curve!=null && panel.curve.amount>=.0001f) {
-            curved=true;
+    private int baseOrder;
+    private boolean curved, front = true, closed;
+
+    public PanelCanvas(WorldPass pass, WorldPanel panel) {
+        this(pass, panel, panel.position, panel.orientation,
+                panel.worldWidth() / panel.pixelWidth(), panel.worldHeight() / panel.pixelHeight(),
+                panel.pixelWidth(), panel.pixelHeight());
+        if (panel.curve != null && panel.curve.amount >= .0001f) {
+            curved = true;
             // Undo the panel transform to obtain its logical pixels, then bend all geometry,
-            // including Font's glyph vertices, onto the same cylindrical surface.
-            var inverse=new org.joml.Matrix4f(pose.last().pose()).invert();
-            var original=buffers;
-            buffers=type -> new CurvedVertices(original.getBuffer(type),panel,inverse,worldMatrix,context.camera().getPosition());
+            // including icons and rects, onto the same cylindrical surface.
+            inverse = new Matrix4f(pose.last().pose()).invert();
+        } else {
+            inverse = null;
         }
-        if(surface&&!panel.frontFacing(context.camera().getPosition())) {
-            front=false;
+        if (!panel.frontFacing(pass.camera().pos)) {
+            front = false;
             backside(panel);
         }
     }
-    public PanelCanvas(WorldRenderContext context, Vec3 position, Quaternionf rotation,
+
+    public PanelCanvas(WorldPass pass, Vec3 position, Quaternionf rotation,
                        float scaleX, float scaleY, int width, int height) {
-        pose = context.matrixStack();
-        worldMatrix=new org.joml.Matrix4f(pose.last().pose());
-        MultiBufferSource worldBuffers=context.consumers();
-        if(worldBuffers==null)throw new IllegalStateException("World render consumers are unavailable");
-        buffers = type -> {
-            var layered=offsetType(type,layerOffset);
-            return worldBuffers.getBuffer(foreground?foregroundType(layered):layered);
-        };
-        worldSpace=true;
-        Vec3 relative = position.subtract(context.camera().getPosition());
+        this.pass = pass;
+        this.panel = null;
+        this.collector = pass.collector();
+        this.cameraPos = pass.camera().pos;
+        this.pose = pass.pose();
+        this.worldMatrix = new Matrix4f(pose.last().pose());
+        this.inverse = null;
+        Vec3 relative = position.subtract(cameraPos);
         pose.pushPose();
         pose.translate(relative.x, relative.y, relative.z);
         pose.mulPose(rotation);
         pose.scale(scaleX, -scaleY, scaleX);
         pose.translate(-width / 2f, -height / 2f, 0);
+        worldSpace = true;
     }
-    private static RenderType offsetType(RenderType original,int offset) {
-        if(offset==0)return original;
-        return offsetTypes.computeIfAbsent(original,ignored->new HashMap<>()).computeIfAbsent(offset,units->
-                new RenderType("panel_depth_"+units,original.format(),original.mode(),original.bufferSize(),
-                        original.affectsCrumbling(),original.sortOnUpload(),()->{
-                    original.setupRenderState();
-                    GL11.glEnable(GL11.GL_POLYGON_OFFSET_FILL);
-                    GL11.glPolygonOffset(0,-units);
-                },()->{
-                    GL11.glDisable(GL11.GL_POLYGON_OFFSET_FILL);
-                    GL11.glPolygonOffset(0,0);
-                    original.clearRenderState();
-                }){});
+
+    private PanelCanvas(WorldPass pass, WorldPanel panel, Vec3 position, Quaternionf rotation,
+                        float scaleX, float scaleY, int width, int height) {
+        this.pass = pass;
+        this.panel = panel;
+        this.collector = pass.collector();
+        this.cameraPos = pass.camera().pos;
+        this.pose = pass.pose();
+        this.worldMatrix = new Matrix4f(pose.last().pose());
+        this.inverse = null;
+        Vec3 relative = position.subtract(cameraPos);
+        pose.pushPose();
+        pose.translate(relative.x, relative.y, relative.z);
+        pose.mulPose(rotation);
+        pose.scale(scaleX, -scaleY, scaleX);
+        pose.translate(-width / 2f, -height / 2f, 0);
+        worldSpace = true;
     }
-    /** Preserve the 3D projection while reserving near depth for local control chrome. */
-    void foreground(){foreground=true;}
-    private static RenderType foregroundType(RenderType original) {
-        return foregroundTypes.computeIfAbsent(original,type->{
-            double[] range=new double[2];
-            boolean[] flags=new boolean[2];int[] function=new int[1];
-            return new RenderType("panel_controls_foreground",type.format(),type.mode(),type.bufferSize(),
-                    type.affectsCrumbling(),type.sortOnUpload(),()->{
-                type.setupRenderState();
-                GL11.glGetDoublev(GL11.GL_DEPTH_RANGE,range);
-                flags[0]=GL11.glIsEnabled(GL11.GL_DEPTH_TEST);flags[1]=GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
-                function[0]=GL11.glGetInteger(GL11.GL_DEPTH_FUNC);
-                GL11.glEnable(GL11.GL_DEPTH_TEST);GL11.glDepthFunc(GL11.GL_LEQUAL);GL11.glDepthMask(true);
-                GL11.glDepthRange(0,.0001);
-            },()->{
-                GL11.glDepthRange(range[0],range[1]);GL11.glDepthMask(flags[1]);GL11.glDepthFunc(function[0]);
-                if(flags[0])GL11.glEnable(GL11.GL_DEPTH_TEST);else GL11.glDisable(GL11.GL_DEPTH_TEST);
-                type.clearRenderState();
-            }){};
-        });
+
+    public boolean frontFacing() {
+        return front;
     }
-    public boolean frontFacing(){return front;}
+
     private void backside(WorldPanel panel) {
-        int title=panel.titlebarHeight();
-        rect(-3,-title-3,panel.pixelWidth()+6,panel.pixelHeight()+title+6,0,0xFF536579);
-        rect(0,-title,panel.pixelWidth(),panel.pixelHeight()+title,.1f,0xFF111923);
+        int title = panel.titlebarHeight();
+        rect(-3, -title - 3, panel.pixelWidth() + 6, panel.pixelHeight() + title + 6, 0, 0xFF536579);
+        rect(0, -title, panel.pixelWidth(), panel.pixelHeight() + title, .1f, 0xFF111923);
     }
+
     /** Window frame shared by browser, plugin, and other content panels. A border, not a
      *  full quad behind the content (which would also z-fight). */
-    public void frame(int width,int height,int titlebar){
-        rect(-3,-titlebar-3,width+6,3,0,0xFF536579);
-        rect(-3,height,width+6,3,0,0xFF536579);
-        rect(-3,-titlebar,3,height+titlebar,0,0xFF536579);
-        rect(width,-titlebar,3,height+titlebar,0,0xFF536579);
+    public void frame(int width, int height, int titlebar) {
+        rect(-3, -titlebar - 3, width + 6, 3, 0, 0xFF536579);
+        rect(-3, height, width + 6, 3, 0, 0xFF536579);
+        rect(-3, -titlebar, 3, height + titlebar, 0, 0xFF536579);
+        rect(width, -titlebar, 3, height + titlebar, 0, 0xFF536579);
     }
-    /** World layers stay coplanar; polygon offset separates them in depth-buffer units at any distance. */
-    private float depth(float layer){
-        if(!worldSpace)return layer;
-        layerOffset=Math.clamp(Math.round(layer*256),0,1024);
-        return 0;
+
+    /** Preserve the 3D projection while reserving late order for local control chrome. */
+    void foreground() {
+        baseOrder += 64;
     }
+
+    /** World layers stay coplanar; submit order separates them instead of polygon offset. */
+    private int orderFor(float layer) {
+        return baseOrder + Math.clamp(Math.round(layer * 64), 0, 128);
+    }
+
+    private VertexConsumer curved(VertexConsumer target) {
+        return curved ? new CurvedVertices(target, panel, inverse, worldMatrix, cameraPos) : target;
+    }
+
     public void rect(float x, float y, float width, float height, float z, int color) {
-        float depth=depth(z);
-        var vertices = buffers.getBuffer(RenderType.debugQuads());
-        var matrix = pose.last().pose();
-        int segments=curved?Math.max(1,(int)Math.ceil(width/12)):1;
-        for(int i=0;i<segments;i++) {
-            float left=x+width*i/segments,right=x+width*(i+1)/segments;
-            vertices.addVertex(matrix, left, y, depth).setColor(color);
-            vertices.addVertex(matrix, left, y + height, depth).setColor(color);
-            vertices.addVertex(matrix, right, y + height, depth).setColor(color);
-            vertices.addVertex(matrix, right, y, depth).setColor(color);
-        }
+        int order = orderFor(z);
+        collector.order(order).submitCustomGeometry(pose, RenderTypes.debugQuads(), (p, vc) -> {
+            var vertices = curved(vc);
+            int segments = curved ? Math.max(1, (int) Math.ceil(width / 12)) : 1;
+            for (int i = 0; i < segments; i++) {
+                float left = x + width * i / segments, right = x + width * (i + 1) / segments;
+                vertices.addVertex(p, left, y, 0).setColor(color);
+                vertices.addVertex(p, left, y + height, 0).setColor(color);
+                vertices.addVertex(p, right, y + height, 0).setColor(color);
+                vertices.addVertex(p, right, y, 0).setColor(color);
+            }
+        });
     }
+
     public void text(String text, int x, int y, int color) {
         text(text, x, y, color, 1);
     }
+
     public void text(String text, int x, int y, int color, float scale) {
-        text(text,x,y,color,scale,.6f);
+        text(text, x, y, color, scale, .6f);
     }
-    void text(String text,int x,int y,int color,float scale,float layer) {
+
+    void text(String text, int x, int y, int color, float scale, float layer) {
+        // Curved panels submit glyphs unbent: the submit-text path takes whole strings and
+        // cannot warp individual vertices. Flat panels are unaffected.
         pose.pushPose();
-        pose.translate(x, y, depth(layer));
+        pose.translate(x, y, 0);
         pose.scale(scale, scale, 1);
-        Minecraft.getInstance().font.drawInBatch(Component.literal(text), 0, 0, color, false,
-                pose.last().pose(), buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
+        collector.order(orderFor(layer)).submitText(pose, 0, 0,
+                Component.literal(text).getVisualOrderText(), false, Font.DisplayMode.NORMAL,
+                FULL_BRIGHT, color, Integer.MIN_VALUE, 0);
         pose.popPose();
     }
+
     public void texture(Identifier texture, int width, int height) {
         texture(texture, 0, 0, width, height, 0.2f);
     }
+
     /** Cyan compass mark for the Browser app, independent of any website's branding. */
     public void browserIcon(int x, int y, int size) {
         float unit = size / 24f;
@@ -164,31 +163,32 @@ public final class PanelCanvas implements AutoCloseable {
                     i < 6 ? 0xFF72ECF1 : 0xFFFFFFFF);
         }
     }
+
     public void texture(Identifier texture, int x, int y, int width, int height, float z) {
-        texture(texture,x,y,width,height,z,-1,0,0,1,1);
+        texture(texture, x, y, width, height, z, -1, 0, 0, 1, 1);
     }
+
     void texture(Identifier texture, float x, float y, float width, float height, float z, int color,
                  float u0, float v0, float u1, float v1) {
-        float depth=depth(z);
-        var vertices = buffers.getBuffer(RenderType.text(texture));
-        var matrix = pose.last().pose();
-        int segments=curved?Math.max(1,(int)Math.ceil(width/12f)):1;
-        for(int i=0;i<segments;i++) {
-            float from=i/(float)segments,to=(i+1)/(float)segments,left=x+width*from,right=x+width*to;
-            float su=u0+(u1-u0)*from,eu=u0+(u1-u0)*to;
-            vertices.addVertex(matrix, left, y, depth).setColor(color).setUv(su, v0).setLight(LightTexture.FULL_BRIGHT);
-            vertices.addVertex(matrix, left, y + height, depth).setColor(color).setUv(su, v1).setLight(LightTexture.FULL_BRIGHT);
-            vertices.addVertex(matrix, right, y + height, depth).setColor(color).setUv(eu, v1).setLight(LightTexture.FULL_BRIGHT);
-            vertices.addVertex(matrix, right, y, depth).setColor(color).setUv(eu, v0).setLight(LightTexture.FULL_BRIGHT);
-        }
+        int order = orderFor(z);
+        collector.order(order).submitCustomGeometry(pose, RenderTypes.text(texture), (p, vc) -> {
+            var vertices = curved(vc);
+            int segments = curved ? Math.max(1, (int) Math.ceil(width / 12f)) : 1;
+            for (int i = 0; i < segments; i++) {
+                float from = i / (float) segments, to = (i + 1) / (float) segments;
+                float left = x + width * from, right = x + width * to;
+                float su = u0 + (u1 - u0) * from, eu = u0 + (u1 - u0) * to;
+                vertices.addVertex(p, left, y, 0).setColor(color).setUv(su, v0).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, left, y + height, 0).setColor(color).setUv(su, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y + height, 0).setColor(color).setUv(eu, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y, 0).setColor(color).setUv(eu, v0).setLight(FULL_BRIGHT);
+            }
+        });
     }
+
     @Override public void close() {
-        if(closed)return;
-        closed=true;
+        if (closed) return;
+        closed = true;
         pose.popPose();
-    }
-    static void shutdown() {
-        offsetTypes.clear();
-        foregroundTypes.clear();
     }
 }

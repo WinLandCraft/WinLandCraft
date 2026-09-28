@@ -9,7 +9,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /** Owner-side capture and timestamped H.264/Opus relay. FFmpeg handles media codecs. */
-final class StreamClient {
+public final class StreamClient {
     private static final int MAX_MEDIA_PER_RENDER=32;
     private static final long RENDER_DRAIN_FALLBACK_NANOS=100_000_000L;
     private final AppWindows apps;
@@ -28,7 +28,7 @@ final class StreamClient {
         var client=Minecraft.getInstance();
         if(client.player==null||client.level==null)return false;
         if(!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)||!ClientPlayNetworking.canSend(StreamProtocol.Frame.TYPE)) {
-            client.player.displayClientMessage(Component.literal("Streaming requires WinLandCraft on the server."),false);return false;
+            client.player.sendSystemMessage(Component.literal("Streaming requires WinLandCraft on the server."));return false;
         }
         if(source==panel&&panel.streaming())return true;
         if(source!=null)stop(source);
@@ -38,7 +38,7 @@ final class StreamClient {
         source=panel;panel.streamClient=this;panel.broadcastSession=UUID.randomUUID();
         if(!panel.isOpen())panel.open(client);
         panel.streamStatus="Waiting for viewers...";
-        client.player.displayClientMessage(Component.literal("Sharing "+panel.windowTitle()+". Stream controls are in the floating pill."),false);
+        client.player.sendSystemMessage(Component.literal("Sharing "+panel.windowTitle()+". Stream controls are in the floating pill."));
         return true;
     }
     void stop(WorldPanel panel) {
@@ -78,7 +78,7 @@ final class StreamClient {
     private void receive(StreamProtocol.State state) {
         var client=Minecraft.getInstance();
         if(!state.valid()||client.level==null||client.player==null||state.owner().equals(client.player.getUUID())
-                ||!client.level.dimension().location().equals(state.dimension()))return;
+                ||!client.level.dimension().identifier().equals(state.dimension()))return;
         var panel=remote.get(state.owner());
         if(panel!=null&&(!panel.isOpen()||!panel.session.equals(state.session())||panel.level!=client.level)){remove(panel);panel=null;}
         if(panel==null) {
@@ -111,7 +111,7 @@ final class StreamClient {
         if(!encoder.error.isEmpty()) {
             String reason=encoder.error;
             if(!reason.equals(reportedCodecError)){reportedCodecError=reason;WinLandCraftClient.LOGGER.warn("Stream codec error: {}",reason);
-                client.player.displayClientMessage(Component.literal("Stream codec error: "+reason),false);}
+                client.player.sendSystemMessage(Component.literal("Stream codec error: "+reason));}
             return;
         }
         if(System.nanoTime()-lastRenderDrain>=RENDER_DRAIN_FALLBACK_NANOS)drainEncoded();
@@ -148,7 +148,7 @@ final class StreamClient {
         }
         float title=panel.titlebarHeight()*panel.worldHeight()/panel.pixelHeight();
         var up=new Vector3f(0,title/2,0).rotate(rotation);center=center.add(up.x,up.y,up.z);
-        return new StreamProtocol.State(owner,session,panel.level==null?net.minecraft.resources.Identifier.withDefaultNamespace("overworld"):panel.level.dimension().location(),
+        return new StreamProtocol.State(owner,session,panel.level==null?net.minecraft.resources.Identifier.withDefaultNamespace("overworld"):panel.level.dimension().identifier(),
                 center.x,center.y,center.z,rotation.x,rotation.y,rotation.z,rotation.w,panel.worldWidth(),panel.worldHeight()+title,
                 panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),panel.titlebarHeight(),amount,facing,panel.remoteControlAllowed()&&ModSettings.streamRemoteControl);
     }
@@ -173,7 +173,7 @@ final class StreamClient {
     }
     private void fail(String message) {
         if(source!=null)stop(source);else stopPublishing();
-        var player=Minecraft.getInstance().player;if(player!=null)player.displayClientMessage(Component.literal(message),false);
+        var player=Minecraft.getInstance().player;if(player!=null)player.sendSystemMessage(Component.literal(message));
     }
     private void stopPublishing() {
         if(published==null&&encoder==null){demand=false;return;}

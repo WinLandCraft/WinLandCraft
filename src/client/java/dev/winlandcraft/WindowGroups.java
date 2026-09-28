@@ -6,7 +6,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /** Edge graph: removing a bridge naturally leaves independent connected components. */
-final class WindowGroups {
+public final class WindowGroups {
     static List<WorldPanel> members(WorldPanel root) { return List.copyOf(component(root)); }
     private static Set<WorldPanel> component(WorldPanel root) {
         var found = new LinkedHashSet<WorldPanel>(); found.add(root);

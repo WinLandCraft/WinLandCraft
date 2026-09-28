@@ -38,7 +38,7 @@ final class WebsiteIcon {
                     if (requested != generation) return;
                     try {
                         var image = NativeImage.read(png);
-                        Minecraft.getInstance().getTextureManager().register(texture, new DynamicTexture(image));
+                        Minecraft.getInstance().getTextureManager().register(texture, new DynamicTexture(() -> "website_icon", image));
                         loaded = true;
                     } catch (Exception error) {
                         WinLandCraftClient.LOGGER.debug("Could not upload website icon", error);

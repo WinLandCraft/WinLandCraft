@@ -83,7 +83,7 @@ final class WebApps {
                 var decoded = FaviconLoader.decode(bytes);
                 if (decoded == null || decoded.getWidth() != 32 || decoded.getHeight() != 32) return null;
                 var texture = Identifier.fromNamespaceAndPath("winlandcraft", "app_icon_" + app.id);
-                Minecraft.getInstance().getTextureManager().register(texture, new DynamicTexture(NativeImage.read(bytes)));
+                Minecraft.getInstance().getTextureManager().register(texture, new DynamicTexture(() -> "app_icon_" + app.id, NativeImage.read(bytes)));
                 textures.put(app.id, texture);
             } catch (Exception e) { WinLandCraftClient.LOGGER.debug("Could not read app icon", e); }
         }

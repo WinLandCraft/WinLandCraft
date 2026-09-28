@@ -7,7 +7,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
-final class ModSettingsScreen extends Screen {
+public final class ModSettingsScreen extends Screen {
     private final Screen parent;
     private final Runnable changed;
     private boolean saveFailed;
