@@ -1,6 +1,6 @@
 package dev.winlandcraft;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
@@ -48,7 +48,7 @@ final class WebAppEditScreen extends Screen {
             if (WebApps.put(app)) {
                 changed.run();
                 parent.status = png == null ? "Saved. No icon found; using a fallback or previous icon." : "Saved " + appName;
-                minecraft.setScreen(parent);
+                minecraft.gui.setScreen(parent);
             } else {
                 status = "Could not save. See latest.log.";
                 name.setEditable(true); url.setEditable(true); save.active = true;
@@ -57,13 +57,13 @@ final class WebAppEditScreen extends Screen {
     }
     @Override public void tick() { if (probe != null) probe.tick(); }
     @Override public void removed() { if (probe != null) { probe.cancel(); probe = null; } }
-    @Override public void onClose() { minecraft.setScreen(parent); }
-    @Override public void render(GuiGraphics g, int x, int y, float delta) {
-        g.fill(0, 0, width, height, 0xF018212D); super.render(g, x, y, delta);
-        g.drawCenteredString(font, title, width / 2, 16, -1);
-        g.drawString(font, "Name", width / 2 - 145, 36, 0xFFB8CBDE);
-        g.drawString(font, "Website URL", width / 2 - 145, 78, 0xFFB8CBDE);
-        g.drawCenteredString(font, font.plainSubstrByWidth(status, width - 20), width / 2, 128, 0xFFB8CBDE);
-        g.drawCenteredString(font, "Opens in its own full 1280 x 720 panel.", width / 2, 150, 0xFF9BAABD);
+    @Override public void onClose() { minecraft.gui.setScreen(parent); }
+    @Override public void extractRenderState(GuiGraphicsExtractor g, int x, int y, float delta) {
+        g.fill(0, 0, width, height, 0xF018212D); super.extractRenderState(g, x, y, delta);
+        g.centeredText(font, title, width / 2, 16, -1);
+        g.text(font, "Name", width / 2 - 145, 36, 0xFFB8CBDE);
+        g.text(font, "Website URL", width / 2 - 145, 78, 0xFFB8CBDE);
+        g.centeredText(font, font.plainSubstrByWidth(status, width - 20), width / 2, 128, 0xFFB8CBDE);
+        g.centeredText(font, "Opens in its own full 1280 x 720 panel.", width / 2, 150, 0xFF9BAABD);
     }
 }

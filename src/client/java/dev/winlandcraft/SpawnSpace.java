@@ -21,10 +21,10 @@ final class SpawnSpace {
             float width, float top, float bottom) {
         var client = Minecraft.getInstance();
         if (client.player == null) return new Placement(fallback, false);
-        Vec3 eye = camera.getPosition();
+        Vec3 eye = camera.position();
         var look = new Vector3f(0, 0, -1).rotate(camera.rotation());
-        var left = new Vector3f(camera.getLeftVector());
-        var up = new Vector3f(camera.getUpVector());
+        var left = new Vector3f(camera.leftVector());
+        var up = new Vector3f(camera.upVector());
         Vec3 best = fallback;
         int bestClear = clearRays(world, client.player, eye, fallback, orientation, width, top, bottom);
         if (bestClear == 5) return new Placement(fallback, false);

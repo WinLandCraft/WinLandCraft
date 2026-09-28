@@ -81,7 +81,7 @@ public final class ScreenLighting {
         if(!ModSettings.screenLighting)return;
         if(!supported())return;
         Minecraft minecraft=Minecraft.getInstance();
-        Vec3 eye=camera.getPosition();
+        Vec3 eye=camera.position();
         candidates.clear();
         for(WorldPanel panel:panels)
             if(panel.isOpen()&&panel.level==minecraft.level&&panel.screenLightColors()!=null)
@@ -136,7 +136,7 @@ public final class ScreenLighting {
     static void shutdown() {
         panels=List.of();
         if(buffer==0)return;
-        if(!RenderSystem.isOnRenderThread()){RenderSystem.recordRenderCall(ScreenLighting::shutdown);return;}
+        if(!RenderSystem.isOnRenderThread()){net.minecraft.client.Minecraft.getInstance().submit(ScreenLighting::shutdown);return;}
         GL15.glDeleteBuffers(buffer);buffer=0;
     }
 }

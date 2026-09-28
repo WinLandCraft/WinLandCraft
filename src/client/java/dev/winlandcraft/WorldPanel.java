@@ -134,7 +134,7 @@ public abstract class WorldPanel {
     }
     public void renderResizeHandles(WorldPass pass,boolean scaling) {
         if (!canResize()) return;
-        try (var canvas = canvas(context)) {
+        try (var canvas = canvas(pass)) {
             if (canvas == null) return;
             float size=resizeHandleSize(pass.camera().pos);
             float hx = size * pixelWidth() / worldWidth(), hy = size * pixelHeight() / worldHeight();
@@ -203,7 +203,7 @@ public abstract class WorldPanel {
         Vec3 oldPosition = position; Quaternionf oldRotation = orientation;
         orientation = PanelRotation.allowed(camera.rotation());
         Vector3f offset = new Vector3f(0, verticalOffset, -2.5f).rotate(camera.rotation());
-        Vec3 fallback = camera.getPosition().add(offset.x, offset.y, offset.z);
+        Vec3 fallback = camera.position().add(offset.x, offset.y, offset.z);
         float title = titlebarHeight() * worldHeight() / Math.max(1, pixelHeight());
         var placement = SpawnSpace.resolve(world, camera, fallback, orientation,
                 worldWidth(), worldHeight() / 2 + title, worldHeight() / 2);

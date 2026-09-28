@@ -70,11 +70,11 @@ final class StreamCapture implements AutoCloseable {
         // Reap the previous async copy first so a slow GPU never queues frames.
         // Snapshot dimensions with the reap: the completion callback can fire on another thread.
         final byte[] frame;
-        final int fw, fh;
+        final int sw, sh;
         synchronized (this) {
             frame = reap();
-            fw = completedWidth;
-            fh = completedHeight;
+            sw = completedWidth;
+            sh = completedHeight;
         }
         if (texture != null && !inFlight) {
             int tw = texture.getWidth(0), th = texture.getHeight(0);
@@ -103,7 +103,7 @@ final class StreamCapture implements AutoCloseable {
         }
         if (frame == null) return null;
         byte[] scaled = acquire(w * h * 4);
-        scale(frame, fw, fh, scaled, w, h);
+        scale(frame, sw, sh, scaled, w, h);
         recycle(frame);
         var stats = statistics(scaled);
         diagnose(stats, w, h, "browser texture, async gpu copy");

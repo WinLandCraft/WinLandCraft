@@ -46,8 +46,8 @@ final class Beacon {
     /** Draws in world coordinates with an identity pose. */
     static void line(SubmitNodeCollector collector, PoseStack pose, Vec3 from, Vec3 to, int color) {
         collector.order(90).submitCustomGeometry(new PoseStack(), RenderTypes.linesTranslucentNoDepthWrite(), (p, vertices) -> {
-            vertices.addVertex(p, from.x, from.y, from.z).setColor(color);
-            vertices.addVertex(p, to.x, to.y, to.z).setColor(color);
+            vertices.addVertex(p, (float) from.x, (float) from.y, (float) from.z).setColor(color);
+            vertices.addVertex(p, (float) to.x, (float) to.y, (float) to.z).setColor(color);
         });
     }
 }

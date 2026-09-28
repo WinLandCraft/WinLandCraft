@@ -1,6 +1,6 @@
 package dev.winlandcraft;
 
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
@@ -69,7 +69,7 @@ public final class ModSettingsScreen extends Screen {
             saveFailed=!ModSettings.save();button.setMessage(rangeLabel());
         }).bounds(width/2-140,142,220,20).build());
         addRenderableWidget(Button.builder(Component.literal("Manage webapps..."), button ->
-                minecraft.setScreen(new WebAppsScreen(this, changed)))
+                minecraft.gui.setScreen(new WebAppsScreen(this, changed)))
                 .bounds(width / 2 - 145, 184, 130, 20).build());
         addRenderableWidget(Button.builder(smoothingLabel(),button->{
             ModSettings.panelSmoothing=!ModSettings.panelSmoothing;
@@ -105,14 +105,14 @@ public final class ModSettingsScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
                 .bounds(width / 2 - 100, height - 30, 200, 20).build());
     }
-    @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
+    @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         graphics.fill(0, 0, width, height, 0xF018212D);
-        super.render(graphics, mouseX, mouseY, delta);
-        graphics.drawCenteredString(font, title, width / 2, 16, 0xFFFFFFFF);
-        graphics.drawCenteredString(font, "OFF: panels stay upright, with level edges.", width / 2, 68, 0xFFB8CBDE);
-        graphics.drawCenteredString(font, "ON: dragging can tilt panels freely.", width / 2, 80, 0xFFB8CBDE);
-        graphics.drawCenteredString(font, "Unstable: extreme sizes may lag or crash the game.", width / 2, 122, 0xFFFF5555);
-        graphics.drawCenteredString(font, invalidRange && ModSettings.extendInteractionRange
+        super.extractRenderState(graphics, mouseX, mouseY, delta);
+        graphics.centeredText(font, title, width / 2, 16, 0xFFFFFFFF);
+        graphics.centeredText(font, "OFF: panels stay upright, with level edges.", width / 2, 68, 0xFFB8CBDE);
+        graphics.centeredText(font, "ON: dragging can tilt panels freely.", width / 2, 80, 0xFFB8CBDE);
+        graphics.centeredText(font, "Unstable: extreme sizes may lag or crash the game.", width / 2, 122, 0xFFFF5555);
+        graphics.centeredText(font, invalidRange && ModSettings.extendInteractionRange
                 ? "Enter a distance above 0, up to 4096 blocks."
                 : "Blocks (max 4096). OFF uses normal Minecraft reach.", width / 2, 168,
                 invalidRange && ModSettings.extendInteractionRange ? 0xFFFF5555 : 0xFF9BAABD);
@@ -122,13 +122,13 @@ public final class ModSettingsScreen extends Screen {
         graphics.drawCenteredString(font,"Power is linear; range is a minimum that grows with panel size.",width/2,276,0xFFB8CBDE);
         if(!patchStatus.isEmpty())graphics.drawCenteredString(font,font.plainSubstrByWidth(patchStatus,width-20),width/2,314,
                 patching?0xFFB8CBDE:patchStatus.startsWith("Created")?0xFF80E6AE:0xFFFF8888);
-        if (saveFailed) graphics.drawCenteredString(font, "Could not save settings. See latest.log.", width / 2, 30, 0xFFFF8888);
+        if (saveFailed) graphics.centeredText(font, "Could not save settings. See latest.log.", width / 2, 30, 0xFFFF8888);
     }
     @Override public void removed() {
         if (rangeChanged) { saveFailed = !ModSettings.save(); rangeChanged = false; }
         super.removed();
     }
-    @Override public void onClose() { minecraft.setScreen(parent); }
+    @Override public void onClose() { minecraft.gui.setScreen(parent); }
     private void patchSolas() {
         if(patching)return;
         patching=true;patchStatus="Creating shader-pack copy...";

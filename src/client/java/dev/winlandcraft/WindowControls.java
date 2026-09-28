@@ -15,6 +15,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import com.mojang.blaze3d.platform.InputConstants;
+import net.minecraft.client.input.KeyEvent;
 import org.lwjgl.sdl.SDLKeycode;
 import org.lwjgl.sdl.SDLMouse;
 import org.lwjgl.sdl.SDLScancode;
@@ -297,7 +298,7 @@ public final class WindowControls {
             return true;
         }
         if (!typing) {
-            if (action == 1 && typingKey.matches(key, scan)) {
+            if (action == 1 && typingKey.matches(new KeyEvent(scan, key, modifiers))) {
                 Hit hit = interactionPick(c);
                 if (hit != null && hit.panel.acceptsKeyboard()) focused = hit.panel;
                 if (focused != null && focused.isOpen() && focused.acceptsKeyboard()) {
@@ -367,8 +368,8 @@ public final class WindowControls {
         }
         if(edgeUi!=null) {
             edgeUi.updateGroup(apps.windows);
-            edgeUi.render(context);
-            edgeUi.renderGroupPreview(context,hovered==edgeUi&&dragging==null&&resizing==null&&!curving);
+            edgeUi.render(pass);
+            edgeUi.renderGroupPreview(pass,hovered==edgeUi&&dragging==null&&resizing==null&&!curving);
         }
         var panel = resizing != null ? resizing.panel : hovered==edgeUi&&edgeUi!=null?edgeUi.owner:hovered;
         if(panel!=null && panel!=curveUi) {
@@ -579,7 +580,7 @@ public final class WindowControls {
     }
     private static void message(String text) {
         var player = Minecraft.getInstance().player;
-        if (player != null) player.displayClientMessage(Component.literal(text), true);
+        if (player != null) player.sendOverlayMessage(Component.literal(text));
     }
     private record Hit(WorldPanel panel, Vec3 point, double distance) { }
 }
