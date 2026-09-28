@@ -3,20 +3,20 @@ package dev.winlandcraft;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.cef.browser.CefBrowser;
 
 /** Texture lifetime and navigation generation belong to the Minecraft thread. */
 final class WebsiteIcon {
-    private final ResourceLocation texture;
+    private final Identifier texture;
     WebsiteIcon(int id) {
-        texture = ResourceLocation.fromNamespaceAndPath("winlandcraft", "website_icon_" + id);
+        texture = Identifier.fromNamespaceAndPath("winlandcraft", "website_icon_" + id);
     }
     private long generation;
     private boolean loaded;
     private Thread download;
 
-    ResourceLocation texture() { return loaded ? texture : null; }
+    Identifier texture() { return loaded ? texture : null; }
 
     void clear() {
         generation++;

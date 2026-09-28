@@ -2,7 +2,7 @@ package dev.winlandcraft;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /** Selected Pixelarticons packed into one texture to keep panel rendering batched. */
 enum PixelIcon {
@@ -11,7 +11,7 @@ enum PixelIcon {
     FILE_TEXT, CHART, TRASH, OPEN, EXTERNAL_LINK, SEARCH, EXPAND, SCALE;
 
     private static final int CELL = 24, COLUMNS = 8, WIDTH = COLUMNS * CELL, HEIGHT = 3 * CELL;
-    private static final ResourceLocation ATLAS = ResourceLocation.fromNamespaceAndPath(
+    private static final Identifier ATLAS = Identifier.fromNamespaceAndPath(
             "winlandcraft", "textures/gui/pixelarticons.png");
 
     void draw(PanelCanvas canvas, float x, float y, float size, float z, int color) {

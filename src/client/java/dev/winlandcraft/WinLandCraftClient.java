@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -100,7 +100,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
             controls.renderBeacons(context);
         });
         HudLayerRegistrationCallback.EVENT.register(layers -> layers.addLayer(IdentifiedLayer.of(
-                ResourceLocation.fromNamespaceAndPath("winlandcraft", "interaction_hints"), (graphics, delta) -> {
+                Identifier.fromNamespaceAndPath("winlandcraft", "interaction_hints"), (graphics, delta) -> {
                     var client = Minecraft.getInstance();
                     controls.renderResizeHint(graphics);
                     if (controls.isTyping() && !client.options.hideGui)

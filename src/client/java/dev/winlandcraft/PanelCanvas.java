@@ -8,7 +8,7 @@ import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.lwjgl.opengl.GL11;
@@ -150,7 +150,7 @@ public final class PanelCanvas implements AutoCloseable {
                 pose.last().pose(), buffers, Font.DisplayMode.NORMAL, 0, LightTexture.FULL_BRIGHT);
         pose.popPose();
     }
-    public void texture(ResourceLocation texture, int width, int height) {
+    public void texture(Identifier texture, int width, int height) {
         texture(texture, 0, 0, width, height, 0.2f);
     }
     /** Cyan compass mark for the Browser app, independent of any website's branding. */
@@ -164,10 +164,10 @@ public final class PanelCanvas implements AutoCloseable {
                     i < 6 ? 0xFF72ECF1 : 0xFFFFFFFF);
         }
     }
-    public void texture(ResourceLocation texture, int x, int y, int width, int height, float z) {
+    public void texture(Identifier texture, int x, int y, int width, int height, float z) {
         texture(texture,x,y,width,height,z,-1,0,0,1,1);
     }
-    void texture(ResourceLocation texture, float x, float y, float width, float height, float z, int color,
+    void texture(Identifier texture, float x, float y, float width, float height, float z, int color,
                  float u0, float v0, float u1, float v1) {
         float depth=depth(z);
         var vertices = buffers.getBuffer(RenderType.text(texture));

@@ -5,7 +5,7 @@ import com.cinemamod.mcef.MCEFBrowser;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 import java.util.*;
 
@@ -390,7 +390,7 @@ public class BrowserPanel extends WorldPanel {
     private record ContextMenu(int x, int y, String link) { }
     private final class Tab {
         final MCEFBrowser browser;
-        final ResourceLocation texture;
+        final Identifier texture;
         final WebsiteIcon icon;
         String url, title = "";
         int width, height;
@@ -399,7 +399,7 @@ public class BrowserPanel extends WorldPanel {
             this.url = url;
             width = webWidth; height = webHeight;
             icon = new WebsiteIcon(id);
-            texture = ResourceLocation.fromNamespaceAndPath("winlandcraft", "browser_tab_" + id);
+            texture = Identifier.fromNamespaceAndPath("winlandcraft", "browser_tab_" + id);
             // Native creation is asynchronous: an immediate loadURL can run before the
             // browser exists. Supply the destination as CEF's initial navigation instead.
             browser = MCEF.createBrowser(url, false, webWidth, webHeight);

@@ -148,7 +148,7 @@ final class StreamClient {
         }
         float title=panel.titlebarHeight()*panel.worldHeight()/panel.pixelHeight();
         var up=new Vector3f(0,title/2,0).rotate(rotation);center=center.add(up.x,up.y,up.z);
-        return new StreamProtocol.State(owner,session,panel.level==null?net.minecraft.resources.ResourceLocation.withDefaultNamespace("overworld"):panel.level.dimension().location(),
+        return new StreamProtocol.State(owner,session,panel.level==null?net.minecraft.resources.Identifier.withDefaultNamespace("overworld"):panel.level.dimension().location(),
                 center.x,center.y,center.z,rotation.x,rotation.y,rotation.z,rotation.w,panel.worldWidth(),panel.worldHeight()+title,
                 panel.pixelWidth(),panel.pixelHeight()+panel.titlebarHeight(),panel.titlebarHeight(),amount,facing,panel.remoteControlAllowed()&&ModSettings.streamRemoteControl);
     }

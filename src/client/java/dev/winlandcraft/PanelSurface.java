@@ -12,7 +12,7 @@ import net.minecraft.client.renderer.FogParameters;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.TriState;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.EXTTextureFilterAnisotropic;
@@ -56,7 +56,7 @@ final class PanelSurface implements AutoCloseable {
     boolean frontFacing(){return front;}
     PanelCanvas canvas(){return canvas;}
     void foreground(float opacity){foreground=true;this.opacity=Math.clamp(opacity,0,1);}
-    static ResourceLocation location(){return ResourceLocation.fromNamespaceAndPath("winlandcraft","panel_surface_"+IDS.incrementAndGet());}
+    static Identifier location(){return Identifier.fromNamespaceAndPath("winlandcraft","panel_surface_"+IDS.incrementAndGet());}
 
     private void openComposite() {
         RenderSystem.assertOnRenderThread();
@@ -124,7 +124,7 @@ final class PanelSurface implements AutoCloseable {
     }
 
     static final class Target implements AutoCloseable {
-        private final ResourceLocation location;
+        private final Identifier location;
         private final ByteBufferBuilder vertices=new ByteBufferBuilder(256*1024);
         private final MultiBufferSource.BufferSource buffers=MultiBufferSource.immediate(vertices);
         private final IdentityHashMap<RenderType,RenderType> redirectedTypes=new IdentityHashMap<>();
@@ -148,7 +148,7 @@ final class PanelSurface implements AutoCloseable {
         private boolean samplerSmoothing;
         private ScreenColorSampler lightSampler;
 
-        Target(ResourceLocation location){this.location=location;}
+        Target(Identifier location){this.location=location;}
 
         void ensure(int width,int height) {
             if(framebuffer==null) {

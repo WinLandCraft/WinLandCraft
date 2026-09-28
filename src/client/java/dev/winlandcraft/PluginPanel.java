@@ -5,7 +5,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /** Internal adapter. Plugins never inherit Minecraft or window implementation classes. */
 final class PluginPanel extends BrowserPanel {
@@ -102,7 +102,7 @@ final class PluginPanel extends BrowserPanel {
         public int textWidth(String text){return Minecraft.getInstance().font.width(text);}
         public void rectangle(float x,float y,float w,float h,int color){canvas.rect(x,y,w,h,layer(),color);}
         public void text(String text,int x,int y,int color,float scale){canvas.text(text,x,y,color,scale,layer());}
-        public void image(String resource,int x,int y,int w,int h,int color){canvas.texture(ResourceLocation.parse(resource),x,y,w,h,layer(),color,0,0,1,1);}
+        public void image(String resource,int x,int y,int w,int h,int color){canvas.texture(Identifier.parse(resource),x,y,w,h,layer(),color,0,0,1,1);}
     }
     private final class Context implements WindowContext,dev.winlandcraft.api.v2.WindowContext {
         private volatile boolean live=true;private final AtomicInteger pending=new AtomicInteger();

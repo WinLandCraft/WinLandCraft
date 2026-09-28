@@ -82,10 +82,10 @@ public abstract class WorldPanel {
         if (position == null) return 0;
         return Math.clamp((beaconUntil - System.nanoTime()) / (float) Beacon.DURATION_NANOS, 0, 1);
     }
-    private final net.minecraft.resources.ResourceLocation surfaceLocation=PanelSurface.location();
+    private final net.minecraft.resources.Identifier surfaceLocation=PanelSurface.location();
     private PanelSurface.Target surfaceTarget;
     /** Live composited texture for the 2D desktop hybrid, or null before the first front-facing render. */
-    net.minecraft.resources.ResourceLocation desktopTexture() { return surfaceTarget == null ? null : surfaceLocation; }
+    net.minecraft.resources.Identifier desktopTexture() { return surfaceTarget == null ? null : surfaceLocation; }
     int desktopTextureWidth() { return pixelWidth() + PanelSurface.MARGIN * 2; }
     int desktopTextureHeight() { return pixelHeight() + titlebarHeight() + PanelSurface.MARGIN * 2; }
     private float halfWidth;

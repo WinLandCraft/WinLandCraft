@@ -89,7 +89,7 @@ public final class AppWindows {
     public void drawIcon(PanelCanvas canvas, AppEntry entry, int x, int y, int size) {
         var icon = WebApps.icon(entry.definition);
         if(entry.panel instanceof PluginPanel plugin){
-            if(plugin.definition.icon()!=null)canvas.texture(net.minecraft.resources.ResourceLocation.parse(plugin.definition.icon()),x,y,size,size,.4f);
+            if(plugin.definition.icon()!=null)canvas.texture(net.minecraft.resources.Identifier.parse(plugin.definition.icon()),x,y,size,size,.4f);
             else PixelIcon.APPS.draw(canvas,x,y,size,.45f,0xFF8BD9CE);
         }
         else if (icon != null) canvas.texture(icon, x, y, size, size, 0.4f);

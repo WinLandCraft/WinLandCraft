@@ -3,14 +3,14 @@ import dev.winlandcraft.api.v2.*;
 import java.nio.ByteBuffer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.MemoryUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
 
 final class PluginFrames implements FrameSurface {
     private final PluginFrameMailbox mailbox=new PluginFrameMailbox();
-    private final ResourceLocation location=ResourceLocation.fromNamespaceAndPath("winlandcraft","plugin_frame/"+java.util.UUID.randomUUID());
+    private final Identifier location=Identifier.fromNamespaceAndPath("winlandcraft","plugin_frame/"+java.util.UUID.randomUUID());
     private AbstractTexture texture;private ByteBuffer staging;private int width,height;private boolean visible,flipped,closed,detachGpu,inCallback;
     private GpuSource gpu;
     public synchronized boolean submit(ByteBuffer pixels,int w,int h,int stride,PixelFormat format){return !closed&&gpu==null&&mailbox.submit(pixels,w,h,stride,format);}

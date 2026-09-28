@@ -2,7 +2,7 @@ package dev.winlandcraft;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 
@@ -16,13 +16,13 @@ public final class StreamChecks {
         return state(owner,false);
     }
     private static StreamProtocol.State state(UUID owner,boolean remoteControl) {
-        return new StreamProtocol.State(owner,SESSION,ResourceLocation.withDefaultNamespace("overworld"),1,2,3,0,0,0,1,3.2f,1.88f,1280,752,32,0,1,remoteControl);
+        return new StreamProtocol.State(owner,SESSION,Identifier.withDefaultNamespace("overworld"),1,2,3,0,0,0,1,3.2f,1.88f,1280,752,32,0,1,remoteControl);
     }
     private static void packets() {
         var s=state(OWNER);
         check(StreamRelay.owns(OWNER,s,s.dimension()),"owner accepted");
         check(!StreamRelay.owns(UUID.randomUUID(),s,s.dimension()),"other player cannot move stream");
-        check(!StreamRelay.owns(OWNER,s,ResourceLocation.withDefaultNamespace("the_nether")),"dimension spoof rejected");
+        check(!StreamRelay.owns(OWNER,s,Identifier.withDefaultNamespace("the_nether")),"dimension spoof rejected");
         var invalid=new StreamProtocol.State(OWNER,SESSION,s.dimension(),Double.NaN,0,0,0,0,0,1,3,2,1280,752,32,0,1,false);
         check(!invalid.valid(),"NaN rejected");
         var buffer=new net.minecraft.network.RegistryFriendlyByteBuf(io.netty.buffer.Unpooled.buffer(),net.minecraft.core.RegistryAccess.EMPTY);
@@ -40,7 +40,7 @@ public final class StreamChecks {
             check(StreamRelay.mayControl(controller,control,controlled,controlled.dimension()),"enabled same-dimension controller accepted");
             check(!StreamRelay.mayControl(controller,control,s,s.dimension()),"disabled remote control rejected");
             check(!StreamRelay.mayControl(UUID.randomUUID(),control,controlled,controlled.dimension()),"controller spoof rejected");
-            check(!StreamRelay.mayControl(controller,control,controlled,ResourceLocation.withDefaultNamespace("the_nether")),"remote dimension spoof rejected");
+            check(!StreamRelay.mayControl(controller,control,controlled,Identifier.withDefaultNamespace("the_nether")),"remote dimension spoof rejected");
             check(StreamRelay.mayControl(controller,StreamProtocol.Control.cancel(OWNER,SESSION,controller),s,s.dimension()),"release accepted after permission is disabled");
             check(StreamProtocol.Control.keepalive(OWNER,SESSION,controller).valid(controlled),"controller keepalive is bounded");
             check(!StreamProtocol.Control.key(OWNER,SESSION,controller,67,46,1,2).valid(controlled),"remote control modifier rejected");

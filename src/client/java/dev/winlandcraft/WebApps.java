@@ -6,7 +6,7 @@ import com.mojang.blaze3d.platform.NativeImage;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import java.net.URI;
 import java.nio.file.*;
 import java.util.*;
@@ -15,7 +15,7 @@ import java.util.*;
 final class WebApps {
     record App(String id, String name, String url, String iconPng) { }
     private static List<App> entries = List.of();
-    private static final Map<String, ResourceLocation> textures = new HashMap<>();
+    private static final Map<String, Identifier> textures = new HashMap<>();
     private static final Set<String> attempted = new HashSet<>();
     static List<App> all() { return entries; }
     static App find(String id) { return entries.stream().filter(a -> a.id.equals(id)).findFirst().orElse(null); }
@@ -68,13 +68,13 @@ final class WebApps {
             try { Files.move(temp, path(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
             catch (AtomicMoveNotSupportedException e) { Files.move(temp, path(), StandardCopyOption.REPLACE_EXISTING); }
             entries = List.copyOf(next);
-            ResourceLocation texture = textures.remove(changedId);
+            Identifier texture = textures.remove(changedId);
             if (texture != null) Minecraft.getInstance().getTextureManager().release(texture);
             attempted.remove(changedId);
             return true;
         } catch (Exception e) { WinLandCraftClient.LOGGER.error("Could not save webapps", e); return false; }
     }
-    static ResourceLocation icon(App app) {
+    static Identifier icon(App app) {
         if (app == null) return null;
         if (attempted.add(app.id) && app.iconPng != null && !app.iconPng.isBlank()) {
             try {
@@ -82,7 +82,7 @@ final class WebApps {
                 // Saved icons are exactly 32x32; validate before handing bytes to the native decoder.
                 var decoded = FaviconLoader.decode(bytes);
                 if (decoded == null || decoded.getWidth() != 32 || decoded.getHeight() != 32) return null;
-                var texture = ResourceLocation.fromNamespaceAndPath("winlandcraft", "app_icon_" + app.id);
+                var texture = Identifier.fromNamespaceAndPath("winlandcraft", "app_icon_" + app.id);
                 Minecraft.getInstance().getTextureManager().register(texture, new DynamicTexture(NativeImage.read(bytes)));
                 textures.put(app.id, texture);
             } catch (Exception e) { WinLandCraftClient.LOGGER.debug("Could not read app icon", e); }

@@ -4,7 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.lwjgl.opengl.GL11;
@@ -18,7 +18,7 @@ import java.nio.ByteBuffer;
 final class RemoteStreamPanel extends WorldPanel {
     final java.util.UUID owner,session;
     final StreamProtocol.Assembly assembly=new StreamProtocol.Assembly();
-    private final ResourceLocation texture;
+    private final Identifier texture;
     StreamDecoder decoder;
     private int pixelsWide=1280,pixelsHigh=752,controlTop;
     private boolean remoteControl,controlSent;
@@ -36,7 +36,7 @@ final class RemoteStreamPanel extends WorldPanel {
     private ByteBuffer staging;
     RemoteStreamPanel(StreamProtocol.State state) {
         super(3.2f,1.88f);owner=state.owner();session=state.session();remoteControl=state.remoteControl();controlTop=state.titlebarPixels();
-        texture=ResourceLocation.fromNamespaceAndPath("winlandcraft","stream/"+owner+"/"+session);
+        texture=Identifier.fromNamespaceAndPath("winlandcraft","stream/"+owner+"/"+session);
     }
     @Override public boolean canInteract(){return remoteControl;}
     @Override protected boolean projectsLight(){return true;}
