@@ -3,6 +3,7 @@ package dev.winlandcraft.mixin;
 import dev.winlandcraft.WinLandCraftClient;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.Hud;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Hud.class)
 public final class HudMixin {
     @Inject(method = "extractRenderState", at = @At("TAIL"))
-    private void winlandcraft$hints(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick, CallbackInfo ci) {
+    private void winlandcraft$hints(GuiGraphicsExtractor graphics, DeltaTracker delta, CallbackInfo ci) {
         if (WinLandCraftClient.controls == null) return;
         var client = Minecraft.getInstance();
         WinLandCraftClient.controls.renderResizeHint(graphics);
