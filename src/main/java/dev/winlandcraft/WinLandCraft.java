@@ -70,7 +70,7 @@ public final class WinLandCraft implements ModInitializer {
                 : added ? "message.winlandcraft.controls_given" : "message.winlandcraft.already_have_controls"), true);
     }
 
-    static void removeLegacyInteract(net.minecraft.server.level.ServerPlayer player) {
+    public static void removeLegacyInteract(net.minecraft.server.level.ServerPlayer player) {
         for (Item legacy : new Item[]{LEGACY_INTERACT, LEGACY_APPS, LEGACY_WINDOW_DRAG}) {
             for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++)
                 if (player.getInventory().getItem(slot).is(legacy)) player.getInventory().setItem(slot, ItemStack.EMPTY);

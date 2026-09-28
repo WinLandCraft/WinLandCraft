@@ -54,7 +54,7 @@ public final class StreamRelay {
     public static void receiveState(ServerPlayer player, StreamProtocol.State p) {
         var server = player.level().getServer();
         long now = System.currentTimeMillis();
-        if (!player.isAlive() || !owns(player.getUUID(), p, player.level().dimension().location())) return;
+        if (!player.isAlive() || !owns(player.getUUID(), p, player.level().dimension().identifier())) return;
         var old = streams.get(p.owner());
         if (old != null && now - old.lastState < 40) return;
         if (old == null && streams.size() >= StreamProtocol.MAX_STREAMS) {
@@ -80,7 +80,7 @@ public final class StreamRelay {
         long now = System.currentTimeMillis();
         if (s == null) return;
         if (!p.owner().equals(player.getUUID()) || !p.session().equals(s.state.session()) || !p.valid()
-                || !player.level().dimension().location().equals(s.state.dimension())) { s.invalidUnits++; return; }
+                || !player.level().dimension().identifier().equals(s.state.dimension())) { s.invalidUnits++; return; }
         byte[] bytes = s.assembly.accept(p, now);
         if (bytes == null) return;
         s.receivedUnits++;
@@ -107,7 +107,7 @@ public final class StreamRelay {
         var s = streams.get(p.owner());
         long now = System.currentTimeMillis();
         if (s == null) return;
-        if (!player.isAlive() || player.isSpectator() || !mayControl(player.getUUID(), p, s.state, player.level().dimension().location())) {
+        if (!player.isAlive() || player.isSpectator() || !mayControl(player.getUUID(), p, s.state, player.level().dimension().identifier())) {
             s.invalidControls++;
             return;
         }
@@ -136,7 +136,7 @@ public final class StreamRelay {
                 var player=server.getPlayerList().getPlayer(entry.getKey());var s=entry.getValue();
                 if(player==null)stop(server,entry.getKey(),"owner missing");
                 else if(!player.isAlive())stop(server,entry.getKey(),"owner not alive");
-                else if(!player.level().dimension().location().equals(s.state.dimension()))stop(server,entry.getKey(),"owner changed dimension");
+                else if(!player.level().dimension().identifier().equals(s.state.dimension()))stop(server,entry.getKey(),"owner changed dimension");
                 else if(now-s.lastState>10_000)stop(server,entry.getKey(),"state heartbeat timed out");
                 else if(now>=s.nextReport){
                     s.nextReport=now+10_000;var parts=s.assembly.stats();
@@ -149,12 +149,12 @@ public final class StreamRelay {
                 for(var controller:List.copyOf(s.controllers.entrySet())) {
                     var viewer=server.getPlayerList().getPlayer(controller.getKey());
                     if(now-controller.getValue().lastSeen>3_000||viewer==null||!viewer.isAlive()||viewer.isSpectator()
-                            ||!viewer.level().dimension().location().equals(s.state.dimension()))
+                            ||!viewer.level().dimension().identifier().equals(s.state.dimension()))
                         cancelController(server,s,controller.getKey(),false);
                 }
             }
             for(var player:server.getPlayerList().getPlayers()) {
-                var dim=player.level().dimension().location();
+                var dim=player.level().dimension().identifier();
                 if(dim.equals(viewers.put(player.getUUID(),dim)))continue;
                 for(var s:streams.values())if(watches(player,s.state)) {
                     StreamNet.sendToPlayer(player,s.state);
@@ -165,7 +165,7 @@ public final class StreamRelay {
         ServerLifecycleEvents.SERVER_STOPPED.register(server->{streams.clear();viewers.clear();});
     }
     private static boolean watches(ServerPlayer player,StreamProtocol.State state) {
-        return !player.getUUID().equals(state.owner())&&player.level().dimension().location().equals(state.dimension())
+        return !player.getUUID().equals(state.owner())&&player.level().dimension().identifier().equals(state.dimension())
                 &&StreamNet.canSendToPlayer(player);
     }
     private static void updateDemand(MinecraftServer server,Session session) {
