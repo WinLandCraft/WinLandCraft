@@ -32,30 +32,35 @@ public final class WinLandCraftClient implements ClientModInitializer {
     public static boolean clientSideOnly() { return !serverHasMod; }
     private static final KeyMapping.Category CATEGORY =
             KeyMapping.Category.register(Identifier.fromNamespaceAndPath("winlandcraft", "windows"));
+    private static KeyMapping giveKey, desktopKey, typingKey;
+    private static boolean keysAppended;
     @Override public void onInitializeClient() {
         ModSettings.load();
         AdBlock.install();
         Thread.ofVirtual().name("WinLandCraft ffmpeg prewarm").start(Ffmpeg::prewarm);
         StreamAudio.install();
         WebApps.load();
-        var give = registerKey(new KeyMapping("key.winlandcraft.give_tasks",
-                InputConstants.UNKNOWN.getValue(), CATEGORY));
-        var desktop = registerKey(new KeyMapping("key.winlandcraft.open_desktop",
-                InputConstants.UNKNOWN.getValue(), CATEGORY));
-        var typing = registerKey(new KeyMapping("key.winlandcraft.typing",
-                SDLScancode.SDL_SCANCODE_G, CATEGORY));
+        // KeyMapping construction self-registers; the options array append waits for the
+        // first tick because options does not exist yet during entrypoint init.
+        giveKey = new KeyMapping("key.winlandcraft.give_tasks", InputConstants.UNKNOWN.getValue(), CATEGORY);
+        desktopKey = new KeyMapping("key.winlandcraft.open_desktop", InputConstants.UNKNOWN.getValue(), CATEGORY);
+        typingKey = new KeyMapping("key.winlandcraft.typing", SDLScancode.SDL_SCANCODE_G, CATEGORY);
         apps = new AppWindows();
         apps.plugins.load();
         apps.plugins.loadV2();
         ScreenLighting.install(apps);
         streams = new StreamClient(apps);
-        controls = new WindowControls(apps, typing);
+        controls = new WindowControls(apps, typingKey);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            if (!keysAppended) {
+                keysAppended = true;
+                appendKeys(giveKey, desktopKey, typingKey);
+            }
             controls.tick(client);
             apps.windows.forEach(window -> window.tick(client));
             streams.tick(client);
             streams.renderCapture();
-            while (give.consumeClick()) {
+            while (giveKey.consumeClick()) {
                 if (client.player == null || client.gui.screen() != null || client.player.isSpectator() || controls.isTyping()) continue;
                 if (StreamClient.canSend()) StreamClient.send(RequestTasksPayload.INSTANCE);
                 else if (clientSideOnly() && client.level != null) {
@@ -63,7 +68,7 @@ public final class WinLandCraftClient implements ClientModInitializer {
                     client.player.sendOverlayMessage(Component.translatable("message.winlandcraft.tasks_opened"));
                 } else client.player.sendOverlayMessage(Component.literal("Controls require a world running WinLandCraft."));
             }
-            while (desktop.consumeClick()) {
+            while (desktopKey.consumeClick()) {
                 if (client.player == null || client.gui.screen() != null || client.level == null
                         || client.player.isSpectator() || controls.isTyping()) continue;
                 client.gui.setScreen(new DesktopScreen(apps));
@@ -76,14 +81,12 @@ public final class WinLandCraftClient implements ClientModInitializer {
         LOGGER.info("WinLandCraft browser window controls initialized.");
     }
 
-    /** Registers a keymapping like the old fabric helper: construct (self-registers) plus
-     * append to the options array so it shows up in the controls screen. */
-    private static KeyMapping registerKey(KeyMapping mapping) {
+    /** Appends mappings to the options array so they show up in the controls screen. */
+    private static void appendKeys(KeyMapping... mappings) {
         var options = Minecraft.getInstance().options;
-        var expanded = java.util.Arrays.copyOf(options.keyMappings, options.keyMappings.length + 1);
-        expanded[expanded.length - 1] = mapping;
+        var expanded = java.util.Arrays.copyOf(options.keyMappings, options.keyMappings.length + mappings.length);
+        System.arraycopy(mappings, 0, expanded, options.keyMappings.length, mappings.length);
         ((OptionsKeyMappingsMixin) options).winlandcraft$setKeyMappings(expanded);
-        return mapping;
     }
 
     /** Opens the settings screen. Called by the options-screen mixin. */

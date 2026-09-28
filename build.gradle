@@ -158,7 +158,8 @@ tasks.register('verifyMixinPackaging') {
                             StreamCodecC2SMixin: ['<clinit>'],
                             StreamCodecS2CMixin: ['<clinit>'],
                             StreamClientMixin: ['handleCustomPayload'],
-                            ClientConnectionMixin: ['handleLogin', 'onDisconnect'],
+                            ClientConnectionMixin: ['handleLogin'],
+                            ClientDisconnectMixin: ['onDisconnect'],
                             OptionsScreenMixin: ['init'],
                             OptionsKeyMappingsMixin: ['keyMappings']]
             def expectedServer = [StreamCodecC2SMixin: ['<clinit>'],
