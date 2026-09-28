@@ -146,7 +146,7 @@ final class EdgeControls extends WorldPanel {
         if(alpha<2)return;
         var panels=new java.util.LinkedHashSet<>(WindowGroups.members(owner));
         panels.addAll(WindowGroups.members(groupCandidate.b()));
-        for(var panel:panels)try(var c=panel.canvas(context)) {
+        for(var panel:panels)try(var c=panel.canvas(pass)) {
             if(c==null)continue;
             c.foreground();
             float width=panel.pixelWidth(),height=panel.pixelHeight()+panel.titlebarHeight(),top=-panel.titlebarHeight();

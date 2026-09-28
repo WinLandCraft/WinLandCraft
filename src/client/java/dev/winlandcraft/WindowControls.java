@@ -330,7 +330,7 @@ public final class WindowControls {
     }
     public int cursor() {
         var client = Minecraft.getInstance();
-        if (!active(client) || client.options.hideGui) return 0;
+        if (!active(client) || client.gui.hud.isHidden()) return 0;
         if(ModSettings.laserPanelPointer()&&!WinLandCraftClient.clientSideOnly()&&LaserPointer.active(client)&&!fileDragging)return -1;
         int corner = resizing != null ? resizing.corner : hoveredCorner;
         if (corner != 0) {
@@ -341,7 +341,7 @@ public final class WindowControls {
     }
     public void renderResizeHint(net.minecraft.client.gui.GuiGraphicsExtractor graphics) {
         var client = Minecraft.getInstance();
-        WorldPanel target = active(client) && !client.options.hideGui && resizing == null && dragging == null
+        WorldPanel target = active(client) && !client.gui.hud.isHidden() && resizing == null && dragging == null
                 && pointer == null && !curving && hoveredCorner != 0 ? hovered : null;
         long now = System.nanoTime();
         if (target == null || target != hintPanel || hintCorner != hoveredCorner) {
@@ -500,7 +500,7 @@ public final class WindowControls {
         return panelPointerAvailable(effectiveLaserMode(),LaserPointer.active(c))?pick(c):null;
     }
     private Hit pick(Minecraft c,double range) {
-        if (c.options.hideGui) return null;
+        if (c.gui.hud.isHidden()) return null;
         apps.syncAttachments();
         Camera camera = c.gameRenderer.mainCamera();
         Vec3 origin = camera.position(), ray = direction(camera);

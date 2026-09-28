@@ -100,15 +100,15 @@ public final class LaserPointer {
         Matrix4f matrix=pose.last().pose();
         Vector3f muzzle=matrix.transformPosition(new Vector3f(.5f+Parameter.BEAM_X.value()/16,
                 .5f+Parameter.BEAM_Y.value()/16,Parameter.BEAM_INSET.value()/16));
-        renderBeam(collector,source,matrix,muzzle);
+        renderBeam(collector, muzzle);
     }
 
     public static void applyCalibration(PoseStack pose) {
         if(captureContext==null)return;
         LaserTuning.applyModel(pose);
-        if(sampledBounceDegrees!=0)pose.mulPose(new org.joml.Quaternionf().rotationX(
+        if(sampledBounceDegrees!=0)pose.mulPose(new Matrix4f().rotationX(
                 (float)Math.toRadians(sampledBounceDegrees)));
-        if(sampledSpinDegrees!=0)pose.mulPose(new org.joml.Quaternionf().rotationZ(
+        if(sampledSpinDegrees!=0)pose.mulPose(new Matrix4f().rotationZ(
                 (float)Math.toRadians(sampledSpinDegrees)));
     }
 
@@ -122,7 +122,7 @@ public final class LaserPointer {
 
     static void prepare(Camera camera,Vec3 target) {
         Minecraft client=Minecraft.getInstance();
-        if(!active(client)||client.options.hideGui||client.level==null) {
+        if(!active(client)||client.gui.hud.isHidden()||client.level==null) {
             preparedAim=null;
             return;
         }
@@ -140,10 +140,10 @@ public final class LaserPointer {
         preparedAim=new Aim(target,System.nanoTime());
     }
 
-    private static void renderBeam(SubmitNodeCollector collector, Matrix4f submitMatrix, Vector3f fromSubmit) {
+    private static void renderBeam(SubmitNodeCollector collector, Vector3f fromSubmit) {
         Minecraft client = Minecraft.getInstance();
         Aim aim = preparedAim;
-        if (!active(client) || client.options.hideGui || aim == null || client.level == null
+        if (!active(client) || client.gui.hud.isHidden() || aim == null || client.level == null
                 || handRoot == null || System.nanoTime() - aim.preparedAt > AIM_MAX_AGE_NANOS) return;
         Camera camera = client.gameRenderer.mainCamera();
         // The muzzle arrives in the submitting (view) space; everything below is world space.

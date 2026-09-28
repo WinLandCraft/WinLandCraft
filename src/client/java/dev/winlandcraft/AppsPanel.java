@@ -80,6 +80,5 @@ public final class AppsPanel extends WorldPanel {
                 canvas.rect(menuX,menuY,152,32,.8f,hoverColor(menuX,menuY,152,32,0xFF314D63,0xFF466B83));
                 canvas.text(menu.panel().streaming()?"Stop streaming":"Stream",menuX+12,menuY+12,-1,1,.9f);
             }
-        }
     }
 }

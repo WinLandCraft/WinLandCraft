@@ -64,6 +64,5 @@ public final class TasksPanel extends WorldPanel {
             }
             if (running.isEmpty()) canvas.text("No active apps", APP_START + 8, 20, 0xFF9BAABD);
 
-        }
     }
 }

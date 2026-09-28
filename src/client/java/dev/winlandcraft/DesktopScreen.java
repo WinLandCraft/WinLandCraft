@@ -152,7 +152,7 @@ final class DesktopScreen extends Screen {
             return;
         }
         var camera = client.gameRenderer.mainCamera();
-        Vec3 eye = camera.getPosition();
+        Vec3 eye = camera.position();
         var forward = new Vector3f(0, 0, -1).rotate(camera.rotation());
         double lookYaw = Math.atan2(forward.x, forward.z);
         int rings = (units.size() + RING_SLOTS - 1) / RING_SLOTS;

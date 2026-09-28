@@ -18,7 +18,7 @@ public final class HudMixin {
         if (WinLandCraftClient.controls == null) return;
         var client = Minecraft.getInstance();
         WinLandCraftClient.controls.renderResizeHint(graphics);
-        if (WinLandCraftClient.controls.isTyping() && !client.options.hideGui)
+        if (WinLandCraftClient.controls.isTyping() && !client.gui.hud.isHidden())
             graphics.text(client.font, "Typing in window | Esc to return", 8, 8, 0xFF51CFDF, true);
     }
 }

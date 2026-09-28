@@ -33,10 +33,10 @@ final class Beacon {
             float[][] local = {{-half, top}, {half, top}, {half, bottom}, {-half, bottom}};
             for (int i = 0; i < 4; i++) {
                 float[] from = local[i], to = local[(i + 1) % 4];
-                vertices.addVertex(pose, center.x + right.x * from[0] + up.x * from[1],
+                vertices.addVertex(pose, (float) (center.x + right.x * from[0] + up.x * from[1]),
                         (float) (center.y + right.y * from[0] + up.y * from[1]),
                         (float) (center.z + right.z * from[0] + up.z * from[1])).setColor(color);
-                vertices.addVertex(pose, center.x + right.x * to[0] + up.x * to[1],
+                vertices.addVertex(pose, (float) (center.x + right.x * to[0] + up.x * to[1]),
                         (float) (center.y + right.y * to[0] + up.y * to[1]),
                         (float) (center.z + right.z * to[0] + up.z * to[1])).setColor(color);
             }
@@ -46,8 +46,8 @@ final class Beacon {
     /** Draws in world coordinates with an identity pose. */
     static void line(SubmitNodeCollector collector, PoseStack pose, Vec3 from, Vec3 to, int color) {
         collector.order(90).submitCustomGeometry(new PoseStack(), RenderTypes.linesTranslucentNoDepthWrite(), (p, vertices) -> {
-            vertices.addVertex(p, (float) from.x, (float) from.y, (float) from.z).setColor(color);
-            vertices.addVertex(p, (float) to.x, (float) to.y, (float) to.z).setColor(color);
+            vertices.addVertex(p, from.x, from.y, from.z).setColor(color);
+            vertices.addVertex(p, to.x, to.y, to.z).setColor(color);
         });
     }
 }
