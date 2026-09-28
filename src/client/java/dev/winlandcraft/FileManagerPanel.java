@@ -3,7 +3,9 @@ package dev.winlandcraft;
 import java.nio.file.*;
 import java.util.*;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
+import org.lwjgl.sdl.SDLKeycode;
+import org.lwjgl.sdl.SDLMouse;
+import org.lwjgl.sdl.SDLScancode;
 
 /** Native, read-only directory browser; no CEF view and no shell/file launching. */
 public final class FileManagerPanel extends NativePanel {
@@ -82,14 +84,14 @@ public final class FileManagerPanel extends NativePanel {
     @Override public void keyboardStopped(){editing=false;if(directory!=null)address=directory.toString();}
     @Override public void character(char ch,int modifiers){if(editing&&!Character.isISOControl(ch)){if(selectAll){address="";selectAll=false;}if(address.length()<4096)address+=ch;}}
     @Override public void key(int key,int scan,int action,int modifiers) {
-        if(!editing||action==GLFW.GLFW_RELEASE)return;
-        if(key==GLFW.GLFW_KEY_A&&(modifiers&GLFW.GLFW_MOD_CONTROL)!=0){selectAll=true;return;}
-        if(key==GLFW.GLFW_KEY_V&&(modifiers&GLFW.GLFW_MOD_CONTROL)!=0){
+        if(!editing||action==0)return;
+        if(key==SDLKeycode.SDLK_A&&(modifiers&SDLKeycode.SDL_KMOD_CTRL)!=0){selectAll=true;return;}
+        if(key==SDLKeycode.SDLK_V&&(modifiers&SDLKeycode.SDL_KMOD_CTRL)!=0){
             String text=Minecraft.getInstance().keyboardHandler.getClipboard();
             for(char ch:text.toCharArray())character(ch,0);return;
         }
-        if(key==GLFW.GLFW_KEY_BACKSPACE){if(selectAll)address="";else if(!address.isEmpty())address=address.substring(0,address.offsetByCodePoints(address.length(),-1));selectAll=false;}
-        if(key==GLFW.GLFW_KEY_ENTER||key==GLFW.GLFW_KEY_KP_ENTER)try {
+        if(key==SDLKeycode.SDLK_BACKSPACE){if(selectAll)address="";else if(!address.isEmpty())address=address.substring(0,address.offsetByCodePoints(address.length(),-1));selectAll=false;}
+        if(key==SDLKeycode.SDLK_RETURN||key==SDLKeycode.SDLK_KP_ENTER)try {
             Path path=Path.of(address);navigate(path.isAbsolute()?path:directory.resolve(path),true);
         }catch(InvalidPathException error){notice="Invalid folder path.";}
     }

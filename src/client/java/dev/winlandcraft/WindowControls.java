@@ -14,7 +14,10 @@ import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
+import org.lwjgl.sdl.SDLKeycode;
+import org.lwjgl.sdl.SDLMouse;
+import org.lwjgl.sdl.SDLScancode;
 
 /** WaylandCraft-style hover routing, implicit mouse grabs, and separate window grabs.
  * Implemented for Minecraft 1.21.4 and CEF rather than the Wayland protocol. */
@@ -51,7 +54,7 @@ public final class WindowControls {
     public WindowControls(AppWindows apps, KeyMapping typingKey) { this.apps = apps; this.typingKey = typingKey; }
     private boolean active(Minecraft c) {
         return c.player != null && c.level != null && c.player.isAlive() && !c.player.isSpectator()
-                && c.screen == null && c.isWindowActive();
+                && c.gui.screen() == null && c.isWindowActive();
     }
     public void tick(Minecraft c) {
         if (!c.options.keyUse.isDown()) usedThisPress = false;
@@ -94,7 +97,7 @@ public final class WindowControls {
     private void stopTyping() {
         if(stoppingTyping)return;stoppingTyping=true;
         try {
-            if (focused != null) keys.forEach((key, scan) -> focused.key(key, scan, GLFW.GLFW_RELEASE, 0));
+            if (focused != null) keys.forEach((key, scan) -> focused.key(key, scan, 0, 0));
             if (focused != null) focused.keyboardStopped();
             keys.clear(); typing = false; activationKey = -1;
         } finally {stoppingTyping=false;}
@@ -145,12 +148,12 @@ public final class WindowControls {
     }
     public boolean mouseButton(int button, int action) {
         Minecraft c = Minecraft.getInstance();
-        if(action==GLFW.GLFW_RELEASE&&button==GLFW.GLFW_MOUSE_BUTTON_LEFT&&laserToggleDown) {
+        if(action==0&&button==SDLMouse.SDL_BUTTON_LEFT&&laserToggleDown) {
             laserToggleDown=false;
             return true;
         }
-        if (action == GLFW.GLFW_RELEASE && buttons.remove(button)) {
-            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (action == 0 && buttons.remove(button)) {
+            if (button == SDLMouse.SDL_BUTTON_LEFT) {
                 if(fileDragging&&draggedFile!=null&&active(c)) {
                     Hit target=interactionPick(c);
                     if(target!=null&&target.panel.acceptsFileDrop()) {target.panel.dropFile(draggedFile);message("Opening "+draggedFile.getFileName()+" in "+target.panel.windowTitle()+".");}
@@ -160,22 +163,22 @@ public final class WindowControls {
                 curving=false;
                 resizing = null;
                 dragging = null;
-            } else if (button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE) dragging = null;
+            } else if (button == SDLMouse.SDL_BUTTON_MIDDLE) dragging = null;
             if (pointer != null) pointer.mouseUp(pointerX, pointerY, button);
             if (buttons.isEmpty()) pointer = null;
             return true;
         }
         if (!active(c)) return false;
-        if (action != GLFW.GLFW_PRESS) return false;
+        if (action != 1) return false;
         if (resizing != null || dragging != null || curving) { buttons.add(button); return true; }
         Hit hit=pointer==null?interactionPick(c):null;
         boolean laserHeld=effectiveLaserMode()&&LaserPointer.heldHand(c)!=null;
         // The laser yields to panel input; its controls only apply when this raycast missed.
-        if (pointer == null && button == GLFW.GLFW_MOUSE_BUTTON_RIGHT
+        if (pointer == null && button == SDLMouse.SDL_BUTTON_RIGHT
                 && (WinLandCraft.isControl(c.player.getMainHandItem())
                 || c.player.getMainHandItem().isEmpty() && WinLandCraft.isControl(c.player.getOffhandItem()))
                 && (!laserHeld||hit==null)) return false;
-        if(pointer==null&&button==GLFW.GLFW_MOUSE_BUTTON_LEFT&&laserHeld&&hit==null) {
+        if(pointer==null&&button==SDLMouse.SDL_BUTTON_LEFT&&laserHeld&&hit==null) {
             LaserPointer.toggle(c);
             laserToggleDown=true;
             return true;
@@ -183,7 +186,7 @@ public final class WindowControls {
         if (pointer == null && c.player.isUsingItem()) return false;
         // Super-key window move: Alt + middle drags from anywhere on the window in crosshair
         // mode; the laser pointer needs middle alone since it already aims the interaction.
-        if (pointer == null && hit != null && button == GLFW.GLFW_MOUSE_BUTTON_MIDDLE
+        if (pointer == null && hit != null && button == SDLMouse.SDL_BUTTON_MIDDLE
                 && hit.panel.isOpen() && hit.panel.canMove()
                 && (LaserPointer.active(c) || altHeld())) {
             stopTyping();
@@ -193,12 +196,12 @@ public final class WindowControls {
         }
         if(pointer==null&&hit!=null&&hit.panel==edgeUi) {
             buttons.add(button);
-            if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT)edgeAction(hit,c);
+            if(button==SDLMouse.SDL_BUTTON_LEFT)edgeAction(hit,c);
             return true;
         }
         if(pointer==null && hit!=null && hit.panel==curveUi) {
             buttons.add(button);
-            if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            if(button==SDLMouse.SDL_BUTTON_LEFT) {
                 stopTyping(); curving=true;
                 var relative=WindowGroups.local(curveUi,c.gameRenderer.mainCamera().getPosition());
                 curveOwner.curve.facing=relative.z>=0?1:-1;
@@ -206,10 +209,10 @@ public final class WindowControls {
             }
             return true;
         }
-        if (pointer == null && hit != null && corner(hit.panel,hit.point) != 0 && button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (pointer == null && hit != null && corner(hit.panel,hit.point) != 0 && button != SDLMouse.SDL_BUTTON_LEFT) {
             buttons.add(button); return true;
         }
-        if (pointer == null && hit != null && button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (pointer == null && hit != null && button == SDLMouse.SDL_BUTTON_LEFT) {
             int corner = corner(hit.panel,hit.point);
             if (corner != 0) {
                 stopTyping();
@@ -237,7 +240,7 @@ public final class WindowControls {
             if (buttons.add(button)) {
                 pointer.remoteInput.clear(pointer);
                 pointer.mouseDown(pointerX, pointerY, button);
-                if(button==GLFW.GLFW_MOUSE_BUTTON_LEFT){draggedFile=pointer.dragFileAt(pointerX,pointerY);fileStartX=pointerX;fileStartY=pointerY;fileStartRay=direction(c.gameRenderer.mainCamera());}
+                if(button==SDLMouse.SDL_BUTTON_LEFT){draggedFile=pointer.dragFileAt(pointerX,pointerY);fileStartX=pointerX;fileStartY=pointerY;fileStartRay=direction(c.gameRenderer.mainCamera());}
             }
             if (pointer.wantsKeyboard() && !typing) {
                 focused = pointer;
@@ -288,13 +291,13 @@ public final class WindowControls {
     public boolean key(int key, int scan, int action, int modifiers) {
         var c = Minecraft.getInstance();
         if (!active(c)) return false;
-        if(draggedFile!=null&&key==GLFW.GLFW_KEY_ESCAPE){releasePointer();stopTyping();message("File drop canceled.");return true;}
+        if(draggedFile!=null&&key==SDLKeycode.SDLK_ESCAPE){releasePointer();stopTyping();message("File drop canceled.");return true;}
         if (key == activationKey) {
-            if (action == GLFW.GLFW_RELEASE) activationKey = -1;
+            if (action == 0) activationKey = -1;
             return true;
         }
         if (!typing) {
-            if (action == GLFW.GLFW_PRESS && typingKey.matches(key, scan)) {
+            if (action == 1 && typingKey.matches(key, scan)) {
                 Hit hit = interactionPick(c);
                 if (hit != null && hit.panel.acceptsKeyboard()) focused = hit.panel;
                 if (focused != null && focused.isOpen() && focused.acceptsKeyboard()) {
@@ -305,12 +308,12 @@ public final class WindowControls {
             }
             return false;
         }
-        if (key == GLFW.GLFW_KEY_ESCAPE) { stopTyping(); message("Minecraft controls restored."); return true; }
-        if (action == GLFW.GLFW_PRESS) {
+        if (key == SDLKeycode.SDLK_ESCAPE) { stopTyping(); message("Minecraft controls restored."); return true; }
+        if (action == 1) {
             focused.remoteInput.clear(focused);
             keys.put(key, scan); focused.key(key, scan, action, modifiers);
-        } else if (action == GLFW.GLFW_REPEAT && keys.containsKey(key)) focused.key(key, scan, action, modifiers);
-        else if (action == GLFW.GLFW_RELEASE && keys.remove(key) != null) focused.key(key, scan, action, modifiers);
+        } else if (action == 2 && keys.containsKey(key)) focused.key(key, scan, action, modifiers);
+        else if (action == 0 && keys.remove(key) != null) focused.key(key, scan, action, modifiers);
         return true;
     }
     public boolean character(int codepoint, int modifiers) {
@@ -552,9 +555,8 @@ public final class WindowControls {
         return WindowGroups.corner(panel,point,Minecraft.getInstance().gameRenderer.mainCamera().getPosition());
     }
     private boolean scalingHeld() {
-        long window=Minecraft.getInstance().getWindow().getWindow();
-        return GLFW.glfwGetKey(window,GLFW.GLFW_KEY_LEFT_CONTROL)==GLFW.GLFW_PRESS
-                ||GLFW.glfwGetKey(window,GLFW.GLFW_KEY_RIGHT_CONTROL)==GLFW.GLFW_PRESS;
+        return InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_LCTRL)
+                || InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_RCTRL);
     }
     private void setCurve(Vec3 point) {
         if(curveUi==null&&edgeUi!=null&&curveOwner!=null&&curveOwner.curve!=null) {
@@ -572,9 +574,8 @@ public final class WindowControls {
     }
     /** Either Alt key, for super-key window shortcuts that work in both pointer modes. */
     static boolean altHeld() {
-        long window = Minecraft.getInstance().getWindow().getWindow();
-        return GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_ALT) == GLFW.GLFW_PRESS;
+        return InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_LALT)
+                || InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_RALT);
     }
     private static void message(String text) {
         var player = Minecraft.getInstance().player;

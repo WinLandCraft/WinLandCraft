@@ -3,7 +3,10 @@ package dev.winlandcraft;
 import java.nio.file.*;
 import java.util.*;
 import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
+import org.lwjgl.sdl.SDLKeycode;
+import org.lwjgl.sdl.SDLMouse;
+import com.mojang.blaze3d.platform.InputConstants;
+import org.lwjgl.sdl.SDLScancode;
 
 /** Native tabbed editor. Drafts remain in memory when the window is closed. */
 public final class NotepadPanel extends NativePanel {
@@ -67,35 +70,35 @@ public final class NotepadPanel extends NativePanel {
         if(editing&&pendingClose==null&&!active.busy&&!Character.isISOControl(ch)){active.replace(String.valueOf(ch));reveal();}
     }
     @Override public void key(int key,int scan,int action,int modifiers) {
-        if(action==GLFW.GLFW_RELEASE)return;boolean ctrl=(modifiers&(GLFW.GLFW_MOD_CONTROL|GLFW.GLFW_MOD_SUPER))!=0,shift=(modifiers&GLFW.GLFW_MOD_SHIFT)!=0;
+        if(action==0)return;boolean ctrl=(modifiers&(SDLKeycode.SDL_KMOD_CTRL|SDLKeycode.SDL_KMOD_GUI))!=0,shift=(modifiers&SDLKeycode.SDL_KMOD_SHIFT)!=0;
         var clipboard=Minecraft.getInstance().keyboardHandler;
         if(savePath!=null) {
-            if(ctrl&&key==GLFW.GLFW_KEY_A)pathSelected=true;
-            else if(ctrl&&key==GLFW.GLFW_KEY_V){for(char ch:clipboard.getClipboard().toCharArray())character(ch,0);}
-            else if(key==GLFW.GLFW_KEY_BACKSPACE){savePath=pathSelected?"":savePath.isEmpty()?"":savePath.substring(0,savePath.offsetByCodePoints(savePath.length(),-1));pathSelected=false;}
-            else if(key==GLFW.GLFW_KEY_ENTER||key==GLFW.GLFW_KEY_KP_ENTER)savePath();
+            if(ctrl&&key==SDLKeycode.SDLK_A)pathSelected=true;
+            else if(ctrl&&key==SDLKeycode.SDLK_V){for(char ch:clipboard.getClipboard().toCharArray())character(ch,0);}
+            else if(key==SDLKeycode.SDLK_BACKSPACE){savePath=pathSelected?"":savePath.isEmpty()?"":savePath.substring(0,savePath.offsetByCodePoints(savePath.length(),-1));pathSelected=false;}
+            else if(key==SDLKeycode.SDLK_RETURN||key==SDLKeycode.SDLK_KP_ENTER)savePath();
             return;
         }
         if(pendingClose!=null)return;
-        if(ctrl&&key==GLFW.GLFW_KEY_S){save(shift);return;}
-        if(ctrl&&key==GLFW.GLFW_KEY_N){newTab();return;}
-        if(ctrl&&key==GLFW.GLFW_KEY_W){closeTab(active);return;}
+        if(ctrl&&key==SDLKeycode.SDLK_S){save(shift);return;}
+        if(ctrl&&key==SDLKeycode.SDLK_N){newTab();return;}
+        if(ctrl&&key==SDLKeycode.SDLK_W){closeTab(active);return;}
         if(!editing||active.busy)return;
-        if(ctrl&&key==GLFW.GLFW_KEY_A){active.anchor=0;active.caret=active.text.length();}
-        else if(ctrl&&(key==GLFW.GLFW_KEY_C||key==GLFW.GLFW_KEY_X)){clipboard.setClipboard(active.selection());if(key==GLFW.GLFW_KEY_X)active.replace("");}
-        else if(ctrl&&key==GLFW.GLFW_KEY_V)active.replace(clipboard.getClipboard());
-        else if(ctrl&&key==GLFW.GLFW_KEY_Z)active.undo(shift);
-        else if(ctrl&&key==GLFW.GLFW_KEY_Y)active.undo(true);
-        else if(key==GLFW.GLFW_KEY_BACKSPACE)active.erase(true);
-        else if(key==GLFW.GLFW_KEY_DELETE)active.erase(false);
-        else if(key==GLFW.GLFW_KEY_ENTER||key==GLFW.GLFW_KEY_KP_ENTER)active.replace("\n");
-        else if(key==GLFW.GLFW_KEY_TAB)active.replace("\t");
-        else if(key==GLFW.GLFW_KEY_LEFT)active.horizontal(-1,shift);
-        else if(key==GLFW.GLFW_KEY_RIGHT)active.horizontal(1,shift);
-        else if(key==GLFW.GLFW_KEY_UP)active.vertical(-1,shift);
-        else if(key==GLFW.GLFW_KEY_DOWN)active.vertical(1,shift);
-        else if(key==GLFW.GLFW_KEY_HOME)active.move(ctrl?0:active.lineStart(),shift);
-        else if(key==GLFW.GLFW_KEY_END)active.move(ctrl?active.text.length():active.lineEnd(),shift);
+        if(ctrl&&key==SDLKeycode.SDLK_A){active.anchor=0;active.caret=active.text.length();}
+        else if(ctrl&&(key==SDLKeycode.SDLK_C||key==SDLKeycode.SDLK_X)){clipboard.setClipboard(active.selection());if(key==SDLKeycode.SDLK_X)active.replace("");}
+        else if(ctrl&&key==SDLKeycode.SDLK_V)active.replace(clipboard.getClipboard());
+        else if(ctrl&&key==SDLKeycode.SDLK_Z)active.undo(shift);
+        else if(ctrl&&key==SDLKeycode.SDLK_Y)active.undo(true);
+        else if(key==SDLKeycode.SDLK_BACKSPACE)active.erase(true);
+        else if(key==SDLKeycode.SDLK_DELETE)active.erase(false);
+        else if(key==SDLKeycode.SDLK_RETURN||key==SDLKeycode.SDLK_KP_ENTER)active.replace("\n");
+        else if(key==SDLKeycode.SDLK_TAB)active.replace("\t");
+        else if(key==SDLKeycode.SDLK_LEFT)active.horizontal(-1,shift);
+        else if(key==SDLKeycode.SDLK_RIGHT)active.horizontal(1,shift);
+        else if(key==SDLKeycode.SDLK_UP)active.vertical(-1,shift);
+        else if(key==SDLKeycode.SDLK_DOWN)active.vertical(1,shift);
+        else if(key==SDLKeycode.SDLK_HOME)active.move(ctrl?0:active.lineStart(),shift);
+        else if(key==SDLKeycode.SDLK_END)active.move(ctrl?active.text.length():active.lineEnd(),shift);
         reveal();
     }
     private void savePath(){try{Path path=Path.of(savePath);if(!path.isAbsolute())path=FileDirectory.home().resolve(path);write(active,path.normalize(),null);}catch(InvalidPathException invalid){fail("Invalid file path.");}}
@@ -123,7 +126,7 @@ public final class NotepadPanel extends NativePanel {
     }
     @Override public void mouseUp(int x,int y,int button){if(button==0)selecting=false;}
     @Override public void hover(int x,int y){if(selecting){active.move(locate(x,y),true);}}
-    @Override public void scroll(int x,int y,double amount){if(y<40)firstTab=Math.clamp(firstTab-(int)Math.signum(amount),0,Math.max(0,tabs.size()-visibleTabs()));else if(GLFW.glfwGetKey(Minecraft.getInstance().getWindow().getWindow(),GLFW.GLFW_KEY_LEFT_SHIFT)==GLFW.GLFW_PRESS)active.columnScroll=Math.max(0,active.columnScroll-(int)Math.signum(amount)*10);else active.scroll=Math.clamp(active.scroll-(int)Math.signum(amount)*3,0,Math.max(0,lines().length-visibleRows()));}
+    @Override public void scroll(int x,int y,double amount){if(y<40)firstTab=Math.clamp(firstTab-(int)Math.signum(amount),0,Math.max(0,tabs.size()-visibleTabs()));else if(InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_LSHIFT)||InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_RSHIFT))active.columnScroll=Math.max(0,active.columnScroll-(int)Math.signum(amount)*10);else active.scroll=Math.clamp(active.scroll-(int)Math.signum(amount)*3,0,Math.max(0,lines().length-visibleRows()));}
     private static String fit(String text,int width,float scale){return Minecraft.getInstance().font.plainSubstrByWidth(text,(int)(width/scale));}
     private void button(PanelCanvas c,PixelIcon icon,String text,int x,int y,int width){c.rect(x,y,width,44,.45f,hoverColor(x,y,width,44,0xFF344958,0xFF496176));icon.draw(c,x+10,y+10,24,.55f,-1);c.text(text,x+42,y+15,-1,1.5f);}
     private void toolbar(PanelCanvas c,PixelIcon icon,String text,int x,int width,boolean enabled){
