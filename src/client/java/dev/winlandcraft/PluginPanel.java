@@ -45,7 +45,7 @@ final class PluginPanel extends BrowserPanel {
     }
     @Override public void resize(float width,float height){int w=pixelWidth(),h=pixelHeight();super.resize(width,height);if(app!=null&&(w!=pixelWidth()||h!=pixelHeight()))call(()->app.onResize(pixelWidth(),pixelHeight()));}
     @Override public void close(){
-        if(!com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()){com.mojang.blaze3d.systems.RenderSystem.recordRenderCall(this::close);return;}
+        if(!com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()){net.minecraft.client.Minecraft.getInstance().submit(this::close);return;}
         if(context!=null)context.live=false;
         closeMedia();
         App previous=app;app=null;context=null;

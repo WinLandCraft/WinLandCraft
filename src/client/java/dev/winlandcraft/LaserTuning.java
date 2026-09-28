@@ -3,6 +3,7 @@ package dev.winlandcraft;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.google.gson.JsonObject;
 import java.util.Locale;
+import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
 /** Persisted first-person alignment, beam origin, and motion tuning. */
@@ -49,7 +50,7 @@ final class LaserTuning {
 
     static void applyModel(PoseStack pose) {
         pose.translate(Parameter.X.value(),Parameter.Y.value(),Parameter.Z.value());
-        pose.mulPose(new Quaternionf().rotationXYZ(radians(Parameter.PITCH.value()),
+        pose.mulPose(new Matrix4f().rotationXYZ(radians(Parameter.PITCH.value()),
                 radians(Parameter.YAW.value()),radians(Parameter.ROLL.value())));
         pose.scale(Parameter.SCALE.value(),Parameter.SCALE.value(),Parameter.SCALE.value());
     }

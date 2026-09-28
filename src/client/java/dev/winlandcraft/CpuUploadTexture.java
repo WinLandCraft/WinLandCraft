@@ -25,6 +25,28 @@ final class CpuUploadTexture extends AbstractTexture {
         return textureView != null;
     }
 
+    /** GL object name for producer interop. 0 when the backend is not OpenGL. */
+    int glId() {
+        return texture instanceof com.mojang.renderpearl.backend.opengl.GlTexture gl ? gl.glId() : 0;
+    }
+
+    /** Allocates without uploading, for GPU-copy destinations. */
+    boolean ensure(int w, int h) {
+        if (w <= 0 || h <= 0) return false;
+        if (texture == null || texture.isClosed() || width != w || height != h) {
+            closeTextures();
+            texture = RenderSystem.getDevice().createTexture("winlandcraft-upload",
+                    GpuTexture.USAGE_COPY_DST
+                            | GpuTexture.USAGE_COPY_SRC
+                            | GpuTexture.USAGE_TEXTURE_BINDING,
+                    GpuFormat.RGBA8_UNORM, w, h, 1, 1);
+            textureView = RenderSystem.getDevice().createTextureView(texture);
+            width = w;
+            height = h;
+        }
+        return true;
+    }
+
     int width() {
         return width;
     }
@@ -43,17 +65,7 @@ final class CpuUploadTexture extends AbstractTexture {
      */
     boolean upload(ByteBuffer rgba, int w, int h) {
         if (w <= 0 || h <= 0 || rgba.remaining() < w * h * 4) return false;
-        if (texture == null || texture.isClosed() || width != w || height != h) {
-            closeTextures();
-            texture = RenderSystem.getDevice().createTexture("winlandcraft-upload",
-                    GpuTexture.USAGE_COPY_DST
-                            | GpuTexture.USAGE_COPY_SRC
-                            | GpuTexture.USAGE_TEXTURE_BINDING,
-                    GpuFormat.RGBA8_UNORM, w, h, 1, 1);
-            textureView = RenderSystem.getDevice().createTextureView(texture);
-            width = w;
-            height = h;
-        }
+        if (!ensure(w, h)) return false;
         RenderSystem.getDevice().createCommandEncoder().writeToTexture(texture, rgba, 0, 0, 0, 0, w, h);
         return true;
     }

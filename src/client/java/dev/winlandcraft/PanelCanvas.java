@@ -57,7 +57,7 @@ public final class PanelCanvas implements AutoCloseable {
         Vec3 relative = position.subtract(cameraPos);
         pose.pushPose();
         pose.translate(relative.x, relative.y, relative.z);
-        pose.mulPose(rotation);
+        pose.mulPose(new Matrix4f().rotate(rotation));
         pose.scale(scaleX, -scaleY, scaleX);
         pose.translate(-width / 2f, -height / 2f, 0);
         worldSpace = true;
@@ -75,7 +75,7 @@ public final class PanelCanvas implements AutoCloseable {
         Vec3 relative = position.subtract(cameraPos);
         pose.pushPose();
         pose.translate(relative.x, relative.y, relative.z);
-        pose.mulPose(rotation);
+        pose.mulPose(new Matrix4f().rotate(rotation));
         pose.scale(scaleX, -scaleY, scaleX);
         pose.translate(-width / 2f, -height / 2f, 0);
         worldSpace = true;

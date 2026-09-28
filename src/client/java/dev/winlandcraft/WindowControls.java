@@ -128,7 +128,7 @@ public final class WindowControls {
         var c = Minecraft.getInstance();
         if (panel == null || !panel.isOpen() || !panel.canMove() || c.player == null) return;
         var camera = c.gameRenderer.mainCamera();
-        Vec3 origin = camera.getPosition();
+        Vec3 origin = camera.position();
         Vec3 dir = direction(camera);
         double t = panel.planeDistance(origin, dir);
         if (!Double.isFinite(t)) return;
@@ -203,7 +203,7 @@ public final class WindowControls {
             buttons.add(button);
             if(button==SDLMouse.SDL_BUTTON_LEFT) {
                 stopTyping(); curving=true;
-                var relative=WindowGroups.local(curveUi,c.gameRenderer.mainCamera().getPosition());
+                var relative=WindowGroups.local(curveUi,c.gameRenderer.mainCamera().position());
                 curveOwner.curve.facing=relative.z>=0?1:-1;
                 setCurve(hit.point);
             }
@@ -265,7 +265,7 @@ public final class WindowControls {
             case CURVE -> {
                 stopTyping();curving=true;curveOwner=edgeUi.owner;curveUi=null;
                 var curve=GroupCurve.get(curveOwner);
-                curve.facing=WindowGroups.local(curveOwner,client.gameRenderer.mainCamera().getPosition()).z>=0?1:-1;
+                curve.facing=WindowGroups.local(curveOwner,client.gameRenderer.mainCamera().position()).z>=0?1:-1;
                 setCurve(hit.point);
             }
         }
@@ -354,12 +354,12 @@ public final class WindowControls {
         graphics.fill(x-5,y-4,x+client.font.width(text)+5,y+13,0xE018212D);
         graphics.text(client.font,text,x,y,0xFFE1F2FA,true);
     }
-    public void renderHandles(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+    public void renderHandles(WorldPass pass) {
         if(fileDragging&&draggedFile!=null) {
             var client=Minecraft.getInstance();Hit target=interactionPick(client);boolean accepted=target!=null&&target.panel.acceptsFileDrop();
-            var camera=context.camera();
-            Vec3 position=camera.getPosition().add(direction(camera).scale(.65));
-            try(var badge=new PanelCanvas(context,position,camera.rotation(),.0015f,.0015f,260,32)) {
+            var camera=Minecraft.getInstance().gameRenderer.mainCamera();
+            Vec3 position=camera.position().add(direction(camera).scale(.65));
+            try(var badge=new PanelCanvas(pass,position,camera.rotation(),.0015f,.0015f,260,32)) {
                 badge.rect(12,18,260,32,.4f,accepted?0xEE25684B:0xEE334958);
                 badge.text(client.font.plainSubstrByWidth((accepted?"Open: ":"File: ")+draggedFile.getFileName(),244),20,29,-1);
             }
@@ -373,10 +373,10 @@ public final class WindowControls {
         var panel = resizing != null ? resizing.panel : hovered==edgeUi&&edgeUi!=null?edgeUi.owner:hovered;
         if(panel!=null && panel!=curveUi) {
             boolean scaling=resizing!=null?resizing.scaling():scalingHeld();
-            if(panel.curve!=null) for(var member:WindowGroups.members(panel)) member.renderResizeHandles(context,scaling);
-            else (panel.grouped()?WindowGroups.frame(panel):panel).renderResizeHandles(context,scaling);
+            if(panel.curve!=null) for(var member:WindowGroups.members(panel)) member.renderResizeHandles(pass,scaling);
+            else (panel.grouped()?WindowGroups.frame(panel):panel).renderResizeHandles(pass,scaling);
         }
-        if(curveUi!=null && curveOwner!=null && curveOwner.curve!=null) try(var canvas=curveUi.canvas(context)) {
+        if(curveUi!=null && curveOwner!=null && curveOwner.curve!=null) try(var canvas=curveUi.canvas(pass)) {
             if(canvas!=null) {
                 float amount=curveOwner.curve.amount;
                 canvas.rect(0,0,360,48,.3f,0xEE243C4A);
@@ -388,14 +388,14 @@ public final class WindowControls {
             }
         }
     }
-    public void renderLaser(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        LaserPointer.prepare(context.camera(),hoveredPoint);
+    public void renderLaser(WorldPass pass) {
+        LaserPointer.prepare(Minecraft.getInstance().gameRenderer.mainCamera(),hoveredPoint);
     }
-    public void renderBeacons(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
+    public void renderBeacons(WorldPass pass) {
         for (WorldPanel window : apps.windows) {
             if (!window.isOpen() || window.level != Minecraft.getInstance().level) continue;
             float alpha = window.beaconAlpha();
-            if (alpha > 0) Beacon.draw(context, window, alpha);
+            if (alpha > 0) Beacon.draw(pass, window, alpha);
         }
     }
     public void update(Camera camera) {
@@ -415,9 +415,9 @@ public final class WindowControls {
         if(!curving && System.nanoTime()>curveUntil) clearCurve();
         if(curving && (curveUi!=null||edgeUi!=null)) {
             WorldPanel control=curveUi!=null?curveUi:edgeUi;
-            double t=control.planeDistance(camera.getPosition(),direction(camera));
+            double t=control.planeDistance(camera.position(),direction(camera));
             if(Double.isFinite(t) && t<Math.max(64,ModSettings.interactionRange(c.player.blockInteractionRange()))) {
-                hoveredPoint=camera.getPosition().add(direction(camera).scale(t));
+                hoveredPoint=camera.position().add(direction(camera).scale(t));
                 setCurve(hoveredPoint);
             }
             hoveredCorner=0; return;
@@ -426,12 +426,12 @@ public final class WindowControls {
             Vec3 oldPosition=dragging.position; Quaternionf oldRotation=new Quaternionf(dragging.orientation);
             dragging.orientation = PanelRotation.allowed(camera.rotation()).mul(relativeRotation);
             Vector3f offset = new Vector3f(grabOffset).rotate(dragging.orientation);
-            dragging.position = camera.getPosition().add(direction(camera).scale(distance)).subtract(offset.x, offset.y, offset.z);
+            dragging.position = camera.position().add(direction(camera).scale(distance)).subtract(offset.x, offset.y, offset.z);
             WindowGroups.moved(dragging,oldPosition,oldRotation);
         }
         if (resizing != null) {
-            double t = resizing.planeDistance(camera.getPosition(), direction(camera));
-            if (Double.isFinite(t) && t < Math.max(64,ModSettings.interactionRange(c.player.blockInteractionRange()))) resizing.move(camera.getPosition().add(direction(camera).scale(t)));
+            double t = resizing.planeDistance(camera.position(), direction(camera));
+            if (Double.isFinite(t) && t < Math.max(64,ModSettings.interactionRange(c.player.blockInteractionRange()))) resizing.move(camera.position().add(direction(camera).scale(t)));
         }
         apps.syncAttachments();
         hoveredCorner = 0;
@@ -439,12 +439,12 @@ public final class WindowControls {
         WorldPanel nextHover = null;
         if (resizing != null) {
             nextHover = resizing.panel;
-            double t=resizing.planeDistance(camera.getPosition(),direction(camera));
-            if(Double.isFinite(t))hoveredPoint=camera.getPosition().add(direction(camera).scale(t));
+            double t=resizing.planeDistance(camera.position(),direction(camera));
+            if(Double.isFinite(t))hoveredPoint=camera.position().add(direction(camera).scale(t));
         } else if (pointer != null) {
-            double t = pointer.planeDistance(camera.getPosition(), direction(camera));
+            double t = pointer.planeDistance(camera.position(), direction(camera));
             if (Double.isFinite(t)) {
-                hoveredPoint=camera.getPosition().add(direction(camera).scale(t));
+                hoveredPoint=camera.position().add(direction(camera).scale(t));
                 int[] pixel = pointer.pixelAt(hoveredPoint);
                 pointerX = pixel[0]; pointerY = pixel[1];
                 pointer.pointerMoved(pointerX, pointerY);
@@ -456,16 +456,16 @@ public final class WindowControls {
                 if(hit.panel==edgeUi&&edgeUi!=null) {
                     edgeDwell.clear();
                     edgeUi.expand(System.nanoTime());
-                    double t=edgeUi.planeDistance(camera.getPosition(),direction(camera));
-                    if(Double.isFinite(t))hit=new Hit(edgeUi,camera.getPosition().add(direction(camera).scale(t)),t);
-                } else if(dragging==null&&hit.panel.floatingControls()&&EdgeControls.near(hit.panel,hit.point,camera.getPosition())) {
+                    double t=edgeUi.planeDistance(camera.position(),direction(camera));
+                    if(Double.isFinite(t))hit=new Hit(edgeUi,camera.position().add(direction(camera).scale(t)),t);
+                } else if(dragging==null&&hit.panel.floatingControls()&&EdgeControls.near(hit.panel,hit.point,camera.position())) {
                     var local=WindowGroups.local(hit.panel,hit.point);
                     int edge=EdgeControls.nearestEdge(local.x,local.y,hit.panel.worldWidth(),hit.panel.worldHeight());
                     if(edgeUi!=null&&edgeUi.owner==hit.panel&&edgeUi.edge==edge){edgeDwell.clear();edgeUi.follow(hit.point,edgeNow);}
                     // Alt is the super key: skip the hover dwell and show the nearest pill now.
                     else if(edgeDwell.ready(hit.panel,edge,edgeNow)||altHeld()) {
                         if(edgeUi!=null)edgeUi.dismiss(edgeNow);
-                        else {edgeUi=new EdgeControls(hit.panel,hit.point,edgeNow);edgeUi.view(camera.getPosition(),false);}
+                        else {edgeUi=new EdgeControls(hit.panel,hit.point,edgeNow);edgeUi.view(camera.position(),false);}
                     }
                 } else edgeDwell.clear();
                 if(hit.panel==curveUi) curveUntil=System.nanoTime()+1_500_000_000L;
@@ -503,7 +503,7 @@ public final class WindowControls {
         if (c.options.hideGui) return null;
         apps.syncAttachments();
         Camera camera = c.gameRenderer.mainCamera();
-        Vec3 origin = camera.getPosition(), ray = direction(camera);
+        Vec3 origin = camera.position(), ray = direction(camera);
         double nearest = range;
         WorldPanel target = null;
         if(edgeUi!=null&&edgeUi.owner.isOpen()&&edgeUi.pickable()) {
@@ -552,7 +552,7 @@ public final class WindowControls {
         return new Hit(target, point, nearest);
     }
     private int corner(WorldPanel panel,Vec3 point) {
-        return WindowGroups.corner(panel,point,Minecraft.getInstance().gameRenderer.mainCamera().getPosition());
+        return WindowGroups.corner(panel,point,Minecraft.getInstance().gameRenderer.mainCamera().position());
     }
     private boolean scalingHeld() {
         return InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_LCTRL)

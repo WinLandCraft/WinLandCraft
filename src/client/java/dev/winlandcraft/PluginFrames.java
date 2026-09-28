@@ -2,7 +2,6 @@ package dev.winlandcraft;
 import dev.winlandcraft.api.v2.*;
 import java.nio.ByteBuffer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
 import org.lwjgl.opengl.*;
 import org.lwjgl.system.MemoryUtil;
@@ -11,7 +10,9 @@ import com.mojang.blaze3d.systems.RenderSystem;
 final class PluginFrames implements FrameSurface {
     private final PluginFrameMailbox mailbox=new PluginFrameMailbox();
     private final Identifier location=Identifier.fromNamespaceAndPath("winlandcraft","plugin_frame/"+java.util.UUID.randomUUID());
-    private AbstractTexture texture;private ByteBuffer staging;private int width,height;private boolean visible,flipped,closed,detachGpu,inCallback;
+    private final CpuUploadTexture video=new CpuUploadTexture();
+    private boolean registered;
+    private ByteBuffer staging;private int width,height;private boolean visible,flipped,closed,detachGpu,inCallback;
     private GpuSource gpu;
     public synchronized boolean submit(ByteBuffer pixels,int w,int h,int stride,PixelFormat format){return !closed&&gpu==null&&mailbox.submit(pixels,w,h,stride,format);}
     public synchronized void clear(){mailbox.clear();detachGpu=true;}
@@ -42,7 +43,6 @@ final class PluginFrames implements FrameSurface {
         canvas.texture(location,(availableWidth-w)/2f,(availableHeight-h)/2f,w,h,.21f,-1,0,flipped?1:0,1,flipped?0:1);
     }
     private void copy(GpuFrame frame){
-        int binding=GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D),pbo=GL11.glGetInteger(GL21.GL_PIXEL_UNPACK_BUFFER_BINDING);
         try{
             if(!GL11.glIsTexture(frame.textureId()))throw new IllegalArgumentException("GPU source is not a live texture");
             GL11.glBindTexture(GL11.GL_TEXTURE_2D,frame.textureId());
@@ -53,43 +53,26 @@ final class PluginFrames implements FrameSurface {
                     ||GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D,0,GL11.GL_TEXTURE_HEIGHT)!=frame.height()
                     ||GL11.glGetTexLevelParameteri(GL11.GL_TEXTURE_2D,0,GL11.GL_TEXTURE_INTERNAL_FORMAT)!=GL11.GL_RGBA8)
                 throw new IllegalArgumentException("GPU source must match its dimensions and use RGBA8");
-            if(texture==null){texture=new AbstractTexture(){};Minecraft.getInstance().getTextureManager().register(location,texture);}
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D,texture.getId());
-            if(width!=frame.width()||height!=frame.height()){
-                GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,0);
-                GL11.glTexImage2D(GL11.GL_TEXTURE_2D,0,GL11.GL_RGBA8,frame.width(),frame.height(),0,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,(ByteBuffer)null);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MAG_FILTER,GL11.GL_LINEAR);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_S,GL12.GL_CLAMP_TO_EDGE);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_T,GL12.GL_CLAMP_TO_EDGE);
-            }
-            ARBCopyImage.glCopyImageSubData(frame.textureId(),GL11.GL_TEXTURE_2D,0,0,0,0,texture.getId(),GL11.GL_TEXTURE_2D,0,0,0,0,frame.width(),frame.height(),1);
+            if(!registered){Minecraft.getInstance().getTextureManager().register(location,video);registered=true;}
+            if(!video.ensure(frame.width(),frame.height()))throw new IllegalStateException("Could not allocate plugin frame texture");
+            int dst=video.glId();
+            if(dst==0)throw new IllegalStateException("Plugin GPU copy needs the OpenGL backend");
+            ARBCopyImage.glCopyImageSubData(frame.textureId(),GL11.GL_TEXTURE_2D,0,0,0,0,dst,GL11.GL_TEXTURE_2D,0,0,0,0,frame.width(),frame.height(),1);
             width=frame.width();height=frame.height();flipped=!frame.topLeftOrigin();visible=true;
-        }finally{GL11.glBindTexture(GL11.GL_TEXTURE_2D,binding);GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,pbo);}
+        }finally{GL11.glBindTexture(GL11.GL_TEXTURE_2D,0);}
     }
     private void upload(PluginFrameMailbox.Frame frame){
-        if(texture==null){texture=new AbstractTexture(){};Minecraft.getInstance().getTextureManager().register(location,texture);}
         int size=frame.pixels().length;
         if(staging==null||staging.capacity()!=size){if(staging!=null)MemoryUtil.memFree(staging);staging=MemoryUtil.memAlloc(size);}
         staging.clear();staging.put(frame.pixels()).flip();
-        int binding=GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D),pbo=GL11.glGetInteger(GL21.GL_PIXEL_UNPACK_BUFFER_BINDING);
-        int[] fields={GL11.GL_UNPACK_ALIGNMENT,GL11.GL_UNPACK_ROW_LENGTH,GL11.GL_UNPACK_SKIP_ROWS,GL11.GL_UNPACK_SKIP_PIXELS};int[] old=new int[fields.length];
-        for(int i=0;i<fields.length;i++)old[i]=GL11.glGetInteger(fields[i]);
-        try {
-            GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,0);
-            for(int i=0;i<fields.length;i++)GL11.glPixelStorei(fields[i],i==0?1:0);
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D,texture.getId());
-            if(width!=frame.width()||height!=frame.height()){
-                GL11.glTexImage2D(GL11.GL_TEXTURE_2D,0,GL11.GL_RGBA8,frame.width(),frame.height(),0,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,(ByteBuffer)null);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR);GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MAG_FILTER,GL11.GL_LINEAR);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_S,GL12.GL_CLAMP_TO_EDGE);GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_T,GL12.GL_CLAMP_TO_EDGE);
-            }
-            GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D,0,0,0,frame.width(),frame.height(),frame.format()==PixelFormat.RGBA8?GL11.GL_RGBA:GL12.GL_BGRA,GL11.GL_UNSIGNED_BYTE,staging);
-            width=frame.width();height=frame.height();flipped=false;visible=true;
-        }finally{
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D,binding);GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,pbo);
-            for(int i=0;i<fields.length;i++)GL11.glPixelStorei(fields[i],old[i]);
-        }
+        if(frame.format()==PixelFormat.BGRA8)swizzleBGRA(staging,size);
+        if(!registered){Minecraft.getInstance().getTextureManager().register(location,video);registered=true;}
+        if(!video.upload(staging,frame.width(),frame.height()))return;
+        width=frame.width();height=frame.height();flipped=false;visible=true;
     }
-    synchronized void close(){RenderSystem.assertOnRenderThread();closed=true;mailbox.close();disposeGpu();if(texture!=null){Minecraft.getInstance().getTextureManager().release(location);texture=null;}if(staging!=null){MemoryUtil.memFree(staging);staging=null;}visible=false;width=height=0;}
+    /** In-place BGRA to RGBA swizzle; RenderPearl has no BGRA format. */
+    private static void swizzleBGRA(ByteBuffer staging,int size) {
+        for(int i=0;i<size;i+=4){byte b=staging.get(i);staging.put(i,staging.get(i+2));staging.put(i+2,b);}
+    }
+    synchronized void close(){RenderSystem.assertOnRenderThread();closed=true;mailbox.close();disposeGpu();if(registered){Minecraft.getInstance().getTextureManager().release(location);registered=false;}video.close();if(staging!=null){MemoryUtil.memFree(staging);staging=null;}visible=false;width=height=0;}
 }

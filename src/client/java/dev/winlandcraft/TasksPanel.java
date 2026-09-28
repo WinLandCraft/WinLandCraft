@@ -34,10 +34,9 @@ public final class TasksPanel extends WorldPanel {
         if (apps.launcher.isAttached()) apps.launcher.close();
         super.close();
     }
-    @Override public void render(WorldRenderContext context) {
-        try (var surface = surface(context)) {
-            if (surface == null || !surface.frontFacing()) return;
-            var canvas=surface.canvas();
+    @Override public void render(WorldPass pass) {
+        try (var canvas = canvas(pass)) {
+            if (canvas == null || !canvas.frontFacing()) return;
             canvas.rect(0, 0, 400, 48, 0, 0xFF536579);
             canvas.rect(1, 1, 398, 46, 0.15f, 0xFF18212D);
             // Drag grip: short, thick, pill-styled; hover highlights like other controls.

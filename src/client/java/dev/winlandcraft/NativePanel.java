@@ -15,10 +15,10 @@ public abstract class NativePanel extends WorldPanel {
         layoutHeight=Math.max(1,Math.round(worldHeight()*densityY));
         layoutChanged();
     }
-    @Override public void render(WorldRenderContext context) {
-        try(var surface=surface(context)) {
-            if(surface==null||!surface.frontFacing())return;
-            drawSurface(surface.canvas());
+    @Override public void render(WorldPass pass) {
+        try(var canvas=canvas(pass)) {
+            if(canvas==null||!canvas.frontFacing())return;
+            drawSurface(canvas);
         }
     }
     protected void layoutChanged() { }
