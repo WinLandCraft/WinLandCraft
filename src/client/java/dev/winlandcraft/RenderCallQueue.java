@@ -10,13 +10,13 @@ import net.minecraft.client.Minecraft;
  * task queue; headless (the geometry checks run without a Minecraft instance)
  * it defers into a drainable queue like the old render-call queue did.
  */
-final class RenderCallQueue {
+public final class RenderCallQueue {
     private static final Queue<Runnable> queue = new ConcurrentLinkedQueue<>();
 
     private RenderCallQueue() {
     }
 
-    static void submit(Runnable task) {
+public static void submit(Runnable task) {
         var client = Minecraft.getInstance();
         if (client != null) {
             client.submit(task);
@@ -27,7 +27,7 @@ final class RenderCallQueue {
     }
 
     /** Runs deferred tasks. Only the headless checks call this; in game the client drains its own queue. */
-    static void replay() {
+public static void replay() {
         Runnable task;
         while ((task = queue.poll()) != null) task.run();
     }
