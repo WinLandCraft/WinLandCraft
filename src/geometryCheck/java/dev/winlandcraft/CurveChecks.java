@@ -90,7 +90,7 @@ final class CurveChecks {
         }
         curve.facing=1;curve.apply(1);
         var sink=new Capture();
-        var vertices=new CurvedVertices(sink,b,new org.joml.Matrix4f(),new org.joml.Matrix4f(),Vec3.ZERO);
+        var vertices=new CurvedVertices(sink,b,new org.joml.Matrix4f(),new org.joml.Matrix4f(),Vec3.ZERO,new org.joml.Matrix4f());
         vertices.addVertex(b.pixelWidth()*.25f,b.pixelHeight()*.5f,0).setUv(.25f,.5f);
         var expected=curve.panelPoint(b,-b.worldWidth()*.25f,0,0);
         GroupChecks.near(0,expected.distanceTo(sink.point),"renderer vertices follow surface");
