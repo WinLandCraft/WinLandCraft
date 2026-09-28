@@ -116,11 +116,11 @@ public final class ModSettingsScreen extends Screen {
                 ? "Enter a distance above 0, up to 4096 blocks."
                 : "Blocks (max 4096). OFF uses normal Minecraft reach.", width / 2, 168,
                 invalidRange && ModSettings.extendInteractionRange ? 0xFFFF5555 : 0xFF9BAABD);
-        graphics.drawCenteredString(font,"Choose exactly one pointer source; Laser mode requires the powered item.",width/2,240,0xFFB8CBDE);
+        graphics.centeredText(font,"Choose exactly one pointer source; Laser mode requires the powered item.",width/2,240,0xFFB8CBDE);
         if (pointerForced())
-            graphics.drawCenteredString(font,"Client-side server: crosshair controls forced, no control items.",width/2,228,0xFFFFC857);
-        graphics.drawCenteredString(font,"Power is linear; range is a minimum that grows with panel size.",width/2,276,0xFFB8CBDE);
-        if(!patchStatus.isEmpty())graphics.drawCenteredString(font,font.plainSubstrByWidth(patchStatus,width-20),width/2,314,
+            graphics.centeredText(font,"Client-side server: crosshair controls forced, no control items.",width/2,228,0xFFFFC857);
+        graphics.centeredText(font,"Power is linear; range is a minimum that grows with panel size.",width/2,276,0xFFB8CBDE);
+        if(!patchStatus.isEmpty())graphics.centeredText(font,font.plainSubstrByWidth(patchStatus,width-20),width/2,314,
                 patching?0xFFB8CBDE:patchStatus.startsWith("Created")?0xFF80E6AE:0xFFFF8888);
         if (saveFailed) graphics.centeredText(font, "Could not save settings. See latest.log.", width / 2, 30, 0xFFFF8888);
     }

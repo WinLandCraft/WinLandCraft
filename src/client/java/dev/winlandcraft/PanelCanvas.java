@@ -38,14 +38,14 @@ public final class PanelCanvas implements AutoCloseable {
         this(pass, panel, panel.position, panel.orientation,
                 panel.worldWidth() / panel.pixelWidth(), panel.worldHeight() / panel.pixelHeight(),
                 panel.pixelWidth(), panel.pixelHeight());
+        Matrix4f bendInverse = null;
         if (panel.curve != null && panel.curve.amount >= .0001f) {
             curved = true;
             // Undo the panel transform to obtain its logical pixels, then bend all geometry,
             // including icons and rects, onto the same cylindrical surface.
-            inverse = new Matrix4f(pose.last().pose()).invert();
-        } else {
-            inverse = null;
+            bendInverse = new Matrix4f(pose.last().pose()).invert();
         }
+        inverse = bendInverse;
         if (!panel.frontFacing(pass.camera().pos)) {
             front = false;
             backside(panel);
@@ -135,7 +135,7 @@ public final class PanelCanvas implements AutoCloseable {
     }
 
     public void rect(float x, float y, float width, float height, float z, int color) {
-        color = fade(color);
+        final int drawColor = fade(color);
         if (graphics != null) {
             graphics.fill((int) x, (int) y, (int) Math.ceil(x + width), (int) Math.ceil(y + height), color);
             return;
@@ -146,10 +146,10 @@ public final class PanelCanvas implements AutoCloseable {
             int segments = curved ? Math.max(1, (int) Math.ceil(width / 12)) : 1;
             for (int i = 0; i < segments; i++) {
                 float left = x + width * i / segments, right = x + width * (i + 1) / segments;
-                vertices.addVertex(p, left, y, 0).setColor(color);
-                vertices.addVertex(p, left, y + height, 0).setColor(color);
-                vertices.addVertex(p, right, y + height, 0).setColor(color);
-                vertices.addVertex(p, right, y, 0).setColor(color);
+                vertices.addVertex(p, left, y, 0).setColor(drawColor);
+                vertices.addVertex(p, left, y + height, 0).setColor(drawColor);
+                vertices.addVertex(p, right, y + height, 0).setColor(drawColor);
+                vertices.addVertex(p, right, y, 0).setColor(drawColor);
             }
         });
     }
@@ -163,13 +163,13 @@ public final class PanelCanvas implements AutoCloseable {
     }
 
     void text(String text, int x, int y, int color, float scale, float layer) {
-        color = fade(color);
+        final int drawColor = fade(color);
         if (graphics != null) {
             var poseStack = graphics.pose();
             poseStack.pushMatrix();
             poseStack.translate(x, y);
             poseStack.scale(scale, scale);
-            graphics.text(Minecraft.getInstance().font, text, 0, 0, color);
+            graphics.text(Minecraft.getInstance().font, text, 0, 0, drawColor);
             poseStack.popMatrix();
             return;
         }
@@ -180,7 +180,7 @@ public final class PanelCanvas implements AutoCloseable {
         pose.scale(scale, scale, 1);
         collector.order(orderFor(layer)).submitText(pose, 0, 0,
                 Component.literal(text).getVisualOrderText(), false, Font.DisplayMode.NORMAL,
-                FULL_BRIGHT, color, Integer.MIN_VALUE, 0);
+                FULL_BRIGHT, drawColor, Integer.MIN_VALUE, 0);
         pose.popPose();
     }
 
@@ -206,7 +206,7 @@ public final class PanelCanvas implements AutoCloseable {
 
     void texture(Identifier texture, float x, float y, float width, float height, float z, int color,
                  float u0, float v0, float u1, float v1) {
-        color = fade(color);
+        final int drawColor = fade(color);
         if (graphics != null) {
             graphics.blit(texture, (int) x, (int) y, (int) width, (int) height, u0, v0, u1, v1);
             return;
@@ -219,10 +219,10 @@ public final class PanelCanvas implements AutoCloseable {
                 float from = i / (float) segments, to = (i + 1) / (float) segments;
                 float left = x + width * from, right = x + width * to;
                 float su = u0 + (u1 - u0) * from, eu = u0 + (u1 - u0) * to;
-                vertices.addVertex(p, left, y, 0).setColor(color).setUv(su, v0).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, left, y + height, 0).setColor(color).setUv(su, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y + height, 0).setColor(color).setUv(eu, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y, 0).setColor(color).setUv(eu, v0).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, left, y, 0).setColor(drawColor).setUv(su, v0).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, left, y + height, 0).setColor(drawColor).setUv(su, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y + height, 0).setColor(drawColor).setUv(eu, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y, 0).setColor(drawColor).setUv(eu, v0).setLight(FULL_BRIGHT);
             }
         });
     }
