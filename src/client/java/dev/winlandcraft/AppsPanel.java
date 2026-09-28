@@ -55,6 +55,11 @@ public final class AppsPanel extends WorldPanel {
     @Override public void render(WorldPass pass) {
         try (var canvas = canvas(pass)) {
             if (canvas == null || !canvas.frontFacing()) return;
+            drawSurface(canvas);
+        }
+    }
+
+    @Override void drawSurface(PanelCanvas canvas) {
             canvas.rect(0, 0, 360, 180, 0, 0xFF18212D);
             canvas.rect(0, 0, 360, 36, 0.1f, 0xFF314D63);
             PixelIcon.APPS.draw(canvas,14,6,24,.2f,0xFF72ECF1);

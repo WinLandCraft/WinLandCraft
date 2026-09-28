@@ -37,6 +37,11 @@ public final class TasksPanel extends WorldPanel {
     @Override public void render(WorldPass pass) {
         try (var canvas = canvas(pass)) {
             if (canvas == null || !canvas.frontFacing()) return;
+            drawSurface(canvas);
+        }
+    }
+
+    @Override void drawSurface(PanelCanvas canvas) {
             canvas.rect(0, 0, 400, 48, 0, 0xFF536579);
             canvas.rect(1, 1, 398, 46, 0.15f, 0xFF18212D);
             // Drag grip: short, thick, pill-styled; hover highlights like other controls.

@@ -1,6 +1,6 @@
 package dev.winlandcraft;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
@@ -139,7 +139,7 @@ final class EdgeControls extends WorldPanel {
     }
     boolean previewsGroup(){return expanded&&groupCandidate!=null&&hovered(124,ungroupY(),108,28);}
     static float previewOpacity(double seconds){return (float)(.85*(1-Math.cos(Math.max(0,seconds)*Math.PI/1.2))/2);}
-    void renderGroupPreview(WorldRenderContext context,boolean active) {
+    void renderGroupPreview(WorldPass pass,boolean active) {
         if(!active||!previewsGroup()){previewSince=0;return;}
         long now=System.nanoTime();if(previewSince==0)previewSince=now;
         int alpha=Math.round(255*opacity*previewOpacity((now-previewSince)/1e9));
@@ -150,7 +150,7 @@ final class EdgeControls extends WorldPanel {
             if(c==null)continue;
             c.foreground();
             float width=panel.pixelWidth(),height=panel.pixelHeight()+panel.titlebarHeight(),top=-panel.titlebarHeight();
-            float size=(float)Math.max(.004,context.camera().getPosition().distanceTo(panel.position)*.001);
+            float size=(float)Math.max(.004,pass.camera().pos.distanceTo(panel.position)*.001);
             float dx=Math.clamp(size*width/panel.worldWidth(),1,Math.max(1,width/30));
             float dy=Math.clamp(size*panel.pixelHeight()/panel.worldHeight(),1,Math.max(1,height/30));
             int color=alpha<<24|0x49DC75;
@@ -204,13 +204,12 @@ final class EdgeControls extends WorldPanel {
         c.text("Stop streaming",18,top+218,-1,1.2f);
     }
     float curveValue(int x){return Math.clamp((x-CURVE_START)/(float)CURVE_WIDTH,0,1);}
-    @Override public void render(WorldRenderContext context) {
+    @Override public void render(WorldPass pass) {
         // Minecraft's font treats near-zero alpha as unspecified/opaque.
         if(!owner.isOpen()||opacity<.02f)return;
-        try(var surface=surface(context)) {
-            if(surface==null||!surface.frontFacing())return;
-            surface.foreground(opacity);
-            var c=surface.canvas();
+        try(var c=canvas(pass)) {
+            if(c==null||!c.frontFacing())return;
+            c.foreground();c.opacity(opacity);
             int hx=headerX(),hy=headerY();
             c.rect(-1,-1,pixelWidth()+2,pixelHeight()+2,.2f,0xFF657888);
             c.rect(0,0,pixelWidth(),pixelHeight(),.3f,0xF020303D);

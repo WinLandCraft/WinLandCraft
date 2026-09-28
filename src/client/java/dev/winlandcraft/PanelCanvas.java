@@ -2,7 +2,9 @@ package dev.winlandcraft;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.network.chat.Component;
@@ -11,21 +13,26 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
-/** Top-left pixel coordinates shared by native panels and CEF textures. */
+/**
+ * Top-left pixel coordinates shared by native panels and CEF textures.
+ * Two backends: world submission for in-world panels, and direct extractor
+ * drawing for the 2D desktop hybrid. Call order is draw order in both.
+ */
 public final class PanelCanvas implements AutoCloseable {
     /** Packed full-bright lightmap value for emissive UI quads. */
     private static final int FULL_BRIGHT = 0xF000F0;
     private final PoseStack pose;
     private final SubmitNodeCollector collector;
+    private final GuiGraphicsExtractor graphics;
     private final WorldPass pass;
     private final WorldPanel panel;
-    private final org.joml.Matrix4f worldMatrix;
+    private final Matrix4f worldMatrix;
     private final Matrix4f inverse;
     private final Vec3 cameraPos;
     private final boolean worldSpace;
     private int baseOrder;
     private float opacity = 1;
-    private boolean curved, front = true, closed;
+    private boolean curved, front = true, closed, pushed;
 
     public PanelCanvas(WorldPass pass, WorldPanel panel) {
         this(pass, panel, panel.position, panel.orientation,
@@ -47,20 +54,7 @@ public final class PanelCanvas implements AutoCloseable {
 
     public PanelCanvas(WorldPass pass, Vec3 position, Quaternionf rotation,
                        float scaleX, float scaleY, int width, int height) {
-        this.pass = pass;
-        this.panel = null;
-        this.collector = pass.collector();
-        this.cameraPos = pass.camera().pos;
-        this.pose = pass.pose();
-        this.worldMatrix = new Matrix4f(pose.last().pose());
-        this.inverse = null;
-        Vec3 relative = position.subtract(cameraPos);
-        pose.pushPose();
-        pose.translate(relative.x, relative.y, relative.z);
-        pose.mulPose(new Matrix4f().rotate(rotation));
-        pose.scale(scaleX, -scaleY, scaleX);
-        pose.translate(-width / 2f, -height / 2f, 0);
-        worldSpace = true;
+        this(pass, null, position, rotation, scaleX, scaleY, width, height);
     }
 
     private PanelCanvas(WorldPass pass, WorldPanel panel, Vec3 position, Quaternionf rotation,
@@ -68,17 +62,32 @@ public final class PanelCanvas implements AutoCloseable {
         this.pass = pass;
         this.panel = panel;
         this.collector = pass.collector();
+        this.graphics = null;
         this.cameraPos = pass.camera().pos;
         this.pose = pass.pose();
         this.worldMatrix = new Matrix4f(pose.last().pose());
         this.inverse = null;
         Vec3 relative = position.subtract(cameraPos);
         pose.pushPose();
+        pushed = true;
         pose.translate(relative.x, relative.y, relative.z);
         pose.mulPose(new Matrix4f().rotate(rotation));
         pose.scale(scaleX, -scaleY, scaleX);
         pose.translate(-width / 2f, -height / 2f, 0);
         worldSpace = true;
+    }
+
+    /** GUI backend for the 2D desktop hybrid. */
+    public PanelCanvas(GuiGraphicsExtractor graphics) {
+        this.pass = null;
+        this.panel = null;
+        this.collector = null;
+        this.graphics = graphics;
+        this.cameraPos = Vec3.ZERO;
+        this.pose = null;
+        this.worldMatrix = null;
+        this.inverse = null;
+        worldSpace = false;
     }
 
     public boolean frontFacing() {
@@ -126,16 +135,21 @@ public final class PanelCanvas implements AutoCloseable {
     }
 
     public void rect(float x, float y, float width, float height, float z, int color) {
+        color = fade(color);
+        if (graphics != null) {
+            graphics.fill((int) x, (int) y, (int) Math.ceil(x + width), (int) Math.ceil(y + height), color);
+            return;
+        }
         int order = orderFor(z);
         collector.order(order).submitCustomGeometry(pose, RenderTypes.debugQuads(), (p, vc) -> {
             var vertices = curved(vc);
             int segments = curved ? Math.max(1, (int) Math.ceil(width / 12)) : 1;
             for (int i = 0; i < segments; i++) {
                 float left = x + width * i / segments, right = x + width * (i + 1) / segments;
-                vertices.addVertex(p, left, y, 0).setColor(fade(color));
-                vertices.addVertex(p, left, y + height, 0).setColor(fade(color));
-                vertices.addVertex(p, right, y + height, 0).setColor(fade(color));
-                vertices.addVertex(p, right, y, 0).setColor(fade(color));
+                vertices.addVertex(p, left, y, 0).setColor(color);
+                vertices.addVertex(p, left, y + height, 0).setColor(color);
+                vertices.addVertex(p, right, y + height, 0).setColor(color);
+                vertices.addVertex(p, right, y, 0).setColor(color);
             }
         });
     }
@@ -149,6 +163,16 @@ public final class PanelCanvas implements AutoCloseable {
     }
 
     void text(String text, int x, int y, int color, float scale, float layer) {
+        color = fade(color);
+        if (graphics != null) {
+            var poseStack = graphics.pose();
+            poseStack.pushMatrix();
+            poseStack.translate(x, y);
+            poseStack.scale(scale, scale);
+            graphics.text(Minecraft.getInstance().font, text, 0, 0, color);
+            poseStack.popMatrix();
+            return;
+        }
         // Curved panels submit glyphs unbent: the submit-text path takes whole strings and
         // cannot warp individual vertices. Flat panels are unaffected.
         pose.pushPose();
@@ -156,7 +180,7 @@ public final class PanelCanvas implements AutoCloseable {
         pose.scale(scale, scale, 1);
         collector.order(orderFor(layer)).submitText(pose, 0, 0,
                 Component.literal(text).getVisualOrderText(), false, Font.DisplayMode.NORMAL,
-                FULL_BRIGHT, fade(color), Integer.MIN_VALUE, 0);
+                FULL_BRIGHT, color, Integer.MIN_VALUE, 0);
         pose.popPose();
     }
 
@@ -182,6 +206,11 @@ public final class PanelCanvas implements AutoCloseable {
 
     void texture(Identifier texture, float x, float y, float width, float height, float z, int color,
                  float u0, float v0, float u1, float v1) {
+        color = fade(color);
+        if (graphics != null) {
+            graphics.blit(texture, (int) x, (int) y, (int) width, (int) height, u0, v0, u1, v1);
+            return;
+        }
         int order = orderFor(z);
         collector.order(order).submitCustomGeometry(pose, RenderTypes.text(texture), (p, vc) -> {
             var vertices = curved(vc);
@@ -190,10 +219,10 @@ public final class PanelCanvas implements AutoCloseable {
                 float from = i / (float) segments, to = (i + 1) / (float) segments;
                 float left = x + width * from, right = x + width * to;
                 float su = u0 + (u1 - u0) * from, eu = u0 + (u1 - u0) * to;
-                vertices.addVertex(p, left, y, 0).setColor(fade(color)).setUv(su, v0).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, left, y + height, 0).setColor(fade(color)).setUv(su, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y + height, 0).setColor(fade(color)).setUv(eu, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y, 0).setColor(fade(color)).setUv(eu, v0).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, left, y, 0).setColor(color).setUv(su, v0).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, left, y + height, 0).setColor(color).setUv(su, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y + height, 0).setColor(color).setUv(eu, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y, 0).setColor(color).setUv(eu, v0).setLight(FULL_BRIGHT);
             }
         });
     }
@@ -201,6 +230,9 @@ public final class PanelCanvas implements AutoCloseable {
     @Override public void close() {
         if (closed) return;
         closed = true;
-        pose.popPose();
+        if (pushed) {
+            pose.popPose();
+            pushed = false;
+        }
     }
 }

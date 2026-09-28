@@ -136,12 +136,12 @@ public abstract class WorldPanel {
         if (!canResize()) return;
         try (var canvas = canvas(context)) {
             if (canvas == null) return;
-            float size=resizeHandleSize(context.camera().getPosition());
+            float size=resizeHandleSize(pass.camera().pos);
             float hx = size * pixelWidth() / worldWidth(), hy = size * pixelHeight() / worldHeight();
             for (int sx : new int[]{-1, 1}) for (int sy : new int[]{-1, 1}) {
                 if(curve!=null) {
                     var cornerPoint=curve.panelPoint(this,sx*(worldWidth()/2+.001f),sy<0?-worldHeight()/2-.001f:WindowGroups.top(this)+.001f,0);
-                    if(curve.corner(this,cornerPoint,context.camera().getPosition())==0) continue;
+                    if(curve.corner(this,cornerPoint,pass.camera().pos)==0) continue;
                 }
                 float x = sx < 0 ? -hx : pixelWidth(), y = sy < 0 ? -titlebarHeight() - hy : pixelHeight();
                 canvas.rect(x, y, hx, hy, 0.7f, scaling?0xFFFFC857:0xFF51CFDF);

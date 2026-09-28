@@ -3,15 +3,19 @@ package dev.winlandcraft;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.RenderType;
+
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
-import org.lwjgl.glfw.GLFW;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import org.lwjgl.sdl.SDLKeycode;
+import org.lwjgl.sdl.SDLMouse;
 
 /** 2D desktop hybrid: shows the live composited textures of the real 3D windows and taskbar.
  * Clicking a window maximizes it into the view with full mouse and keyboard input; Back
@@ -74,7 +78,7 @@ final class DesktopScreen extends Screen {
         int cols = columns();
         int row = visible / cols, col = visible % cols;
         if (row >= rows()) return null;
-        int texW = entry.panel().desktopTextureWidth(), texH = entry.panel().desktopTextureHeight();
+        int texW = entry.panel().pixelWidth(), texH = entry.panel().pixelHeight() + entry.panel().titlebarHeight();
         float scale = Math.min((BOX_W - 8f) / texW, (BOX_H - 28f) / texH);
         int w = Math.max(1, Math.round(texW * scale)), h = Math.max(1, Math.round(texH * scale));
         int x = 8 + col * (BOX_W + GAP) + (BOX_W - w) / 2, y = TOP + row * (BOX_H + GAP) + 20 + (BOX_H - 28 - h) / 2;
@@ -83,7 +87,7 @@ final class DesktopScreen extends Screen {
     /** Screen-space rect of the maximized window's live texture. */
     private int[] maximizedRect() {
         if (maximized == null) return null;
-        int texW = maximized.panel().desktopTextureWidth(), texH = maximized.panel().desktopTextureHeight();
+        int texW = maximized.panel().pixelWidth(), texH = maximized.panel().pixelHeight() + maximized.panel().titlebarHeight();
         float scale = Math.min((width - 16f) / texW, (height - TOP - TASKBAR_H - 32f) / texH);
         int w = Math.max(1, Math.round(texW * scale)), h = Math.max(1, Math.round(texH * scale));
         return new int[]{(width - w) / 2, TOP + (height - TOP - TASKBAR_H - 16 - h) / 2, w, h};
@@ -91,10 +95,12 @@ final class DesktopScreen extends Screen {
     /** Maps a screen point inside a thumbnail rect to panel content pixels. */
     private int[] mapToPanel(AppWindows.AppEntry entry, int[] rect, double x, double y) {
         var panel = entry.panel();
-        float scale = rect[2] / (float) panel.desktopTextureWidth();
-        int px = Math.clamp(Math.round((x - rect[0]) / scale - PanelSurface.MARGIN), 0, panel.pixelWidth() - 1);
-        int py = Math.clamp(Math.round((y - rect[1]) / scale - panel.titlebarHeight() - PanelSurface.MARGIN),
-                0, panel.pixelHeight() - 1);
+        float scale = rect[2] / (float) panel.pixelWidth();
+        int titlebar = panel.titlebarHeight();
+        int previewH = panel.pixelHeight() + titlebar;
+        float scaleY = rect[3] / (float) previewH;
+        int px = Math.clamp(Math.round((x - rect[0]) / scale), 0, panel.pixelWidth() - 1);
+        int py = Math.clamp(Math.round((y - rect[1]) / scaleY - titlebar), 0, panel.pixelHeight() - 1);
         return new int[]{px, py};
     }
     private AppWindows.AppEntry entryAt(double x, double y) {
@@ -105,10 +111,11 @@ final class DesktopScreen extends Screen {
         return null;
     }
     private int[] taskbarRect() {
-        if (!apps.tasks.isOpen() || apps.tasks.desktopTexture() == null) return null;
-        float scale = Math.min((TASKBAR_H - 8f) / apps.tasks.desktopTextureHeight(), (width - 16f) / apps.tasks.desktopTextureWidth());
-        int w = Math.max(1, Math.round(apps.tasks.desktopTextureWidth() * scale));
-        int h = Math.max(1, Math.round(apps.tasks.desktopTextureHeight() * scale));
+        if (!apps.tasks.isOpen()) return null;
+        int texW = apps.tasks.pixelWidth(), texH = apps.tasks.pixelHeight() + apps.tasks.titlebarHeight();
+        float scale = Math.min((TASKBAR_H - 8f) / texH, (width - 16f) / texW);
+        int w = Math.max(1, Math.round(texW * scale));
+        int h = Math.max(1, Math.round(texH * scale));
         return new int[]{8, height - TASKBAR_H + (TASKBAR_H - h) / 2, w, h};
     }
     private static boolean over(int[] rect, double x, double y) {
@@ -193,10 +200,12 @@ final class DesktopScreen extends Screen {
         entry.panel().pointerMoved(at[0], at[1]);
         entry.panel().mouseDown(at[0], at[1], button);
     }
-    @Override public boolean mouseClicked(double x, double y, int button) {
-        if (button != 0 && button != 1) return super.mouseClicked(x, y, button);
+    @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubled) {
+        int button = event.button();
+        double x = event.x(), y = event.y();
+        if (button != SDLMouse.SDL_BUTTON_LEFT && button != SDLMouse.SDL_BUTTON_RIGHT) return super.mouseClicked(event, doubled);
         var bar = taskbarRect();
-        if (button == 0 && over(bar, x, y)) {
+        if (button == SDLMouse.SDL_BUTTON_LEFT && over(bar, x, y)) {
             press(taskbar, bar, true, x, y, button);
             return true;
         }
@@ -207,11 +216,11 @@ final class DesktopScreen extends Screen {
                 return true;
             }
             pressed = null;
-            return super.mouseClicked(x, y, button);
+            return super.mouseClicked(event, doubled);
         }
         var entry = entryAt(x, y);
         if (entry != null) {
-            if (button == 1) {
+            if (button == SDLMouse.SDL_BUTTON_RIGHT) {
                 entry.panel().close();
                 status = "Closed " + entry.name() + ".";
                 rebuildWidgets();
@@ -224,9 +233,11 @@ final class DesktopScreen extends Screen {
             return true;
         }
         pressed = null;
-        return super.mouseClicked(x, y, button);
+        return super.mouseClicked(event, doubled);
     }
-    @Override public boolean mouseReleased(double x, double y, int button) {
+    @Override public boolean mouseReleased(MouseButtonEvent event) {
+        int button = event.button();
+        double x = event.x(), y = event.y();
         if (pressed != null && button == pressedButton) {
             var panel = pressed.panel();
             var rect = pressedBar ? taskbarRect() : maximized != null && pressed.equals(maximized) ? maximizedRect() : rectOf(pressed);
@@ -238,7 +249,7 @@ final class DesktopScreen extends Screen {
             pressed = null;
             return true;
         }
-        return super.mouseReleased(x, y, button);
+        return super.mouseReleased(event);
     }
     @Override public void mouseMoved(double x, double y) {
         if (pressed != null && !pressedBar && pressed.panel().isOpen()) {
@@ -278,47 +289,54 @@ final class DesktopScreen extends Screen {
     private void releaseAll() {
         pressed = null;
         if (maximized != null && maximized.panel().isOpen() && !heldKeys.isEmpty())
-            for (int key : heldKeys) maximized.panel().key(key, 0, GLFW.GLFW_RELEASE, 0);
+            for (int key : heldKeys) maximized.panel().key(key, 0, 0, 0);
         heldKeys.clear();
     }
-    @Override public boolean keyPressed(int key, int scan, int modifiers) {
+    @Override public boolean keyPressed(KeyEvent event) {
         if (maximized != null && maximized.panel().isOpen()) {
-            if (key == GLFW.GLFW_KEY_ESCAPE) return super.keyPressed(key, scan, modifiers);
-            maximized.panel().key(key, scan, heldKeys.contains(key) ? GLFW.GLFW_REPEAT : GLFW.GLFW_PRESS, modifiers);
+            if (event.keycode() == SDLKeycode.SDLK_ESCAPE) return super.keyPressed(event);
+            int key = event.keycode();
+            maximized.panel().key(key, event.key(), heldKeys.contains(key) ? 2 : 1, event.modifiers());
             heldKeys.add(key);
             return true;
         }
-        return super.keyPressed(key, scan, modifiers);
+        return super.keyPressed(event);
     }
-    @Override public boolean keyReleased(int key, int scan, int modifiers) {
-        if (maximized != null && heldKeys.remove(key)) {
-            if (maximized.panel().isOpen()) maximized.panel().key(key, scan, GLFW.GLFW_RELEASE, modifiers);
+    @Override public boolean keyReleased(KeyEvent event) {
+        if (maximized != null && heldKeys.remove(event.keycode())) {
+            if (maximized.panel().isOpen()) maximized.panel().key(event.keycode(), event.key(), 0, event.modifiers());
             return true;
         }
-        return super.keyReleased(key, scan, modifiers);
+        return super.keyReleased(event);
     }
-    @Override public boolean charTyped(char character, int modifiers) {
+    @Override public boolean charTyped(CharacterEvent event) {
         if (maximized != null && maximized.panel().isOpen()) {
-            maximized.panel().character(character, modifiers);
+            maximized.panel().character((char) event.codepoint(), 0);
             return true;
         }
-        return super.charTyped(character, modifiers);
+        return super.charTyped(event);
     }
-    private void blitLive(GuiGraphics g, AppWindows.AppEntry entry, int[] rect) {
+    /** Redraws the panel live at thumbnail scale. Native UI redraws through the GUI canvas;
+     * browser pages blit their registered view the same way the world pass does. */
+    private void blitLive(GuiGraphicsExtractor g, AppWindows.AppEntry entry, int[] rect) {
         var panel = entry.panel();
-        var texture = panel.desktopTexture();
-        if (texture == null) {
-            g.fill(rect[0], rect[1], rect[0] + rect[2], rect[1] + rect[3], 0xFF18212D);
-            g.drawCenteredString(font, "Opening...", rect[0] + rect[2] / 2, rect[1] + rect[3] / 2 - 4, 0xFF9BAABD);
-            return;
+        int titlebar = panel.titlebarHeight();
+        float sx = rect[2] / (float) panel.pixelWidth();
+        float sy = rect[3] / (float) (panel.pixelHeight() + titlebar);
+        g.enableScissor(rect[0], rect[1], rect[2], rect[3]);
+        var pose = g.pose();
+        pose.pushMatrix();
+        pose.translate(rect[0], rect[1] + titlebar * sy);
+        pose.scale(sx, sy);
+        try (var canvas = new PanelCanvas(g)) {
+            panel.drawSurface(canvas);
+        } finally {
+            pose.popMatrix();
+            g.disableScissor();
         }
-        // FBO textures store the panel top at v=1, matching the world-space composite,
-        // so sample bottom-up via a negative v height. The texture's setFilter no-ops keep
-        // its mip chain intact through GUI blits.
-        int texW = panel.desktopTextureWidth(), texH = panel.desktopTextureHeight();
-        g.blit(RenderType::guiTextured, texture, rect[0], rect[1], 0, texH, rect[2], rect[3], texW, -texH, texW, texH);
     }
-    @Override public void render(GuiGraphics g, int mouseX, int mouseY, float delta) {
+    @Override public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(g, mouseX, mouseY, partialTick);
         g.fill(0, 0, width, height, 0xF0142A3A);
         g.fill(0, height - TASKBAR_H, width, height, 0xF00B1118);
         if (maximized != null && !maximized.panel().isOpen()) {
@@ -326,13 +344,12 @@ final class DesktopScreen extends Screen {
             maximized = null;
             rebuildWidgets();
         }
-        super.render(g, mouseX, mouseY, delta);
         if (maximized != null) {
             renderMaximized(g, mouseX, mouseY);
             return;
         }
-        g.drawString(font, title, 8, 14, -1);
-        g.drawCenteredString(font, "Click: open | Right-click: close | Wheel on window: scroll, elsewhere: pages",
+        g.text(font, title.getString(), 8, 14, -1);
+        g.centeredText(font, "Click: open | Right-click: close | Wheel on window: scroll, elsewhere: pages",
                 width / 2, 30, 0xFF9BAABD);
         var entries = entries();
         first = Math.clamp(first, 0, Math.max(0, entries.size() - 1));
@@ -347,15 +364,15 @@ final class DesktopScreen extends Screen {
             int visible = entries.indexOf(entry) - first;
             int bx = 8 + (visible % cols) * (BOX_W + GAP), by = TOP + (visible / cols) * (BOX_H + GAP);
             g.fill(bx, by, bx + BOX_W, by + BOX_H, entry == hovered ? 0xFF2A4356 : 0xFF101820);
-            g.drawString(font, font.plainSubstrByWidth(entry.name(), BOX_W - 12), bx + 6, by + 6, -1);
+            g.text(font, font.plainSubstrByWidth(entry.name(), BOX_W - 12), bx + 6, by + 6, -1);
             blitLive(g, entry, rect);
         }
-        if (entries.isEmpty()) g.drawCenteredString(font, "No open windows.", width / 2, TOP + 20, 0xFFB8CBDE);
+        if (entries.isEmpty()) g.centeredText(font, "No open windows.", width / 2, TOP + 20, 0xFFB8CBDE);
         renderTaskbar(g);
-        if (!status.isEmpty()) g.drawCenteredString(font, font.plainSubstrByWidth(status, width - 20), width / 2, height - TASKBAR_H - 14, 0xFFB8CBDE);
+        if (!status.isEmpty()) g.centeredText(font, font.plainSubstrByWidth(status, width - 20), width / 2, height - TASKBAR_H - 14, 0xFFB8CBDE);
     }
-    private void renderMaximized(GuiGraphics g, int mouseX, int mouseY) {
-        g.drawString(font, maximized.name(), 8, 14, -1);
+    private void renderMaximized(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+        g.text(font, maximized.name(), 8, 14, -1);
         var rect = maximizedRect();
         blitLive(g, maximized, rect);
         if (over(rect, mouseX, mouseY)) {
@@ -363,16 +380,16 @@ final class DesktopScreen extends Screen {
             maximized.panel().pointerMoved(at[0], at[1]);
         } else maximized.panel().pointerMoved(-1, -1);
         renderTaskbar(g);
-        if (!status.isEmpty()) g.drawCenteredString(font, font.plainSubstrByWidth(status, width - 20), width / 2, height - TASKBAR_H - 14, 0xFFB8CBDE);
+        if (!status.isEmpty()) g.centeredText(font, font.plainSubstrByWidth(status, width - 20), width / 2, height - TASKBAR_H - 14, 0xFFB8CBDE);
     }
-    private void renderTaskbar(GuiGraphics g) {
+    private void renderTaskbar(GuiGraphicsExtractor g) {
         var bar = taskbarRect();
         if (bar != null) blitLive(g, taskbar, bar);
-        else g.drawString(font, "Taskbar opening...", 8, height - TASKBAR_H + 12, 0xFF9BAABD);
+        else g.text(font, "Taskbar opening...", 8, height - TASKBAR_H + 12, 0xFF9BAABD);
     }
     @Override public boolean isPauseScreen() { return false; }
     @Override public void onClose() {
         releaseAll();
-        minecraft.setScreen(null);
+        minecraft.gui.setScreen(null);
     }
 }
