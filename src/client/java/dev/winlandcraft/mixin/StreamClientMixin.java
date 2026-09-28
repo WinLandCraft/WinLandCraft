@@ -1,7 +1,6 @@
 package dev.winlandcraft.mixin;
 
-import dev.winlandcraft.StreamClient;
-import dev.winlandcraft.StreamProtocol;
+import dev.winlandcraft.WinLandCraftClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -15,11 +14,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public final class StreamClientMixin {
     @Inject(method = "handleCustomPayload", at = @At("HEAD"), cancellable = true)
     private void winlandcraft$receive(CustomPacketPayload payload, CallbackInfo ci) {
-        boolean ours = payload instanceof StreamProtocol.State || payload instanceof StreamProtocol.Demand
-                || payload instanceof StreamProtocol.Frame || payload instanceof StreamProtocol.Stop;
+        boolean ours = payload instanceof dev.winlandcraft.StreamProtocol.State
+                || payload instanceof dev.winlandcraft.StreamProtocol.Demand
+                || payload instanceof dev.winlandcraft.StreamProtocol.Frame
+                || payload instanceof dev.winlandcraft.StreamProtocol.Stop;
         if (!ours) return;
         ci.cancel();
         // Hop onto the render thread; Netty must never touch client state directly.
-        Minecraft.getInstance().submit(() -> StreamClient.receive(payload));
+        Minecraft.getInstance().submit(() -> WinLandCraftClient.deliverPayload(payload));
     }
 }
