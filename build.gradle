@@ -153,6 +153,7 @@ tasks.register('verifyMixinPackaging') {
                             HudMixin: ['extractRenderState'],
                             MinecraftMixin: ['startAttack', 'continueAttack', 'startUseItem'],
                             GameRendererLightMixin: ['renderLevel'],
+                            LevelRenderMixin: ['submitFeatures'],
                             ItemInHandRendererMixin: ['submitHandsWithItems'],
                             LaserItemSubmitMixin: ['submit'],
                             StreamCodecC2SMixin: ['<clinit>'],
