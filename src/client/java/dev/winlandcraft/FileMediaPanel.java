@@ -35,7 +35,7 @@ abstract class FileMediaPanel extends BrowserPanel {
         else super.drawSurface(canvas);
     }
     @Override public void close(){
-        if(!RenderSystem.isOnRenderThread()){net.minecraft.client.Minecraft.getInstance().submit(this::close);return;}
+        if(!RenderSystem.isOnRenderThread()){RenderCallQueue.submit(this::close);return;}
         super.close();if(server!=null){server.close();server=null;}file=null;error="";
     }
 }

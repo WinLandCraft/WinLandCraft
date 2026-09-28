@@ -1,7 +1,7 @@
 package dev.winlandcraft.mixin;
 
+import dev.winlandcraft.RenderCallQueue;
 import dev.winlandcraft.WinLandCraftClient;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,6 +21,6 @@ public final class StreamClientMixin {
         if (!ours) return;
         ci.cancel();
         // Hop onto the render thread; Netty must never touch client state directly.
-        Minecraft.getInstance().submit(() -> WinLandCraftClient.deliverPayload(payload));
+        RenderCallQueue.submit(() -> WinLandCraftClient.deliverPayload(payload));
     }
 }

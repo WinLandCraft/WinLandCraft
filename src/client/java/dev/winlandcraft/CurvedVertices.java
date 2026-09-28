@@ -11,19 +11,20 @@ import org.joml.Vector3fc;
 final class CurvedVertices implements VertexConsumer {
     private final VertexConsumer target;
     private final WorldPanel panel;
-    private final Matrix4f inverse, world;
+    private final Matrix4f inverse, world, submit;
     private final Vec3 camera;
 
-    CurvedVertices(VertexConsumer target, WorldPanel panel, Matrix4f inverse, Matrix4f world, Vec3 camera) {
+    CurvedVertices(VertexConsumer target, WorldPanel panel, Matrix4f inverse, Matrix4f world, Vec3 camera, Matrix4f submit) {
         this.target = target;
         this.panel = panel;
         this.inverse = inverse;
         this.world = world;
         this.camera = camera;
+        this.submit = submit;
     }
 
     /** Bends submitting-pose pixels onto the cylinder, returned in lambda-pose-local coordinates. */
-    private Vector3f bend(Matrix4f submit, float x, float y, float z) {
+    private Vector3f bend(float x, float y, float z) {
         var placed = submit.transformPosition(new Vector3f(x, y, z));
         var pixel = inverse.transformPosition(new Vector3f(placed));
         var point = panel.curve.panelPoint(panel, (pixel.x / panel.pixelWidth() - .5f) * panel.worldWidth(),
@@ -33,13 +34,13 @@ final class CurvedVertices implements VertexConsumer {
     }
 
     @Override public VertexConsumer addVertex(float x, float y, float z) {
-        // No pose context: only used where the caller already works in final coordinates.
-        target.addVertex(x, y, z);
+        var bent = bend(x, y, z);
+        target.addVertex(bent.x, bent.y, bent.z);
         return this;
     }
 
     @Override public VertexConsumer addVertex(PoseStack.Pose pose, float x, float y, float z) {
-        var bent = bend(pose.pose(), x, y, z);
+        var bent = bend(x, y, z);
         target.addVertex(bent.x, bent.y, bent.z);
         return this;
     }

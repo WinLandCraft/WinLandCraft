@@ -128,8 +128,8 @@ public final class PanelCanvas implements AutoCloseable {
         return baseOrder + Math.clamp(Math.round(layer * 64), 0, 128);
     }
 
-    private VertexConsumer curved(VertexConsumer target) {
-        return curved ? new CurvedVertices(target, panel, inverse, worldMatrix, cameraPos) : target;
+    private VertexConsumer curved(VertexConsumer target, Matrix4f submit) {
+        return curved ? new CurvedVertices(target, panel, inverse, worldMatrix, cameraPos, submit) : target;
     }
 
     public void rect(float x, float y, float width, float height, float z, int color) {
@@ -140,7 +140,7 @@ public final class PanelCanvas implements AutoCloseable {
         }
         int order = orderFor(z);
         collector.order(order).submitCustomGeometry(pose, RenderTypes.debugQuads(), (p, vc) -> {
-            var vertices = curved(vc);
+            var vertices = curved(vc, p.pose());
             int segments = curved ? Math.max(1, (int) Math.ceil(width / 12)) : 1;
             for (int i = 0; i < segments; i++) {
                 float left = x + width * i / segments, right = x + width * (i + 1) / segments;
@@ -211,7 +211,7 @@ public final class PanelCanvas implements AutoCloseable {
         }
         int order = orderFor(z);
         collector.order(order).submitCustomGeometry(pose, RenderTypes.text(texture), (p, vc) -> {
-            var vertices = curved(vc);
+            var vertices = curved(vc, p.pose());
             int segments = curved ? Math.max(1, (int) Math.ceil(width / 12f)) : 1;
             for (int i = 0; i < segments; i++) {
                 float from = i / (float) segments, to = (i + 1) / (float) segments;

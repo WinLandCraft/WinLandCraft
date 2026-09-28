@@ -103,6 +103,9 @@ final class CurveChecks {
         public Capture setUv(float u,float v){this.u=u;return this;}
         public Capture setUv1(int u,int v){return this;}
         public Capture setUv2(int u,int v){return this;}
+        public Capture setUv3(float u,float v){return this;}
         public Capture setNormal(float x,float y,float z){return this;}
+        public Capture setColor(int color){return this;}
+        public Capture setLineWidth(float width){return this;}
     }
 }

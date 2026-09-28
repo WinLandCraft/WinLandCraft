@@ -208,7 +208,7 @@ public final class WindowGeometryChecks {
         try { network.join(); } catch (InterruptedException error) { throw new AssertionError(error); }
         if (failure.get() != null) throw new AssertionError("off-thread close failed", failure.get());
         if (!browser.isOpen()) throw new AssertionError("network thread changed browser state");
-        com.mojang.blaze3d.systems.RenderSystem.replayQueue();
+        com.mojang.blaze3d.systems.RenderCallQueue.replay();
         if (browser.isOpen()) throw new AssertionError("render thread did not close browser");
         browser.close();
         System.out.println("Browser cleanup: off-thread deferral, render-thread execution, and repeated close passed (without native CEF).");

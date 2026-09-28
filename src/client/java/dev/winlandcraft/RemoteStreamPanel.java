@@ -144,6 +144,7 @@ final class RemoteStreamPanel extends WorldPanel {
                 canvas.rect(0,0,Math.min(430,pixelWidth()),24,.4f,0xEE392641);
                 canvas.text("Stream paused / waiting for host",8,8,0xFFFFCC88);
             }
+            if (image) sampleScreenLight(video.getTexture());
             if(decoder!=null&&image&&!"running".equals(decoder.audioState)&&audioPackets>0){
                 canvas.rect(0,pixelHeight()-26,Math.min(560,pixelWidth()),26,.4f,0xEE392641);
                 canvas.text("Audio state: "+decoder.audioState+" (see latest.log)",8,pixelHeight()-18,0xFFFFCC88);
@@ -158,6 +159,6 @@ final class RemoteStreamPanel extends WorldPanel {
         uploadedSequence=-1;
         if(staging!=null){MemoryUtil.memFree(staging);staging=null;}
         if(RenderSystem.isOnRenderThread())video.close();
-        else Minecraft.getInstance().submit(video::close);
+        else RenderCallQueue.submit(video::close);
     }
 }

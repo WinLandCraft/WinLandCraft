@@ -96,6 +96,13 @@ public abstract class WorldPanel {
     protected boolean projectsLight(){return false;}
     final float[] screenLightColors(){return screenLightColors;}
     final void screenLightColors(float[] colors){screenLightColors=ScreenLighting.smooth(screenLightColors,colors);}
+    private ScreenColorSampler lightSampler;
+    /** Samples the given browser texture for screen lighting. Throttled internally; render thread only. */
+    final void sampleScreenLight(com.mojang.renderpearl.api.textures.GpuTexture texture) {
+        if (!projectsLight() || !ScreenLighting.samplingEnabled()) return;
+        if (lightSampler == null) lightSampler = new ScreenColorSampler();
+        lightSampler.capture(texture, this::screenLightColors);
+    }
     float resizeMinimumWidth(){return ModSettings.removeSizingLimitations?.0001f:minimumWidth();}
     float resizeMinimumHeight(){return ModSettings.removeSizingLimitations?.0001f:minimumHeight();}
     float resizeMaximumWidth(){return ModSettings.removeSizingLimitations?Float.MAX_VALUE:6.4f;}
@@ -218,6 +225,16 @@ public abstract class WorldPanel {
         WindowGroups.detach(this);
         hoverX=hoverY=Integer.MIN_VALUE;
         screenLightColors=null;
+        if (lightSampler != null) {
+            if (com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()) {
+                lightSampler.close();
+                lightSampler = null;
+            } else {
+                var sampler = lightSampler;
+                lightSampler = null;
+                RenderCallQueue.submit(sampler::close);
+            }
+        }
         position = null;
         orientation = null;
         level = null;

@@ -136,7 +136,7 @@ public final class ScreenLighting {
     static void shutdown() {
         panels=List.of();
         if(buffer==0)return;
-        if(!RenderSystem.isOnRenderThread()){net.minecraft.client.Minecraft.getInstance().submit(ScreenLighting::shutdown);return;}
+        if(!RenderSystem.isOnRenderThread()){RenderCallQueue.submit(ScreenLighting::shutdown);return;}
         GL15.glDeleteBuffers(buffer);buffer=0;
     }
 }

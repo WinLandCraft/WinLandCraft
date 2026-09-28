@@ -191,7 +191,7 @@ public class BrowserPanel extends WorldPanel {
     @Override public void close() {
         // BrowserTexture/MCEFBrowser.close frees GPU objects; never run it on Netty/CEF threads.
         if (!com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()) {
-            net.minecraft.client.Minecraft.getInstance().submit(this::close);
+            RenderCallQueue.submit(this::close);
             return;
         }
         super.close(); closeViews();
@@ -376,6 +376,7 @@ public class BrowserPanel extends WorldPanel {
             if (browserReady) {
                 active.texture.sync();
                 canvas.texture(active.textureId, SIDE, 0, pixelWidth() - SIDE, pixelHeight(), 0.2f);
+                sampleScreenLight(active.browser.getRenderer().getTexture());
             }
             else canvas.text(failed ? "Browser failed. Reopen to retry." : "Waiting for Chromium...", SIDE + 40, 40, 0xFFFFFFFF, 2);
             if (menu != null) {

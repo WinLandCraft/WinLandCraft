@@ -26,7 +26,7 @@ final class FileMediaChecks {
             network.start();
             network.join();
             if (failure.get() != null) throw new AssertionError("off-thread image close", failure.get());
-            RenderSystem.replayQueue();
+            RenderCallQueue.replay();
             check(!panel.isOpen() && !panel.browserEnabled(), "image resources cleared");
             check(panel.windowTitle().equals("Image Viewer"), "image title reset on close");
         } catch (Exception error) { throw new AssertionError(error); }
