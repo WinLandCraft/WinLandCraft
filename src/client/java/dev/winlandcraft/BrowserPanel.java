@@ -2,11 +2,12 @@ package dev.winlandcraft;
 
 import com.cinemamod.mcef.MCEF;
 import com.cinemamod.mcef.MCEFBrowser;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
+import org.lwjgl.sdl.SDLKeycode;
+import org.lwjgl.sdl.SDLMouse;
 import java.util.*;
 
 /** Native sidebar and independent CEF tabs, all in one shared MCEF runtime. */
@@ -90,7 +91,8 @@ public class BrowserPanel extends WorldPanel {
     protected final String managedAddress(){return active==null?initialUrl():active.url;}
     protected final String managedTitle(){return active==null?"":active.title;}
     protected final void drawManagedBrowser(PanelCanvas canvas,int x,int y,int width,int height){
-        if(active!=null&&active.browser.getRenderer().getTextureID()>0)canvas.texture(active.texture,x,y,width,height,.2f);
+        boolean browserReady = active != null && active.texture.ready();
+        if (browserReady) {active.texture.sync();canvas.texture(active.textureId,x,y,width,height,.2f);}
         else canvas.text(failed?"Browser failed. Reopen to retry.":"Waiting for Chromium...",x+12,y+16,-1,1.5f);
     }
     @Override public int pixelWidth() { return layoutWidth; }
@@ -187,9 +189,9 @@ public class BrowserPanel extends WorldPanel {
         return false;
     }
     @Override public void close() {
-        // MCEFBrowser.close deletes GL textures synchronously; never run it on Netty/CEF threads.
+        // BrowserTexture/MCEFBrowser.close frees GPU objects; never run it on Netty/CEF threads.
         if (!com.mojang.blaze3d.systems.RenderSystem.isOnRenderThread()) {
-            com.mojang.blaze3d.systems.RenderSystem.recordRenderCall(this::close);
+            net.minecraft.client.Minecraft.getInstance().submit(this::close);
             return;
         }
         super.close(); closeViews();
@@ -208,37 +210,37 @@ public class BrowserPanel extends WorldPanel {
     @Override public void key(int key, int scan, int action, int modifiers) { key(LOCAL_INPUT,key,scan,action,modifiers); }
     protected final void key(Object source,int key,int scan,int action,int modifiers) {
         var input=new Input(source,key);
-        if (action == GLFW.GLFW_RELEASE) {
+        if (action == 0) {
             Tab tab = pressedKeys.remove(input);
             if (tab != null&&!held(pressedKeys,tab,key)) tab.browser.sendKeyRelease(key, scan, modifiers);
             return;
         }
         if (active == null) return;
-        boolean ctrl = !standalone && (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
-        if (ctrl && key == GLFW.GLFW_KEY_L) { editAddress(); return; }
-        if (ctrl && key == GLFW.GLFW_KEY_T) { newTab(homeUrl); editAddress(); return; }
-        if (ctrl && key == GLFW.GLFW_KEY_W) { closeTab(active); return; }
+        boolean ctrl = !standalone && (modifiers & SDLKeycode.SDL_KMOD_CTRL) != 0;
+        if (ctrl && key == SDLKeycode.SDLK_L) { editAddress(); return; }
+        if (ctrl && key == SDLKeycode.SDLK_T) { newTab(homeUrl); editAddress(); return; }
+        if (ctrl && key == SDLKeycode.SDLK_W) { closeTab(active); return; }
         if (!editing) {
             active.browser.setFocus(true);boolean first=!held(pressedKeys,active,key);pressedKeys.put(input,active);
-            if(first||action==GLFW.GLFW_REPEAT)active.browser.sendKeyPress(key,scan,modifiers);return;
+            if(first||action==2)active.browser.sendKeyPress(key,scan,modifiers);return;
         }
-        if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+        if (key == SDLKeycode.SDLK_RETURN || key == SDLKeycode.SDLK_KP_ENTER) {
             String url = BrowserAddress.destination(address);
             if (url != null) { active.url = url; active.browser.loadURL(url); editing = false; selectAll = false; }
-        } else if (ctrl && key == GLFW.GLFW_KEY_A) selectAll = true;
-        else if (ctrl && (key == GLFW.GLFW_KEY_C || key == GLFW.GLFW_KEY_X)) {
-            if (selectAll) { Minecraft.getInstance().keyboardHandler.setClipboard(address); if (key == GLFW.GLFW_KEY_X) insert(""); }
-        } else if (ctrl && key == GLFW.GLFW_KEY_V) insert(Minecraft.getInstance().keyboardHandler.getClipboard());
-        else if (key == GLFW.GLFW_KEY_BACKSPACE) {
+        } else if (ctrl && key == SDLKeycode.SDLK_A) selectAll = true;
+        else if (ctrl && (key == SDLKeycode.SDLK_C || key == SDLKeycode.SDLK_X)) {
+            if (selectAll) { Minecraft.getInstance().keyboardHandler.setClipboard(address); if (key == SDLKeycode.SDLK_X) insert(""); }
+        } else if (ctrl && key == SDLKeycode.SDLK_V) insert(Minecraft.getInstance().keyboardHandler.getClipboard());
+        else if (key == SDLKeycode.SDLK_BACKSPACE) {
             if (selectAll) insert("");
             else if (caret > 0) { int previous = address.offsetByCodePoints(caret, -1); address = address.substring(0, previous) + address.substring(caret); caret = previous; }
-        } else if (key == GLFW.GLFW_KEY_DELETE) {
+        } else if (key == SDLKeycode.SDLK_DELETE) {
             if (selectAll) insert("");
             else if (caret < address.length()) address = address.substring(0, caret) + address.substring(address.offsetByCodePoints(caret, 1));
-        } else if (key == GLFW.GLFW_KEY_HOME) { caret = 0; selectAll = false; }
-        else if (key == GLFW.GLFW_KEY_END) { caret = address.length(); selectAll = false; }
-        else if (key == GLFW.GLFW_KEY_LEFT) { caret = selectAll ? 0 : caret > 0 ? address.offsetByCodePoints(caret, -1) : 0; selectAll = false; }
-        else if (key == GLFW.GLFW_KEY_RIGHT) { caret = selectAll ? address.length() : caret < address.length() ? address.offsetByCodePoints(caret, 1) : caret; selectAll = false; }
+        } else if (key == SDLKeycode.SDLK_HOME) { caret = 0; selectAll = false; }
+        else if (key == SDLKeycode.SDLK_END) { caret = address.length(); selectAll = false; }
+        else if (key == SDLKeycode.SDLK_LEFT) { caret = selectAll ? 0 : caret > 0 ? address.offsetByCodePoints(caret, -1) : 0; selectAll = false; }
+        else if (key == SDLKeycode.SDLK_RIGHT) { caret = selectAll ? address.length() : caret < address.length() ? address.offsetByCodePoints(caret, 1) : caret; selectAll = false; }
     }
     private void insert(String text) {
         text = text.replaceAll("[\\p{Cntrl}]", "");
@@ -248,7 +250,7 @@ public class BrowserPanel extends WorldPanel {
         address = address.substring(0, caret) + text + address.substring(caret); caret += text.length();
     }
     @Override public void character(char character, int modifiers) {
-        if (editing) { if ((modifiers & GLFW.GLFW_MOD_CONTROL) == 0 && !Character.isISOControl(character)) insert(String.valueOf(character)); }
+        if (editing) { if ((modifiers & SDLKeycode.SDL_KMOD_CTRL) == 0 && !Character.isISOControl(character)) insert(String.valueOf(character)); }
         else if (active != null) active.browser.sendKeyTyped(character, modifiers);
     }
     @Override public void mouseDown(int x, int y, int button) { mouseDown(LOCAL_INPUT,x,y,button); }
@@ -256,7 +258,7 @@ public class BrowserPanel extends WorldPanel {
         if (y < 0) return;
         if(x<SIDE&&sidebarExtraClick(x,y,button))return;
         if (active == null) return;
-        if (menu != null && button == 0) {
+        if (menu != null && button == SDLMouse.SDL_BUTTON_LEFT) {
             var selected = menu; menu = null;
             if (x >= selected.x && x < selected.x + 240 && y >= selected.y && y < selected.y + 180) {
                 switch ((y - selected.y) / 30) {
@@ -272,7 +274,7 @@ public class BrowserPanel extends WorldPanel {
         }
         menu = null;
         if (x < SIDE) {
-            if (button != 0) return;
+            if (button != SDLMouse.SDL_BUTTON_LEFT) return;
             if (x >= 12 && x < 248 && y >= 12 && y < 60) { editAddress(); return; }
             editing = false;
             if (y >= 72 && y < 110 && x >= 12 && x < 248) {
@@ -323,15 +325,14 @@ public class BrowserPanel extends WorldPanel {
         var font = Minecraft.getInstance().font;
         return font.width(text) * scale <= width ? text : font.plainSubstrByWidth(text, (int) (width / scale) - font.width("...")) + "...";
     }
-    @Override public void render(WorldRenderContext context) {
-        try (var surface = surface(context)) {
-            if (surface == null || !surface.frontFacing()) return;
-            var canvas=surface.canvas();
+    @Override public void render(WorldPass pass) {
+        try (var canvas = canvas(pass)) {
+            if (canvas == null || !canvas.frontFacing()) return;
             drawSurface(canvas);
         }
     }
     void drawSurface(PanelCanvas canvas) {
-            boolean browserReady = active != null && active.browser.getRenderer().getTextureID() > 0;
+            boolean browserReady = active != null && active.texture.ready();
             canvas.frame(pixelWidth(),pixelHeight(),titlebarHeight());
             // The live page is opaque, so avoid a redundant full-size backing draw.
             if (!browserReady) canvas.rect(0, 0, pixelWidth(), pixelHeight(), 0.1f, 0xFF18212D);
@@ -372,8 +373,10 @@ public class BrowserPanel extends WorldPanel {
                 canvas.text(tabs.size() + " tabs | Scroll list", 16, pixelHeight() - 41, 0xFF9BAABD, 1.2f);
                 canvas.text(editing ? "Enter: go | Esc: leave" : "Click URL to type | G: page", 16, pixelHeight() - 20, 0xFF9BAABD, 1.2f);
             }
-            if (browserReady)
-                canvas.texture(active.texture, SIDE, 0, pixelWidth() - SIDE, pixelHeight(), 0.2f);
+            if (browserReady) {
+                active.texture.sync();
+                canvas.texture(active.textureId, SIDE, 0, pixelWidth() - SIDE, pixelHeight(), 0.2f);
+            }
             else canvas.text(failed ? "Browser failed. Reopen to retry." : "Waiting for Chromium...", SIDE + 40, 40, 0xFFFFFFFF, 2);
             if (menu != null) {
                 canvas.rect(menu.x, menu.y, 240, 180, 0.4f, 0xFF18212D);
@@ -390,7 +393,8 @@ public class BrowserPanel extends WorldPanel {
     private record ContextMenu(int x, int y, String link) { }
     private final class Tab {
         final MCEFBrowser browser;
-        final Identifier texture;
+        final Identifier textureId;
+        final BrowserTexture texture;
         final WebsiteIcon icon;
         String url, title = "";
         int width, height;
@@ -399,26 +403,23 @@ public class BrowserPanel extends WorldPanel {
             this.url = url;
             width = webWidth; height = webHeight;
             icon = new WebsiteIcon(id);
-            texture = Identifier.fromNamespaceAndPath("winlandcraft", "browser_tab_" + id);
+            textureId = Identifier.fromNamespaceAndPath("winlandcraft", "browser_tab_" + id);
             // Native creation is asynchronous: an immediate loadURL can run before the
             // browser exists. Supply the destination as CEF's initial navigation instead.
             browser = MCEF.createBrowser(url, false, webWidth, webHeight);
+            texture = new BrowserTexture(browser);
             try {
                 browserCreated(browser);
                 browser.setCursorChangeListener(cursor -> { });
                 browser.setFocus(false);
-                Minecraft.getInstance().getTextureManager().register(texture, new AbstractTexture() {
-                    @Override public int getId() { return browser.getRenderer().getTextureID(); }
-                    @Override public void releaseId() { }
-                    @Override public void close() { }
-                });
+                Minecraft.getInstance().getTextureManager().register(textureId, texture);
             } catch (RuntimeException | LinkageError error) { browserClosed(browser);browser.close(); throw error; }
         }
         void close() {
             com.mojang.blaze3d.systems.RenderSystem.assertOnRenderThread();
             browserClosed(browser);
             BrowserEvents.remove(browser);
-            icon.clear(); Minecraft.getInstance().getTextureManager().release(texture); browser.close();
+            icon.clear(); Minecraft.getInstance().getTextureManager().release(textureId); browser.close();
         }
         void resize(int newWidth, int newHeight) {
             if (width == newWidth && height == newHeight) return;

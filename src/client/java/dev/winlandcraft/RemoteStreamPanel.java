@@ -1,16 +1,10 @@
 package dev.winlandcraft;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL12;
-import org.lwjgl.opengl.GL15;
-import org.lwjgl.opengl.GL21;
 import org.lwjgl.system.MemoryUtil;
 import java.nio.ByteBuffer;
 
@@ -30,9 +24,9 @@ final class RemoteStreamPanel extends WorldPanel {
     long lastState;
     long lastSequence=-1;
     long sequenceGaps,mediaPackets,videoPackets,audioPackets,mediaBytes,lastVideoFrame,nextHealth;
-    // Render-thread GL upload state for the newest decoded frame.
-    private int textureId,uploadedWidth,uploadedHeight;
-    private long uploadedSequence=-1;
+    // Render-thread upload state for the newest decoded frame.
+    private final CpuUploadTexture video = new CpuUploadTexture();
+    private long uploadedSequence = -1;
     private ByteBuffer staging;
     RemoteStreamPanel(StreamProtocol.State state) {
         super(3.2f,1.88f);owner=state.owner();session=state.session();remoteControl=state.remoteControl();controlTop=state.titlebarPixels();
@@ -63,11 +57,7 @@ final class RemoteStreamPanel extends WorldPanel {
     }
     void start(StreamDecoder endpoint) {
         decoder=endpoint;uploadedSequence=-1;
-        Minecraft.getInstance().getTextureManager().register(texture,new AbstractTexture(){
-            @Override public int getId(){return textureId;}
-            @Override public void releaseId(){}
-            @Override public void close(){}
-        });
+        Minecraft.getInstance().getTextureManager().register(texture, video);
     }
     void receive(byte[] packet) {
         if(decoder==null)return;
@@ -79,13 +69,13 @@ final class RemoteStreamPanel extends WorldPanel {
     }
     private void send(java.util.function.Function<java.util.UUID,StreamProtocol.Control> event) {
         var client=Minecraft.getInstance();
-        if(!remoteControl||client.player==null||!ClientPlayNetworking.canSend(StreamProtocol.Control.TYPE))return;
-        ClientPlayNetworking.send(event.apply(client.player.getUUID()));controlSent=true;lastControlSend=System.currentTimeMillis();
+        if(!remoteControl||client.player==null||!StreamClient.canSend())return;
+        StreamClient.send(event.apply(client.player.getUUID()));controlSent=true;lastControlSend=System.currentTimeMillis();
     }
     private void cancelControl() {
         var client=Minecraft.getInstance();
-        if(controlSent&&client.player!=null&&ClientPlayNetworking.canSend(StreamProtocol.Control.TYPE))
-            ClientPlayNetworking.send(StreamProtocol.Control.cancel(owner,session,client.player.getUUID()));
+        if(controlSent&&client.player!=null&&StreamClient.canSend())
+            StreamClient.send(StreamProtocol.Control.cancel(owner,session,client.player.getUUID()));
         controlSent=keyboardCaptured=hoverDirty=false;pressedButtons.clear();lastHoverX=lastHoverY=Integer.MIN_VALUE;lastControlSend=nextHoverSend=0;
     }
     int controlY(int y){return y-controlTop;}
@@ -124,43 +114,25 @@ final class RemoteStreamPanel extends WorldPanel {
     }
     /** Uploads the newest decoded frame. Render thread only. */
     private boolean upload() {
-        var frame=decoder==null?null:decoder.current;
-        if(frame==null||frame.sequence()==uploadedSequence)return uploadedSequence>=0;
-        int size=frame.rgba().length;
-        if(staging==null||staging.capacity()!=size){if(staging!=null)MemoryUtil.memFree(staging);staging=MemoryUtil.memAlloc(size);}
-        staging.clear();staging.put(frame.rgba()).flip();
-        int binding=GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D),pbo=GL11.glGetInteger(GL21.GL_PIXEL_UNPACK_BUFFER_BINDING);
-        // MCEF browser uploads can leak stride/skip unpack state; sanitize all of it like PluginFrames does.
-        int[] fields={GL11.GL_UNPACK_ALIGNMENT,GL11.GL_UNPACK_ROW_LENGTH,GL11.GL_UNPACK_SKIP_ROWS,GL11.GL_UNPACK_SKIP_PIXELS};int[] old=new int[fields.length];
-        for(int i=0;i<fields.length;i++)old[i]=GL11.glGetInteger(fields[i]);
-        try{
-            GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,0);
-            for(int i=0;i<fields.length;i++)GL11.glPixelStorei(fields[i],i==0?1:0);
-            if(textureId==0){
-                textureId=GL11.glGenTextures();
-                GL11.glBindTexture(GL11.GL_TEXTURE_2D,textureId);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MIN_FILTER,GL11.GL_LINEAR);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_MAG_FILTER,GL11.GL_LINEAR);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_S,GL12.GL_CLAMP_TO_EDGE);
-                GL11.glTexParameteri(GL11.GL_TEXTURE_2D,GL11.GL_TEXTURE_WRAP_T,GL12.GL_CLAMP_TO_EDGE);
-            }else GL11.glBindTexture(GL11.GL_TEXTURE_2D,textureId);
-            if(uploadedWidth!=frame.width()||uploadedHeight!=frame.height())
-                GL11.glTexImage2D(GL11.GL_TEXTURE_2D,0,GL11.GL_RGBA8,frame.width(),frame.height(),0,GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,(ByteBuffer)null);
-            GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D,0,0,0,frame.width(),frame.height(),GL11.GL_RGBA,GL11.GL_UNSIGNED_BYTE,staging);
-            uploadedWidth=frame.width();uploadedHeight=frame.height();uploadedSequence=frame.sequence();
-            decoder.releaseFrame(frame.rgba());
-            lastVideoFrame=System.currentTimeMillis();
-            return true;
-        }finally{
-            GL11.glBindTexture(GL11.GL_TEXTURE_2D,binding);GL15.glBindBuffer(GL21.GL_PIXEL_UNPACK_BUFFER,pbo);
-            for(int i=0;i<fields.length;i++)GL11.glPixelStorei(fields[i],old[i]);
+        var frame = decoder == null ? null : decoder.current;
+        if (frame == null || frame.sequence() == uploadedSequence) return uploadedSequence >= 0;
+        int size = frame.rgba().length;
+        if (staging == null || staging.capacity() != size) {
+            if (staging != null) MemoryUtil.memFree(staging);
+            staging = MemoryUtil.memAlloc(size);
         }
+        staging.clear();
+        staging.put(frame.rgba()).flip();
+        if (!video.upload(staging, frame.width(), frame.height())) return false;
+        uploadedSequence = frame.sequence();
+        decoder.releaseFrame(frame.rgba());
+        lastVideoFrame = System.currentTimeMillis();
+        return true;
     }
-    @Override public void render(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        try(var surface=surface(context)) {
-            if(surface==null||!surface.frontFacing())return;
-            var canvas=surface.canvas();
-            boolean image=decoder!=null&&upload()&&textureId>0;
+    @Override public void render(WorldPass pass) {
+        try(var canvas=canvas(pass)) {
+            if(canvas==null||!canvas.frontFacing())return;
+            boolean image=decoder!=null&&upload()&&video.ready();
             if(image)canvas.texture(texture,pixelWidth(),pixelHeight());
             else {
                 canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF21182D);
@@ -183,11 +155,9 @@ final class RemoteStreamPanel extends WorldPanel {
         super.close();
         if(decoder!=null){decoder.close();decoder=null;}
         Minecraft.getInstance().getTextureManager().release(texture);
-        int doomed=textureId;textureId=0;uploadedWidth=uploadedHeight=0;uploadedSequence=-1;
+        uploadedSequence=-1;
         if(staging!=null){MemoryUtil.memFree(staging);staging=null;}
-        if(doomed>0) {
-            if(RenderSystem.isOnRenderThread())GL11.glDeleteTextures(doomed);
-            else RenderSystem.recordRenderCall(()->GL11.glDeleteTextures(doomed));
-        }
+        if(RenderSystem.isOnRenderThread())video.close();
+        else Minecraft.getInstance().submit(video::close);
     }
 }

@@ -1,9 +1,10 @@
 package dev.winlandcraft;
 
 import java.util.*;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.common.ServerboundCustomPayloadPacket;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -27,8 +28,8 @@ public final class StreamClient {
     boolean start(WorldPanel panel) {
         var client=Minecraft.getInstance();
         if(client.player==null||client.level==null)return false;
-        if(!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)||!ClientPlayNetworking.canSend(StreamProtocol.Frame.TYPE)) {
-            client.player.sendSystemMessage(Component.literal("Streaming requires WinLandCraft on the server."));return false;
+        if(!canSend()) {
+            client.player.sendOverlayMessage(Component.literal("Streaming requires WinLandCraft on the server."));return false;
         }
         if(source==panel&&panel.streaming())return true;
         if(source!=null)stop(source);
@@ -47,33 +48,43 @@ public final class StreamClient {
         panel.clearRemoteControls();
         source=null;
     }
-    void register() {
-        ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.State.TYPE,(p,c)->receive(p));
-        ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Demand.TYPE,(p,c)->{
-            if(p.valid(published))demand=p.active();
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Frame.TYPE,(p,c)->{
-            var panel=remote.get(p.owner());
-            if(panel==null||!panel.isOpen()||panel.decoder==null||!panel.session.equals(p.session()))return;
-            byte[] bytes=panel.assembly.accept(p,System.currentTimeMillis());
-            if(bytes!=null) {
-                if(panel.lastSequence>=0&&p.sequence()!=panel.lastSequence+1){panel.sequenceGaps++;panel.decoder.incoming.clear();}
-                panel.lastSequence=p.sequence();panel.receive(bytes);
+    /** Vanilla send/canSend replacing the fabric client networking calls. */
+    public static boolean canSend() {
+        return Minecraft.getInstance().getConnection() != null;
+    }
+
+    public static void send(CustomPacketPayload payload) {
+        Minecraft.getInstance().getConnection().send(new ServerboundCustomPayloadPacket(payload));
+    }
+
+    /** Dispatches S2C relay payloads. Called on the render thread by the client dispatch mixin. */
+    void receivePayload(CustomPacketPayload payload) {
+        if (payload instanceof StreamProtocol.State state) receive(state);
+        else if (payload instanceof StreamProtocol.Demand demandPayload) {
+            if (demandPayload.valid(published)) demand = demandPayload.active();
+        } else if (payload instanceof StreamProtocol.Frame frame) {
+            var panel = remote.get(frame.owner());
+            if (panel == null || !panel.isOpen() || panel.decoder == null || !panel.session.equals(frame.session())) return;
+            byte[] bytes = panel.assembly.accept(frame, System.currentTimeMillis());
+            if (bytes != null) {
+                if (panel.lastSequence >= 0 && frame.sequence() != panel.lastSequence + 1) { panel.sequenceGaps++; panel.decoder.incoming.clear(); }
+                panel.lastSequence = frame.sequence();
+                panel.receive(bytes);
             }
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Stop.TYPE,(p,c)->{
-            if(published!=null&&published.owner().equals(p.owner())&&published.session().equals(p.session())) {
-                published=null;fail("The server ended this app stream.");
+        } else if (payload instanceof StreamProtocol.Stop stop) {
+            if (published != null && published.owner().equals(stop.owner()) && published.session().equals(stop.session())) {
+                published = null;
+                fail("The server ended this app stream.");
             }
-            var panel=remote.get(p.owner());
-            if(panel!=null&&panel.session.equals(p.session()))remove(panel);
-        });
-        ClientPlayNetworking.registerGlobalReceiver(StreamProtocol.Control.TYPE,(p,c)->{
-            var client=Minecraft.getInstance();var panel=source;
-            if(panel==null||!panel.remoteControlAllowed()||client.player==null||!p.owner().equals(client.player.getUUID())||published==null
-                    ||!published.session().equals(p.session())||!p.valid(published))return;
-            if(p.event()==StreamProtocol.Control.CANCEL||ModSettings.streamRemoteControl&&published.remoteControl())panel.remoteControl(p);
-        });
+            var panel = remote.get(stop.owner());
+            if (panel != null && panel.session.equals(stop.session())) remove(panel);
+        } else if (payload instanceof StreamProtocol.Control control) {
+            var client = Minecraft.getInstance();
+            var panel = source;
+            if (panel == null || !panel.remoteControlAllowed() || client.player == null || !control.owner().equals(client.player.getUUID()) || published == null
+                    || !published.session().equals(control.session()) || !control.valid(published)) return;
+            if (control.event() == StreamProtocol.Control.CANCEL || ModSettings.streamRemoteControl && published.remoteControl()) panel.remoteControl(control);
+        }
     }
     private void receive(StreamProtocol.State state) {
         var client=Minecraft.getInstance();
@@ -94,7 +105,7 @@ public final class StreamClient {
         long now=System.currentTimeMillis();
         for(var panel:List.copyOf(remote.values()))if(!panel.isOpen()||panel.level!=client.level||now-panel.lastState>10_000)remove(panel);
         var panel=source;
-        if(panel==null||client.player==null||client.level==null||!panel.isOpen()||panel.broadcastSession==null||!ClientPlayNetworking.canSend(StreamProtocol.State.TYPE)) {if(panel!=null)stop(panel);else stopPublishing();return;}
+        if(panel==null||client.player==null||client.level==null||!panel.isOpen()||panel.broadcastSession==null||!canSend()) {if(panel!=null)stop(panel);else stopPublishing();return;}
         // A fresh session makes existing viewers recreate their decoder after a codec switch.
         if(codecMode!=ModSettings.streamCodecMode){codecMode=ModSettings.streamCodecMode;panel.broadcastSession=UUID.randomUUID();reportedCodecError="";}
         if(published!=null&&!published.session().equals(panel.broadcastSession))stopPublishing();
@@ -127,7 +138,7 @@ public final class StreamClient {
             byte[] packet=encoder.encoded.poll();if(packet==null)break;
             if((packet[4]&255)==StreamMedia.VIDEO)sentVideo++;else sentAudio++;
             var parts=StreamProtocol.split(published.owner(),published.session(),sequence++,packet);
-            for(var part:parts){ClientPlayNetworking.send(part);sentParts++;sentBytes+=part.bytes().length;}
+            for(var part:parts){send(part);sentParts++;sentBytes+=part.bytes().length;}
             sentUnits++;
         }
     }
@@ -136,7 +147,7 @@ public final class StreamClient {
         var state=snapshot(panel,client.player.getUUID(),panel.broadcastSession);
         if(!state.valid()) {fail("Shared window exceeds the relay test limits.");return false;}
         if(state.equals(published)&&now-lastState<1000)return true;
-        ClientPlayNetworking.send(state);published=state;lastState=now;
+        send(state);published=state;lastState=now;
         return true;
     }
     static StreamProtocol.State snapshot(WorldPanel panel,UUID owner,UUID session) {
@@ -177,7 +188,7 @@ public final class StreamClient {
     }
     private void stopPublishing() {
         if(published==null&&encoder==null){demand=false;return;}
-        if(published!=null&&ClientPlayNetworking.canSend(StreamProtocol.Stop.TYPE))ClientPlayNetworking.send(new StreamProtocol.Stop(published.owner(),published.session()));
+        if(published!=null&&canSend())send(new StreamProtocol.Stop(published.owner(),published.session()));
         published=null;demand=false;lastState=sequence=0;stopEncoder();
     }
     private void stopEncoder() {

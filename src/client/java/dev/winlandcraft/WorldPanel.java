@@ -56,7 +56,7 @@ public abstract class WorldPanel {
     public void keyboardStopped() { }
     public void key(int key, int scan, int action, int modifiers) { }
     public void character(char character, int modifiers) { }
-    public void render(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) { }
+    public void render(WorldPass pass) { }
     public void tick(net.minecraft.client.Minecraft client) {
         if (level != client.level || client.player == null || !client.player.isAlive()) close();
     }
@@ -82,12 +82,6 @@ public abstract class WorldPanel {
         if (position == null) return 0;
         return Math.clamp((beaconUntil - System.nanoTime()) / (float) Beacon.DURATION_NANOS, 0, 1);
     }
-    private final net.minecraft.resources.Identifier surfaceLocation=PanelSurface.location();
-    private PanelSurface.Target surfaceTarget;
-    /** Live composited texture for the 2D desktop hybrid, or null before the first front-facing render. */
-    net.minecraft.resources.Identifier desktopTexture() { return surfaceTarget == null ? null : surfaceLocation; }
-    int desktopTextureWidth() { return pixelWidth() + PanelSurface.MARGIN * 2; }
-    int desktopTextureHeight() { return pixelHeight() + titlebarHeight() + PanelSurface.MARGIN * 2; }
     private float halfWidth;
     private float halfHeight;
     private float[] screenLightColors;
@@ -138,7 +132,7 @@ public abstract class WorldPanel {
         double plane = planeDistance(origin, direction);
         return Double.isFinite(plane) && resizeCorner(origin.add(direction.scale(plane)),origin) != 0 ? plane : Double.POSITIVE_INFINITY;
     }
-    public void renderResizeHandles(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context,boolean scaling) {
+    public void renderResizeHandles(WorldPass pass,boolean scaling) {
         if (!canResize()) return;
         try (var canvas = canvas(context)) {
             if (canvas == null) return;
@@ -193,20 +187,12 @@ public abstract class WorldPanel {
         return relative.x*normal.x+relative.y*normal.y+relative.z*normal.z>=0;
     }
 
-    private boolean canRender(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        return position != null && level == context.world()
-                && context.matrixStack() != null && context.consumers() != null;
+    private boolean canRender(WorldPass pass) {
+        return position != null && level == net.minecraft.client.Minecraft.getInstance().level;
     }
 
-    protected PanelCanvas canvas(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        return canRender(context)?new PanelCanvas(context,this):null;
-    }
-
-    protected PanelSurface surface(net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext context) {
-        if(!canRender(context))return null;
-        boolean front=frontFacing(context.camera().getPosition());
-        if(front&&surfaceTarget==null)surfaceTarget=new PanelSurface.Target(surfaceLocation);
-        return new PanelSurface(context,this,surfaceTarget,front);
+    protected PanelCanvas canvas(WorldPass pass) {
+        return canRender(pass) ? new PanelCanvas(pass, this) : null;
     }
 
     public void bringToView(ClientLevel world, Camera camera) {
@@ -232,7 +218,6 @@ public abstract class WorldPanel {
         WindowGroups.detach(this);
         hoverX=hoverY=Integer.MIN_VALUE;
         screenLightColors=null;
-        if(surfaceTarget!=null){surfaceTarget.close();surfaceTarget=null;}
         position = null;
         orientation = null;
         level = null;

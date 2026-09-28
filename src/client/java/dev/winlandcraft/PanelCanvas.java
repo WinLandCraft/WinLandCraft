@@ -24,6 +24,7 @@ public final class PanelCanvas implements AutoCloseable {
     private final Vec3 cameraPos;
     private final boolean worldSpace;
     private int baseOrder;
+    private float opacity = 1;
     private boolean curved, front = true, closed;
 
     public PanelCanvas(WorldPass pass, WorldPanel panel) {
@@ -104,6 +105,17 @@ public final class PanelCanvas implements AutoCloseable {
         baseOrder += 64;
     }
 
+    /** Global fade multiplier applied to every draw. */
+    void opacity(float opacity) {
+        this.opacity = Math.clamp(opacity, 0, 1);
+    }
+
+    private int fade(int color) {
+        if (opacity >= 1) return color;
+        int alpha = Math.round((color >>> 24) * opacity);
+        return (alpha << 24) | (color & 0xFFFFFF);
+    }
+
     /** World layers stay coplanar; submit order separates them instead of polygon offset. */
     private int orderFor(float layer) {
         return baseOrder + Math.clamp(Math.round(layer * 64), 0, 128);
@@ -120,10 +132,10 @@ public final class PanelCanvas implements AutoCloseable {
             int segments = curved ? Math.max(1, (int) Math.ceil(width / 12)) : 1;
             for (int i = 0; i < segments; i++) {
                 float left = x + width * i / segments, right = x + width * (i + 1) / segments;
-                vertices.addVertex(p, left, y, 0).setColor(color);
-                vertices.addVertex(p, left, y + height, 0).setColor(color);
-                vertices.addVertex(p, right, y + height, 0).setColor(color);
-                vertices.addVertex(p, right, y, 0).setColor(color);
+                vertices.addVertex(p, left, y, 0).setColor(fade(color));
+                vertices.addVertex(p, left, y + height, 0).setColor(fade(color));
+                vertices.addVertex(p, right, y + height, 0).setColor(fade(color));
+                vertices.addVertex(p, right, y, 0).setColor(fade(color));
             }
         });
     }
@@ -144,7 +156,7 @@ public final class PanelCanvas implements AutoCloseable {
         pose.scale(scale, scale, 1);
         collector.order(orderFor(layer)).submitText(pose, 0, 0,
                 Component.literal(text).getVisualOrderText(), false, Font.DisplayMode.NORMAL,
-                FULL_BRIGHT, color, Integer.MIN_VALUE, 0);
+                FULL_BRIGHT, fade(color), Integer.MIN_VALUE, 0);
         pose.popPose();
     }
 
@@ -178,10 +190,10 @@ public final class PanelCanvas implements AutoCloseable {
                 float from = i / (float) segments, to = (i + 1) / (float) segments;
                 float left = x + width * from, right = x + width * to;
                 float su = u0 + (u1 - u0) * from, eu = u0 + (u1 - u0) * to;
-                vertices.addVertex(p, left, y, 0).setColor(color).setUv(su, v0).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, left, y + height, 0).setColor(color).setUv(su, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y + height, 0).setColor(color).setUv(eu, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y, 0).setColor(color).setUv(eu, v0).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, left, y, 0).setColor(fade(color)).setUv(su, v0).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, left, y + height, 0).setColor(fade(color)).setUv(su, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y + height, 0).setColor(fade(color)).setUv(eu, v1).setLight(FULL_BRIGHT);
+                vertices.addVertex(p, right, y, 0).setColor(fade(color)).setUv(eu, v0).setLight(FULL_BRIGHT);
             }
         });
     }

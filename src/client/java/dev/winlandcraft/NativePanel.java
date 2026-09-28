@@ -1,6 +1,6 @@
 package dev.winlandcraft;
 
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
+
 
 /** Native UI viewport: resize changes available pixels; scaleTo preserves them. */
 public abstract class NativePanel extends WorldPanel {
