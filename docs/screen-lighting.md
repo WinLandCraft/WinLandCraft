@@ -4,9 +4,14 @@ WinLandCraft can turn Browser, webapp, and remote-stream surfaces into low-cost 
 
 ## Rendering path
 
-`PanelSurface` already composites each complete window into one mipmapped OpenGL texture. Every 100 ms, `ScreenColorSampler` reads a tiny mip level (at most 6×4 pixels) through one of two pixel-buffer objects. A fence is polled with a zero timeout on later frames, so the render thread never waits for the GPU. If both slots are busy, the sample is skipped instead of building latency.
+Each projecting panel draws its browser texture straight into the world pass. Every 100 ms,
+`ScreenColorSampler` copies the full frame to a mapped buffer through one of two GPU
+readback slots and averages it into a 3×2 grid on the CPU. The copy callback only flips
+a flag, so the render thread never waits for the GPU. If both slots are busy, the sample
+is skipped instead of building latency. The fork's browser textures are single-level,
+so the old mip-chain shortcut is gone; level zero is sampled.
 
-The composition pass temporarily uses Iris's public rendering-state escape hatch: shader-pack program substitution and the extended world vertex format are disabled only while WinLandCraft draws into its private framebuffer. The previous Iris state is restored before the resulting surface is submitted to the world, so Solas still shades the panel normally. Without that boundary, Iris treats the private framebuffer as part of its deferred world pipeline and the composed surface can disappear entirely.
+The composition pass temporarily uses Iris's public rendering-state escape hatch: shader-pack program substitution and the extended world vertex format are disabled only while WinLandCraft draws into its private framebuffer. The previous Iris state is restored before the resulting surface is submitted to the world, so Solas still shades the panel normally. Without that boundary, Iris treats the private framebuffer as part of its deferred world pipeline and the composed surface can disappear entirely. No private Iris bypass scope exists on 26.x: all panel layers submit through the level collector, letting Iris own the final flush.
 
 The pixels are converted from sRGB to linear light and averaged into a 3×2 grid. Near-black samples are suppressed so a dark grey page does not behave like a lamp, while a luminance-preserving saturation adjustment keeps colorful scenes from washing toward white. The black transition reaches full output at 3% linear luminance, retaining some mood light in genuinely dark scenes without making black bars glow. Temporal smoothing prevents cuts and flashing pages from producing harsh single-frame changes. The closest two illuminated panels contribute one area emitter each; the six samples describe a smooth color field across each flat or curved surface rather than six separate bulbs.
 
@@ -54,7 +59,7 @@ Range starts at 24 blocks and can only be increased to 32, 48, or 64 before cycl
 
 ## Performance and validation
 
-The CPU processes at most 24 RGBA pixels per active sample and uploads at most 400 bytes per frame. It precomputes the whole-screen average rather than repeating six additions per fragment. GPU cost is bounded by two unshadowed area-emitter evaluations for fragments that use Solas's shared material lighting. Flat panels use only scalar/vector arithmetic. A curved panel adds one inverse tangent and a sine/cosine pair but remains one evaluation—there are no curve subdivisions, light lookup textures, or extra texture samples. Replacing as many as 12 point evaluations makes the model both smoother and generally cheaper. Actual cost still depends primarily on screen coverage and shader-pack resolution.
+The CPU processes the full frame into six zone averages per active sample and uploads at most 400 bytes per frame. It precomputes the whole-screen average rather than repeating six additions per fragment. GPU cost is bounded by two unshadowed area-emitter evaluations for fragments that use Solas's shared material lighting. Flat panels use only scalar/vector arithmetic. A curved panel adds one inverse tangent and a sine/cosine pair but remains one evaluation—there are no curve subdivisions, light lookup textures, or extra texture samples. Replacing as many as 12 point evaluations makes the model both smoother and generally cheaper. Actual cost still depends primarily on screen coverage and shader-pack resolution.
 
 Automated checks cover zone orientation, temporal smoothing, relative-range bounds, cylindrical shader presence, strict/idempotent source patching, archive preservation, and packaged shader presence. Native validation must still be performed in game:
 

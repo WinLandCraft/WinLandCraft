@@ -4,10 +4,10 @@ These instructions apply to the entire repository.
 
 ## Project shape
 
-- WinLandCraft targets Minecraft 1.21.4, Fabric Loader, Fabric API, and Java 21.
+- WinLandCraft targets Minecraft 26.3, Fabric Loader, Fabric API, and Java 25.
 - Put client-only code in `src/client`; keep `src/main` safe for dedicated servers.
 - Dependency-free regression programs live in `src/geometryCheck` and run as part of `check`.
-- Stock external MCEF (`com.cinemamod:mcef-fabric`, pinned as `mcef_version` in `gradle.properties`) is the browser runtime. Do not fork it, ship a custom Chromium build, or add MCEF mixins; `fabric.mod.json` depends on `mcef`.
+- The WinLandCraft-organization MCEF fork (`com.cinemamod:mcef-fabric`, pinned as `mcef_version` in `gradle.properties`) is the browser runtime. Upstream MCEF stopped at 1.21.4; the fork ports its wrapper to SDL/RenderPearl while keeping CinemaMod's audio-capable JCEF sources and prebuilt CEF natives. Do not ship a custom Chromium build or add MCEF mixins; `fabric.mod.json` depends on `mcef`.
 - Chromium/JCEF compatibility decisions are documented in `docs/chromium-compatibility.md`. Update that document whenever the MCEF version or lifecycle handling changes.
 - `adblockNative` is the pinned Rust/JNI adblock engine. Its request, page-injection, asset, and packaging invariants are documented in `docs/adblocking.md`.
 - Native control icons and hover-state invariants are documented in `docs/ui-icons.md`. Keep the `PixelIcon` order synchronized with its atlas and packaged license.
@@ -29,7 +29,7 @@ These instructions apply to the entire repository.
 
 ## Implementation style
 
-- Match the existing compact Java style and use Java 21 APIs. Avoid new dependencies for small utilities.
+- Match the existing compact Java style and use Java 25 APIs. Avoid new dependencies for small utilities.
 - Keep comments focused on non-obvious invariants, protocol constraints, and upstream compatibility bugs.
 - Preserve user changes in a dirty worktree. Do not commit or push unless explicitly requested.
 - Bump `mod_version` for testable behavior changes so logs and artifacts identify the exact build.
