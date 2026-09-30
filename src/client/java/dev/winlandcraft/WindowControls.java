@@ -27,6 +27,8 @@ public final class WindowControls {
     private final AppWindows apps;
     private final KeyMapping typingKey;
     private WorldPanel dragging, pointer, focused, hovered;
+    /** Owner token for SDL text input: 26.x only delivers text while text input is started, and no EditBox is focused during in-world typing. */
+    private static final Object TEXT_INPUT = new Object();
     private final Set<Integer> buttons = new HashSet<>();
     private final Map<Integer, Integer> keys = new HashMap<>();
     private int pointerX, pointerY;
@@ -93,11 +95,13 @@ public final class WindowControls {
         if(stoppingTyping)return;
         if(focused!=panel)return;
         if(!requested){stopTyping();return;}
-        if(!typing&&panel.isOpen()&&active(Minecraft.getInstance())){KeyMapping.releaseAll();typing=true;panel.keyboardStarted();}
+        if(!typing&&panel.isOpen()&&active(Minecraft.getInstance())){KeyMapping.releaseAll();typing=true;panel.keyboardStarted();
+            Minecraft.getInstance().textInputManager().startTextInput(TEXT_INPUT);}
     }
     private void stopTyping() {
         if(stoppingTyping)return;stoppingTyping=true;
         try {
+            Minecraft.getInstance().textInputManager().stopTextInput(TEXT_INPUT);
             if (focused != null) keys.forEach((key, scan) -> focused.key(key, scan, 0, 0));
             if (focused != null) focused.keyboardStopped();
             keys.clear(); typing = false; activationKey = -1;
@@ -108,11 +112,11 @@ public final class WindowControls {
         usedThisPress = true;
         dragging = null;
         var item = c.player.getItemInHand(hand);
-        if (item.is(WinLandCraft.TASKS)) {
+        if (WinLandCraft.isTasks(item)) {
             if (c.player.isShiftKeyDown()) apps.tasks.close(); else apps.tasks.open(c);
             return;
         }
-        if (item.is(WinLandCraft.LASER_POINTER)) {
+        if (WinLandCraft.isLaser(item)) {
             if(c.player.isShiftKeyDown())apps.laserCalibration.open(c);else LaserPointer.cycleColor(c);
             return;
         }
@@ -246,6 +250,7 @@ public final class WindowControls {
             if (pointer.wantsKeyboard() && !typing) {
                 focused = pointer;
                 KeyMapping.releaseAll(); typing = true;focused.keyboardStarted();
+                Minecraft.getInstance().textInputManager().startTextInput(TEXT_INPUT);
                 message("Typing in window — Esc returns to Minecraft.");
             }
             return true;
@@ -303,6 +308,7 @@ public final class WindowControls {
                 if (hit != null && hit.panel.acceptsKeyboard()) focused = hit.panel;
                 if (focused != null && focused.isOpen() && focused.acceptsKeyboard()) {
                     KeyMapping.releaseAll(); typing = true; activationKey = key;focused.keyboardStarted();
+                    Minecraft.getInstance().textInputManager().startTextInput(TEXT_INPUT);
                     message("Typing in window — Esc returns to Minecraft.");
                 } else message("Click a browser window before enabling typing.");
                 return true;
@@ -310,10 +316,11 @@ public final class WindowControls {
             return false;
         }
         if (key == SDLKeycode.SDLK_ESCAPE) { stopTyping(); message("Minecraft controls restored."); return true; }
+        // 26.x reports SDL key repeat as -1; 2 is the repeat code synthesized for screens.
         if (action == 1) {
             focused.remoteInput.clear(focused);
             keys.put(key, scan); focused.key(key, scan, action, modifiers);
-        } else if (action == 2 && keys.containsKey(key)) focused.key(key, scan, action, modifiers);
+        } else if ((action == 2 || action == -1) && keys.containsKey(key)) focused.key(key, scan, action, modifiers);
         else if (action == 0 && keys.remove(key) != null) focused.key(key, scan, action, modifiers);
         return true;
     }

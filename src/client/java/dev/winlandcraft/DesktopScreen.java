@@ -44,6 +44,8 @@ final class DesktopScreen extends Screen {
     @Override protected void init() {
         // The desktop shows the real taskbar texture, so keep the 3D taskbar open behind it.
         if (minecraft != null && minecraft.level != null && !apps.tasks.isOpen()) apps.tasks.open(minecraft);
+        // No EditBox is ever focused here, so start SDL text input explicitly while a window is maximized for typing.
+        if (minecraft != null && maximized != null) minecraft.textInputManager().startTextInput(this);
         if (maximized == null) {
             addRenderableWidget(Button.builder(Component.literal("Recall all"), b -> recallAll())
                     .bounds(width - 216, 8, 100, 20).build()).active = !entries().isEmpty();
@@ -288,6 +290,7 @@ final class DesktopScreen extends Screen {
     }
     private void releaseAll() {
         pressed = null;
+        if (minecraft != null) minecraft.textInputManager().stopTextInput(this);
         if (maximized != null && maximized.panel().isOpen() && !heldKeys.isEmpty())
             for (int key : heldKeys) maximized.panel().key(key, 0, 0, 0);
         heldKeys.clear();

@@ -91,8 +91,10 @@ public class BrowserPanel extends WorldPanel {
     protected final String managedAddress(){return active==null?initialUrl():active.url;}
     protected final String managedTitle(){return active==null?"":active.title;}
     protected final void drawManagedBrowser(PanelCanvas canvas,int x,int y,int width,int height){
+        // Sync first: ready() only reflects the last sync, so checking it first would never pick up the first frame.
+        if (active != null) active.texture.sync();
         boolean browserReady = active != null && active.texture.ready();
-        if (browserReady) {active.texture.sync();canvas.texture(active.textureId,x,y,width,height,.2f);}
+        if (browserReady) {canvas.texture(active.textureId,x,y,width,height,.2f);}
         else canvas.text(failed?"Browser failed. Reopen to retry.":"Waiting for Chromium...",x+12,y+16,-1,1.5f);
     }
     @Override public int pixelWidth() { return layoutWidth; }
@@ -222,7 +224,7 @@ public class BrowserPanel extends WorldPanel {
         if (ctrl && key == SDLKeycode.SDLK_W) { closeTab(active); return; }
         if (!editing) {
             active.browser.setFocus(true);boolean first=!held(pressedKeys,active,key);pressedKeys.put(input,active);
-            if(first||action==2)active.browser.sendKeyPress(key,scan,modifiers);return;
+            if(first||action==2||action==-1)active.browser.sendKeyPress(key,scan,modifiers);return;
         }
         if (key == SDLKeycode.SDLK_RETURN || key == SDLKeycode.SDLK_KP_ENTER) {
             String url = BrowserAddress.destination(address);
@@ -314,11 +316,26 @@ public class BrowserPanel extends WorldPanel {
         super.tick(client);
         if (!isOpen()) return;
         if (browserEnabled() && tabs.isEmpty() && !failed && MCEF.isInitialized()) newTab(initialUrl());
+        else if (browserEnabled() && tabs.isEmpty() && !failed) noteWaiting();
         // At most once per game tick; page layout follows the new size instead of stretching 720p.
         for (Tab tab : tabs) tab.resize(browserWidth(), browserHeight());
         firstTab = Math.clamp(firstTab, 0, Math.max(0, tabs.size() - visibleRows()));
         for (Tab tab : tabs) if (!standalone && tab.refreshAt != 0 && System.nanoTime() >= tab.refreshAt && !tab.browser.isLoading()) {
             tab.refreshAt = 0; tab.icon.refresh(tab.browser);
+        }
+    }
+    private String waitingNote = "";
+    private long waitingNoteAt;
+    /** Reports which MCEF startup stage is blocking tab creation. Logs on change only, plus a 30s reminder. */
+    private void noteWaiting() {
+        var progress = com.cinemamod.mcef.internal.MCEFDownloadListener.INSTANCE;
+        String reason = progress.isFailed() ? "library download failed at " + progress.getTask()
+            : !progress.isDone() ? "downloading libraries: " + progress.getTask() + " " + Math.round(progress.getProgress() * 100) + "%"
+            : "libraries downloaded but MCEF.initialize has not run (it triggers on the next screen change)";
+        long now = System.currentTimeMillis();
+        if (!reason.equals(waitingNote) || now - waitingNoteAt > 30_000) {
+            waitingNote = reason; waitingNoteAt = now;
+            WinLandCraftClient.LOGGER.warn("Chromium not ready ({}); browser views are waiting.", reason);
         }
     }
     private static String fit(String text, int width, float scale) {
@@ -332,6 +349,8 @@ public class BrowserPanel extends WorldPanel {
         }
     }
     void drawSurface(PanelCanvas canvas) {
+            // Sync first: ready() only reflects the last sync, so checking it first would never pick up the first frame.
+            if (active != null) active.texture.sync();
             boolean browserReady = active != null && active.texture.ready();
             canvas.frame(pixelWidth(),pixelHeight(),titlebarHeight());
             // The live page is opaque, so avoid a redundant full-size backing draw.
@@ -374,7 +393,6 @@ public class BrowserPanel extends WorldPanel {
                 canvas.text(editing ? "Enter: go | Esc: leave" : "Click URL to type | G: page", 16, pixelHeight() - 20, 0xFF9BAABD, 1.2f);
             }
             if (browserReady) {
-                active.texture.sync();
                 canvas.texture(active.textureId, SIDE, 0, pixelWidth() - SIDE, pixelHeight(), 0.2f);
                 sampleScreenLight(active.browser.getRenderer().getTexture());
             }

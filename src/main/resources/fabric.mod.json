@@ -5,7 +5,7 @@
   "name": "WinLandCraft",
   "description": "Local webapps in interactive Minecraft world windows. Tasks panel prototype.",
   "environment": "*",
-  "mixins": ["winlandcraft.client.mixins.json"],
+  "mixins": ["winlandcraft.mixins.json", {"config": "winlandcraft.client.mixins.json", "environment": "client"}],
   "entrypoints": {
     "main": ["dev.winlandcraft.WinLandCraft"],
     "client": ["dev.winlandcraft.WinLandCraftClient"]

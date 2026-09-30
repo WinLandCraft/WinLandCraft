@@ -2,6 +2,7 @@ package dev.winlandcraft;
 
 
 import net.minecraft.client.Minecraft;
+import org.lwjgl.sdl.SDLMouse;
 
 public final class TasksPanel extends WorldPanel {
     private final AppWindows apps;
@@ -10,11 +11,10 @@ public final class TasksPanel extends WorldPanel {
     @Override public boolean canResize() { return false; }
     public TasksPanel(AppWindows apps) { super(2.4f, 0.288f); this.apps = apps; }
     public void open(Minecraft client) {
-        WinLandCraftClient.LOGGER.info("TRIPWIRE tasks.open");
         if (client.level != null && client.player != null) bringToView(client.level, client.gameRenderer.mainCamera());
     }
     @Override public void mouseDown(int x, int y, int button) {
-        if (button != 0) return;
+        if (button != SDLMouse.SDL_BUTTON_LEFT) return;
         // Drag handle: a short pill-styled grip centered on the bottom edge.
         if (x >= 166 && x < 234 && y >= 42 && y < 48) { WinLandCraftClient.controls.beginDrag(this); return; }
         if (x >= 4 && x < 44 && y >= 4 && y < 44) apps.toggleStartMenu();

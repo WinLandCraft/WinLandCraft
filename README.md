@@ -11,6 +11,8 @@ A Minecraft 1.21.4 / Fabric mod that adds a VR-like desktop environment experien
 
 Dedicated servers only need the WinLandCraft JAR plus Fabric API.
 
+Players without the mod can still join these servers and play normally: controls are vanilla stand-in items with the mod's models, so there are no custom registry entries forcing a client install. Vanilla players simply never receive control items and never speak the stream protocol (unknown packets are discarded by vanilla).
+
 Do keep in mind this mod does work client-side only, although not tested thoroughly. On a server without with the required mods, you should still be able to use this mod on your side.
 
 ## Quick start

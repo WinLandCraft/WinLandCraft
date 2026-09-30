@@ -28,9 +28,9 @@ public final class MinecraftMixin {
     private void winlandcraft$use(CallbackInfo ci) {
         var client = Minecraft.getInstance();
         if(client.player==null)return;
-        InteractionHand laserHand=client.player.getMainHandItem().is(WinLandCraft.LASER_POINTER)
+        InteractionHand laserHand=WinLandCraft.isLaser(client.player.getMainHandItem())
                 ?InteractionHand.MAIN_HAND:client.player.getMainHandItem().isEmpty()
-                &&client.player.getOffhandItem().is(WinLandCraft.LASER_POINTER)?InteractionHand.OFF_HAND:null;
+                &&WinLandCraft.isLaser(client.player.getOffhandItem())?InteractionHand.OFF_HAND:null;
         if(laserHand!=null&&WinLandCraftClient.controls!=null) {
             WinLandCraftClient.controls.use(client,laserHand);
             ci.cancel();

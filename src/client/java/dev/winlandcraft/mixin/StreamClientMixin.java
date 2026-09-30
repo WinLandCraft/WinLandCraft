@@ -17,7 +17,8 @@ public final class StreamClientMixin {
         boolean ours = payload instanceof dev.winlandcraft.StreamProtocol.State
                 || payload instanceof dev.winlandcraft.StreamProtocol.Demand
                 || payload instanceof dev.winlandcraft.StreamProtocol.Frame
-                || payload instanceof dev.winlandcraft.StreamProtocol.Stop;
+                || payload instanceof dev.winlandcraft.StreamProtocol.Stop
+                || payload instanceof dev.winlandcraft.StreamProtocol.Control;
         if (!ours) return;
         ci.cancel();
         // Hop onto the render thread; Netty must never touch client state directly.

@@ -21,8 +21,6 @@ public final class LevelRenderMixin {
         var client = Minecraft.getInstance();
         if (client.level == null || client.player == null) return;
         var pass = new WorldPass(collector, new PoseStack(), levelRenderState.cameraRenderState);
-        if (!WinLandCraftClient.apps.windows.isEmpty())
-            WinLandCraftClient.LOGGER.info("TRIPWIRE worldpass windows={}", WinLandCraftClient.apps.windows.size());
         WinLandCraftClient.controls.update(client.gameRenderer.mainCamera());
         WinLandCraftClient.apps.windows.forEach(window -> window.render(pass));
         WinLandCraftClient.controls.renderLaser(pass);

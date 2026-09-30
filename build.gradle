@@ -156,8 +156,6 @@ tasks.register('verifyMixinPackaging') {
                             LevelRenderMixin: ['submitFeatures'],
                             ItemInHandRendererMixin: ['submitHandsWithItems'],
                             LaserItemSubmitMixin: ['submit'],
-                            StreamCodecC2SMixin: ['<clinit>'],
-                            StreamCodecS2CMixin: ['<clinit>'],
                             StreamClientMixin: ['handleCustomPayload'],
                             ClientConnectionMixin: ['handleLogin'],
                             ClientDisconnectMixin: ['onDisconnect'],
@@ -166,20 +164,30 @@ tasks.register('verifyMixinPackaging') {
             def expectedServer = [StreamCodecC2SMixin: ['<clinit>'],
                             StreamCodecS2CMixin: ['<clinit>'],
                             StreamServerMixin: ['handleCustomPayload'],
-                            StreamServerJoinMixin: ['placeNewPlayer', 'remove']]
-            if (!mod.mixins.contains('winlandcraft.client.mixins.json')) {
-                throw new GradleException('Input mixin configuration is not registered')
+                            StreamServerJoinMixin: ['remove']]
+            def mixinConfigs = mod.mixins.collect { it instanceof Map ? it.config : it }
+            if (!mixinConfigs.contains('winlandcraft.mixins.json')
+                    || !mixinConfigs.contains('winlandcraft.client.mixins.json')) {
+                throw new GradleException('Input mixin configurations are not registered')
+            }
+            def clientEntry = mod.mixins.find { (it instanceof Map ? it.config : it) == 'winlandcraft.client.mixins.json' }
+            if (!(clientEntry instanceof Map) || clientEntry.environment != 'client') {
+                throw new GradleException('Client mixins must stay client-gated or dedicated servers crash on net.minecraft.client targets')
             }
             def config = readJson('winlandcraft.client.mixins.json')
+            def serverConfig = readJson('winlandcraft.mixins.json')
             if (config.refmap) throw new GradleException('Stale refmap on unobfuscated 26.x: ' + config.refmap)
+            if (serverConfig.refmap) throw new GradleException('Stale refmap on unobfuscated 26.x: ' + serverConfig.refmap)
             expected.each { mixin, methods ->
                 if (!config.mixins.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
+                if (serverConfig.mixins.contains(mixin)) throw new GradleException("Client mixin leaked to dedicated servers: ${mixin}")
                 def className = config.package.replace('.', '/') + '/' + mixin
                 if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
             }
             expectedServer.each { mixin, methods ->
-                if (!config.mixins.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
-                def className = config.package.replace('.', '/') + '/' + mixin
+                if (!serverConfig.mixins.contains(mixin)) throw new GradleException("Missing mixin: ${mixin}")
+                if (config.mixins.contains(mixin)) throw new GradleException("Server mixin duplicated in client config: ${mixin}")
+                def className = serverConfig.package.replace('.', '/') + '/' + mixin
                 if (zip.getEntry(className + '.class') == null) throw new GradleException("Missing class: ${className}")
             }
             if (zip.getEntry('META-INF/ADBLOCK-NOTICE.txt') == null)
@@ -193,9 +201,10 @@ tasks.register('verifyMixinPackaging') {
                 throw new GradleException('Missing PixelIcon runtime class')
             if (zip.getEntry('assets/winlandcraft/shaderpacks/screen_lights.glsl') == null)
                 throw new GradleException('Missing bundled Solas screen-light shader')
-            ['items/laser_pointer.json', 'models/item/laser_pointer.json'].each { asset ->
+            ['models/item/laser_pointer.json', 'models/item/tasks.json',
+             'items/laser_pointer.json', 'items/tasks.json'].each { asset ->
                 if (zip.getEntry("assets/winlandcraft/${asset}") == null)
-                    throw new GradleException("Missing Laser Pointer asset: ${asset}")
+                    throw new GradleException("Missing control stand-in model for item_model: ${asset}")
             }
             def laserModel = readJson('assets/winlandcraft/models/item/laser_pointer.json')
             def sensor = laserModel.elements.find { element ->
@@ -231,6 +240,23 @@ tasks.register('verifyMixinPackaging') {
     }
 }
 check.dependsOn verifyMixinPackaging
+
+// Vanilla clients must be able to join: any synced winlandcraft-namespaced registry
+// entry makes Fabric require the mod on the client. Controls are inert vanilla
+// stand-ins instead, so this fails the build if synced registration returns.
+tasks.register('verifyVanillaClientJoin') {
+    doLast {
+        ['src/main/java', 'src/client/java'].each { root ->
+            fileTree(root).matching { include '**/*.java' }.each { f ->
+                if (f.text.contains('Registry.register(BuiltInRegistries')) {
+                    throw new GradleException("Synced registry entry in ${f}: vanilla clients would be forced to install the mod")
+                }
+            }
+        }
+        logger.lifecycle('No synced registry entries: vanilla clients may join.')
+    }
+}
+check.dependsOn verifyVanillaClientJoin
 
 // Public API stays pure Java and separate from mapped implementation classes.
 tasks.register('pluginApiJar', Jar) {

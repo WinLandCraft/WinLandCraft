@@ -1,68 +1,72 @@
 package dev.winlandcraft;
 
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.Identifier;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.CustomData;
 
 public final class WinLandCraft implements ModInitializer {
-    public static final Identifier TASKS_ID = Identifier.fromNamespaceAndPath("winlandcraft", "tasks");
-    public static final Item TASKS = new Item(new Item.Properties()
-            .setId(ResourceKey.create(Registries.ITEM, TASKS_ID)).stacksTo(1));
-    // Read old inventories without an unknown-item registry error; never give these items again.
-    private static final Item LEGACY_INTERACT = createItem("interact");
-    private static final Item LEGACY_APPS = createItem("apps");
-    private static final Item LEGACY_WINDOW_DRAG = createItem("window_drag");
-    public static final Identifier LASER_POINTER_ID = Identifier.fromNamespaceAndPath("winlandcraft", "laser_pointer");
-    public static final Item LASER_POINTER = new Item(new Item.Properties()
-            .setId(ResourceKey.create(Registries.ITEM, LASER_POINTER_ID)).stacksTo(1));
-    public static final Item[] CONTROLS = {TASKS, LASER_POINTER};
+    // Vanilla-client joins forbid custom registry entries: every synced
+    // winlandcraft-namespaced entry makes Fabric tell vanilla players the mod is
+    // required. Controls are therefore inert vanilla stand-ins (echo/amethyst
+    // shards) carrying our item model, display name, and marker, so modded clients
+    // render the real models while everyone else can still join and play.
+    public static final Identifier TASKS_MODEL = Identifier.fromNamespaceAndPath("winlandcraft", "tasks");
+    public static final Identifier LASER_MODEL = Identifier.fromNamespaceAndPath("winlandcraft", "laser_pointer");
 
-    private static Item createItem(String name) {
-        return new Item(new Item.Properties().setId(ResourceKey.create(Registries.ITEM,
-                Identifier.fromNamespaceAndPath("winlandcraft", name))).stacksTo(1));
+    public static ItemStack tasksStack() {
+        return controlStack(new ItemStack(Items.ECHO_SHARD), TASKS_MODEL, "item.winlandcraft.tasks", "tasks");
+    }
+
+    public static ItemStack laserStack() {
+        return controlStack(new ItemStack(Items.AMETHYST_SHARD), LASER_MODEL, "item.winlandcraft.laser_pointer", "laser");
+    }
+
+    private static ItemStack controlStack(ItemStack stack, Identifier model, String nameKey, String marker) {
+        stack.set(DataComponents.ITEM_MODEL, model);
+        stack.set(DataComponents.CUSTOM_NAME, Component.translatable(nameKey).withStyle(style -> style.withItalic(false)));
+        var tag = new CompoundTag();
+        tag.putString("winlandcraft", marker);
+        stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
+        return stack;
+    }
+
+    public static boolean isTasks(ItemStack stack) {
+        return stack.is(Items.ECHO_SHARD) && TASKS_MODEL.equals(stack.get(DataComponents.ITEM_MODEL));
+    }
+
+    public static boolean isLaser(ItemStack stack) {
+        return stack.is(Items.AMETHYST_SHARD) && LASER_MODEL.equals(stack.get(DataComponents.ITEM_MODEL));
     }
 
     public static boolean isControl(ItemStack stack) {
-        for (Item item : CONTROLS) if (stack.is(item)) return true;
-        return false;
+        return isTasks(stack) || isLaser(stack);
     }
 
     @Override
     public void onInitialize() {
         StreamRelay.register();
-        Registry.register(BuiltInRegistries.ITEM, TASKS_ID, TASKS);
-        Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "interact"), LEGACY_INTERACT);
-        Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "apps"), LEGACY_APPS);
-        Registry.register(BuiltInRegistries.ITEM, Identifier.fromNamespaceAndPath("winlandcraft", "window_drag"), LEGACY_WINDOW_DRAG);
-        Registry.register(BuiltInRegistries.ITEM, LASER_POINTER_ID, LASER_POINTER);
     }
 
     /** Called on the server thread by the payload dispatch mixin. */
     public static void receiveTasks(net.minecraft.server.level.ServerPlayer player) {
-        removeLegacyInteract(player);
         if (player.isSpectator() || !player.isAlive()) {
             return;
         }
         boolean added = false;
         boolean full = false;
-        for (Item control : CONTROLS) {
-            boolean owned = player.containerMenu.getCarried().is(control);
-            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
-                owned |= player.getInventory().getItem(slot).is(control);
-            }
-            if (owned) {
+        for (ItemStack control : new ItemStack[]{tasksStack(), laserStack()}) {
+            if (owns(player, control)) {
                 continue;
             }
             if (player.getInventory().getFreeSlot() == -1) {
                 full = true;
             } else {
-                added |= player.getInventory().add(new ItemStack(control));
+                added |= player.getInventory().add(control);
             }
         }
         player.containerMenu.broadcastChanges();
@@ -70,12 +74,22 @@ public final class WinLandCraft implements ModInitializer {
                 : added ? "message.winlandcraft.controls_given" : "message.winlandcraft.already_have_controls"), true);
     }
 
-    public static void removeLegacyInteract(net.minecraft.server.level.ServerPlayer player) {
-        for (Item legacy : new Item[]{LEGACY_INTERACT, LEGACY_APPS, LEGACY_WINDOW_DRAG}) {
-            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++)
-                if (player.getInventory().getItem(slot).is(legacy)) player.getInventory().setItem(slot, ItemStack.EMPTY);
-            if (player.containerMenu.getCarried().is(legacy)) player.containerMenu.setCarried(ItemStack.EMPTY);
+    private static boolean owns(net.minecraft.server.level.ServerPlayer player, ItemStack probe) {
+        if (sameControl(player.containerMenu.getCarried(), probe)) {
+            return true;
         }
-        player.containerMenu.broadcastChanges();
+        for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+            if (sameControl(player.getInventory().getItem(slot), probe)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean sameControl(ItemStack stack, ItemStack probe) {
+        if (!isControl(stack)) {
+            return false;
+        }
+        return isTasks(stack) == isTasks(probe);
     }
 }

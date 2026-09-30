@@ -23,14 +23,16 @@ final class CurvedVertices implements VertexConsumer {
         this.submit = submit;
     }
 
-    /** Bends submitting-pose pixels onto the cylinder, returned in lambda-pose-local coordinates. */
+    /** Bends submitting-pose pixels onto the cylinder. The result is already in
+     *  camera-relative world space: the submit-time pose is baked into every
+     *  vertex at write time, so callers must emit raw coordinates and must NOT
+     *  un-apply the pose (that flings bent quads to kilometer scale). */
     private Vector3f bend(float x, float y, float z) {
         var placed = submit.transformPosition(new Vector3f(x, y, z));
         var pixel = inverse.transformPosition(new Vector3f(placed));
         var point = panel.curve.panelPoint(panel, (pixel.x / panel.pixelWidth() - .5f) * panel.worldWidth(),
                 (.5f - pixel.y / panel.pixelHeight()) * panel.worldHeight(), pixel.z * panel.worldWidth() / panel.pixelWidth()).subtract(camera);
-        var bent = world.transformPosition(new Vector3f((float) point.x, (float) point.y, (float) point.z));
-        return new Matrix4f(submit).invert().transformPosition(bent);
+        return world.transformPosition(new Vector3f((float) point.x, (float) point.y, (float) point.z));
     }
 
     @Override public VertexConsumer addVertex(float x, float y, float z) {
@@ -40,6 +42,8 @@ final class CurvedVertices implements VertexConsumer {
     }
 
     @Override public VertexConsumer addVertex(PoseStack.Pose pose, float x, float y, float z) {
+        // The pose must NOT be applied here: bend already returns final
+        // camera-relative coordinates, and the target bakes nothing for raw writes.
         var bent = bend(x, y, z);
         target.addVertex(bent.x, bent.y, bent.z);
         return this;

@@ -36,6 +36,8 @@ public final class WinLandCraftClient implements ClientModInitializer {
     private static boolean keysAppended;
     @Override public void onInitializeClient() {
         ModSettings.load();
+        // The MCEF fork caps paint uploads per this property; keep it in step with the settings UI.
+        System.setProperty("mcef.browser.fps", String.valueOf(ModSettings.chromiumFps));
         AdBlock.install();
         Thread.ofVirtual().name("WinLandCraft ffmpeg prewarm").start(Ffmpeg::prewarm);
         StreamAudio.install();
@@ -124,9 +126,8 @@ public final class WinLandCraftClient implements ClientModInitializer {
 
     private static InteractionResult use(Player player, Level level, InteractionHand hand) {
         var item=player.getItemInHand(hand);
-        LOGGER.info("TRIPWIRE use: {}", item.getItem());
         if (player.isSpectator() || !WinLandCraft.isControl(item)) return InteractionResult.PASS;
         if (level.isClientSide()) controls.use(Minecraft.getInstance(), hand);
-        return item.is(WinLandCraft.LASER_POINTER)?InteractionResult.CONSUME:InteractionResult.SUCCESS;
+        return WinLandCraft.isLaser(item)?InteractionResult.CONSUME:InteractionResult.SUCCESS;
     }
 }

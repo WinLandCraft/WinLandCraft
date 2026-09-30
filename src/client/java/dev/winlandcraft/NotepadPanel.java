@@ -116,7 +116,7 @@ public final class NotepadPanel extends NativePanel {
         return offset+column;
     }
     @Override public void mouseDown(int x,int y,int button) {
-        if(button!=0||y<0)return;
+        if(button!=SDLMouse.SDL_BUTTON_LEFT||y<0)return;
         int dx=dialogX(),dy=dialogY(),dw=dialogWidth();
         if(savePath!=null){if(y>=dy+116&&y<dy+160){if(x>=dx+dw-260&&x<dx+dw-140)savePath();else if(x>=dx+dw-120&&x<dx+dw)savePath=null;}else if(x>=dx+24&&x<dx+dw-24&&y>=dy+56&&y<dy+100){editing=true;pathSelected=true;}return;}
         if(pendingClose!=null){if(y>=dy+116&&y<dy+160){if(x>=dx+dw-460&&x<dx+dw-320)save(false);else if(x>=dx+dw-300&&x<dx+dw-160)remove(pendingClose);else if(x>=dx+dw-140&&x<dx+dw)pendingClose=null;}return;}
@@ -124,7 +124,7 @@ public final class NotepadPanel extends NativePanel {
         if(y<84){if(x<90)newTab();else if(x<180)save(false);else if(x<290)save(true);else if(x<390&&!active.busy)active.undo(false);else if(x<490&&!active.busy)active.undo(true);return;}
         if(y>=104&&y<104+visibleRows()*22&&x>=68&&x<pixelWidth()-24&&!active.busy){editing=true;selecting=true;active.move(locate(x,y),false);}
     }
-    @Override public void mouseUp(int x,int y,int button){if(button==0)selecting=false;}
+    @Override public void mouseUp(int x,int y,int button){if(button==SDLMouse.SDL_BUTTON_LEFT)selecting=false;}
     @Override public void hover(int x,int y){if(selecting){active.move(locate(x,y),true);}}
     @Override public void scroll(int x,int y,double amount){if(y<40)firstTab=Math.clamp(firstTab-(int)Math.signum(amount),0,Math.max(0,tabs.size()-visibleTabs()));else if(InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_LSHIFT)||InputConstants.isKeyDown(SDLScancode.SDL_SCANCODE_RSHIFT))active.columnScroll=Math.max(0,active.columnScroll-(int)Math.signum(amount)*10);else active.scroll=Math.clamp(active.scroll-(int)Math.signum(amount)*3,0,Math.max(0,lines().length-visibleRows()));}
     private static String fit(String text,int width,float scale){return Minecraft.getInstance().font.plainSubstrByWidth(text,(int)(width/scale));}

@@ -104,7 +104,7 @@ public final class FileManagerPanel extends NativePanel {
     @Override public void scroll(int x,int y,double amount){var r=result;if(placementFile!=null||r==null||y<0)return;if(x<LIST_LEFT)sideFirst=Math.clamp(sideFirst-(int)Math.signum(amount),0,Math.max(0,r.locations().size()-visibleRows()));else first=Math.clamp(first-(int)Math.signum(amount)*3,0,Math.max(0,r.entries().size()-visibleRows()));}
     @Override public void mouseDown(int x,int y,int button) {
         suppressFileDrag=false;
-        if(button!=0||y<0)return;
+        if(button!=SDLMouse.SDL_BUTTON_LEFT||y<0)return;
         if(placementFile!=null) {
             suppressFileDrag=true;
             for(var side:FileAppPlacement.Side.values()) {var b=placementButton(side);if(x>=b[0]&&x<b[0]+56&&y>=b[1]&&y<b[1]+56) {

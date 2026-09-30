@@ -1,6 +1,7 @@
 package dev.winlandcraft;
 
 import net.minecraft.client.Minecraft;
+import org.lwjgl.sdl.SDLMouse;
 
 /** Live laser pose, beam-origin, and motion controls. */
 public final class LaserCalibrationPanel extends NativePanel {
@@ -18,7 +19,7 @@ public final class LaserCalibrationPanel extends NativePanel {
     @Override protected float minimumHeight(){return worldHeight()*460/pixelHeight();}
 
     @Override public void mouseDown(int x,int y,int button) {
-        if(button!=0||y<0)return;
+        if(button!=SDLMouse.SDL_BUTTON_LEFT||y<0)return;
         if(y>=70&&y<104) {
             for(int index=0;index<3;index++)if(x>=24+index*132&&x<146+index*132) {
                 section=LaserTuning.Section.values()[index];active=-1;return;
@@ -52,7 +53,7 @@ public final class LaserCalibrationPanel extends NativePanel {
     }
 
     @Override public void mouseUp(int x,int y,int button) {
-        if(button!=0)return;
+        if(button!=SDLMouse.SDL_BUTTON_LEFT)return;
         active=-1;
         if(changed)save("Calibration saved.");
     }

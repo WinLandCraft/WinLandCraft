@@ -132,23 +132,26 @@ final class RemoteStreamPanel extends WorldPanel {
     @Override public void render(WorldPass pass) {
         try(var canvas=canvas(pass)) {
             if(canvas==null||!canvas.frontFacing())return;
-            boolean image=decoder!=null&&upload()&&video.ready();
-            if(image)canvas.texture(texture,pixelWidth(),pixelHeight());
-            else {
-                canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF21182D);
-                String phase=decoder==null?"starting":decoder.phase;
-                canvas.text("Connecting to shared app... ("+phase+")",20,40,-1,2);
-            }
-            if(decoder!=null&&!decoder.error.isEmpty())canvas.text(Minecraft.getInstance().font.plainSubstrByWidth(decoder.error,500),12,40,0xFFFF8888,1.5f);
-            else if(image&&System.currentTimeMillis()-lastVideoFrame>5000) {
-                canvas.rect(0,0,Math.min(430,pixelWidth()),24,.4f,0xEE392641);
-                canvas.text("Stream paused / waiting for host",8,8,0xFFFFCC88);
-            }
-            if (image) sampleScreenLight(video.getTexture());
-            if(decoder!=null&&image&&!"running".equals(decoder.audioState)&&audioPackets>0){
-                canvas.rect(0,pixelHeight()-26,Math.min(560,pixelWidth()),26,.4f,0xEE392641);
-                canvas.text("Audio state: "+decoder.audioState+" (see latest.log)",8,pixelHeight()-18,0xFFFFCC88);
-            }
+            drawSurface(canvas);
+        }
+    }
+    @Override void drawSurface(PanelCanvas canvas) {
+        boolean image=decoder!=null&&upload()&&video.ready();
+        if(image)canvas.texture(texture,pixelWidth(),pixelHeight());
+        else {
+            canvas.rect(0,0,pixelWidth(),pixelHeight(),.1f,0xFF21182D);
+            String phase=decoder==null?"starting":decoder.phase;
+            canvas.text("Connecting to shared app... ("+phase+")",20,40,-1,2);
+        }
+        if(decoder!=null&&!decoder.error.isEmpty())canvas.text(Minecraft.getInstance().font.plainSubstrByWidth(decoder.error,500),12,40,0xFFFF8888,1.5f);
+        else if(image&&System.currentTimeMillis()-lastVideoFrame>5000) {
+            canvas.rect(0,0,Math.min(430,pixelWidth()),24,.4f,0xEE392641);
+            canvas.text("Stream paused / waiting for host",8,8,0xFFFFCC88);
+        }
+        if (image) sampleScreenLight(video.getTexture());
+        if(decoder!=null&&image&&!"running".equals(decoder.audioState)&&audioPackets>0){
+            canvas.rect(0,pixelHeight()-26,Math.min(560,pixelWidth()),26,.4f,0xEE392641);
+            canvas.text("Audio state: "+decoder.audioState+" (see latest.log)",8,pixelHeight()-18,0xFFFFCC88);
         }
     }
     @Override public void close() {

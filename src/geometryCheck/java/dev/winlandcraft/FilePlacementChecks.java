@@ -32,11 +32,11 @@ final class FilePlacementChecks {
             var source=new FileManagerPanel();var file=Path.of("notes.txt");
             var listing=FileManagerPanel.class.getDeclaredField("result");listing.setAccessible(true);
             listing.set(source,new FileDirectory.Listing(List.of(new FileDirectory.Entry(file,"notes.txt",false,false,0,0)),List.of(),false,""));
-            source.mouseDown(300,120,0);check(file.equals(source.dragFileAt(300,120)),"first click still allows dragging");
-            source.mouseDown(300,120,0);check(source.dragFileAt(300,120)==null,"double click blocks dragging");
+            source.mouseDown(300,120,1);check(file.equals(source.dragFileAt(300,120)),"first click still allows dragging");
+            source.mouseDown(300,120,1);check(source.dragFileAt(300,120)==null,"double click blocks dragging");
             var modal=FileManagerPanel.class.getDeclaredField("placementFile");modal.setAccessible(true);
             check(file.equals(modal.get(source)),"double click opens placement");
-            source.mouseDown(640,410,0);check(modal.get(source)==null,"cancel placement");
+            source.mouseDown(640,410,1);check(modal.get(source)==null,"cancel placement");
             check(source.dragFileAt(300,120)==null,"cancel does not start hidden file drag");
         } catch(ReflectiveOperationException error){throw new AssertionError(error);}
         System.out.println("File placement: row bounds after scroll/resize, associations, four edges, rotated/curved poses, viewer-facing folds, modal double-click and cancel passed.");
@@ -62,7 +62,8 @@ final class FilePlacementChecks {
             check(panel.dragFileAt(1580,825)==null&&panel.dragFileAt(240,826)==null,"resized exterior bounds");
             var hover=FileManagerPanel.class.getDeclaredField("hoverRow");hover.setAccessible(true);
             var selected=FileManagerPanel.class.getDeclaredField("selected");selected.setAccessible(true);
-            panel.pointerMoved(1579,825);panel.mouseDown(1579,825,0);
+            // Clicks are simulated with the SDL left button (1); panels follow SDL numbering since 26.3.
+            panel.pointerMoved(1579,825);panel.mouseDown(1579,825,1);
             check(hover.getInt(panel)==23&&selected.getInt(panel)==23,"hover, click and drag agree after scroll/resize");
         } catch(ReflectiveOperationException error){throw new AssertionError(error);}
     }

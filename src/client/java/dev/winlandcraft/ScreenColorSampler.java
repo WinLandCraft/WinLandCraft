@@ -13,7 +13,7 @@ import java.util.function.Consumer;
  * buffer instead (at most one in flight) and averaged on the CPU.
  */
 final class ScreenColorSampler implements AutoCloseable {
-    private static final long INTERVAL = 100_000_000L;
+    private static final long INTERVAL = 500_000_000L;
     private static final int COLUMNS = 3, ROWS = 2;
     private static final float BLACK_LEVEL = .002f, FULL_OUTPUT = .03f, SATURATION = 1.5f;
     private final Slot[] slots = {new Slot(), new Slot()};
@@ -47,7 +47,7 @@ final class ScreenColorSampler implements AutoCloseable {
                     synchronized (issued) {
                         issued.ready = true;
                     }
-                }, 0, 0, width, height, 0);
+                }, 0, 0, 0, width, height);
         cursor = (cursor + 1) % slots.length;
     }
 
@@ -88,12 +88,16 @@ final class ScreenColorSampler implements AutoCloseable {
 
     static float[] zones(ByteBuffer pixels, int width, int height) {
         float[] colors = new float[COLUMNS * ROWS * 3];
+        // Stride the average on large frames: ambient light needs no per-pixel
+        // accuracy, and the sRGB->linear pow per pixel is the hot loop. Small
+        // frames (like the 6x4 regression image) still sample every pixel.
+        int stride = Math.max(1, Math.min(width, height) / 240);
         for (int row = 0; row < ROWS; row++) for (int column = 0; column < COLUMNS; column++) {
             int x0 = column * width / COLUMNS, x1 = Math.max(x0 + 1, (column + 1) * width / COLUMNS);
             int y0 = row * height / ROWS, y1 = Math.max(y0 + 1, (row + 1) * height / ROWS);
             float red = 0, green = 0, blue = 0;
             int count = 0;
-            for (int y = y0; y < Math.min(y1, height); y++) for (int x = x0; x < Math.min(x1, width); x++) {
+            for (int y = y0; y < Math.min(y1, height); y += stride) for (int x = x0; x < Math.min(x1, width); x += stride) {
                 int offset = (y * width + x) * 4;
                 red += linear(pixels.get(offset) & 255);
                 green += linear(pixels.get(offset + 1) & 255);

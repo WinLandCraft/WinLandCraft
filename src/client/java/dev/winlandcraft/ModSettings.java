@@ -108,6 +108,7 @@ public final class ModSettings {
             LaserTuning.save(json);
             Files.createDirectories(path().getParent());
             Files.writeString(path(), new GsonBuilder().setPrettyPrinting().create().toJson(json));
+            System.setProperty("mcef.browser.fps", String.valueOf(chromiumFps));
             return true;
         } catch (Exception error) {
             WinLandCraftClient.LOGGER.error("Could not save WinLandCraft settings", error);

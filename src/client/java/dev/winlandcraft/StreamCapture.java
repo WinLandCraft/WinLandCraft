@@ -1,18 +1,35 @@
 package dev.winlandcraft;
 
-import com.cinemamod.mcef.MCEFBrowser;
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.renderpearl.api.GpuFormat;
 import com.mojang.renderpearl.api.buffers.GpuBuffer;
 import com.mojang.renderpearl.api.textures.GpuTexture;
-import java.nio.ByteBuffer;
+import com.mojang.renderpearl.api.textures.GpuTextureView;
+import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.concurrent.ArrayBlockingQueue;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.Projection;
+import net.minecraft.client.renderer.ProjectionMatrixBuffer;
+import net.minecraft.client.renderer.SubmitNodeStorage;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
+import org.joml.Vector4f;
 
 /**
- * Captures the streaming source's browser texture for the encoder. The old
- * private-FBO re-render is gone with immediate mode; instead the newest
- * browser frame is copied GPU-to-CPU asynchronously (at most one in flight)
- * and scaled on the CPU. Native-only panels have no GPU source and stream
- * as blank: capture returns null for them.
+ * Re-renders the streaming source's full app surface (native UI plus browser,
+ * plugin, and remote content alike) into a private target, then copies it
+ * GPU-to-CPU asynchronously (at most one copy in flight) and scales on the CPU.
+ * This restores the 1.21.4 private-FBO capture through the 26.3 submit model:
+ * draws go to an owned SubmitNodeStorage executed with the shared feature
+ * dispatcher in classic (non-OIT) mode, so layers composite by submit order
+ * exactly like the old immediate re-render. A fake camera on the panel normal
+ * with a fitted perspective frames the surface; the base rotation aligns the
+ * normal to +z so facing and winding match the world pass.
  */
 final class StreamCapture implements AutoCloseable {
     /** A pooled top-down RGBA frame. Ownership passes to the codec bridge. */
@@ -42,7 +59,15 @@ final class StreamCapture implements AutoCloseable {
         }
     }
 
+    private static final Vector4f CLEAR = new Vector4f(0.09f, 0.12f, 0.17f, 1f);
+    private static final double CAPTURE_DISTANCE = 3.0;
+
     private final ArrayBlockingQueue<byte[]> freeFrames = new ArrayBlockingQueue<>(4);
+    private final Projection projection = new Projection();
+    private ProjectionMatrixBuffer projectionBuffers;
+    private GpuTexture colorTex, depthTex;
+    private GpuTextureView colorView, depthView;
+    private int surfaceWidth, surfaceHeight;
     private GpuBuffer readback;
     private int readbackBytes;
     private volatile boolean inFlight;
@@ -61,12 +86,13 @@ final class StreamCapture implements AutoCloseable {
 
     Pixels capture(WorldPanel panel, StreamQuality quality, long timeUs) {
         RenderSystem.assertOnRenderThread();
-        MCEFBrowser browser = panel instanceof BrowserPanel browserPanel ? browserPanel.managedBrowser() : null;
-        GpuTexture texture = browser == null ? null : browser.getRenderer().getTexture();
         int logicalWidth = panel.pixelWidth(), logicalHeight = panel.pixelHeight() + panel.titlebarHeight();
         int maxHeight = quality.height(), maxWidth = maxHeight * 16 / 9;
         double factor = Math.min(1, Math.min(maxWidth / (double) logicalWidth, maxHeight / (double) logicalHeight));
         int w = Math.max(2, (int) (logicalWidth * factor) & ~1), h = Math.max(2, (int) (logicalHeight * factor) & ~1);
+        if (inFlight && (w != surfaceWidth || h != surfaceHeight)) return null;
+        ensureSurface(w, h);
+        renderSurface(panel, w, h);
         // Reap the previous async copy first so a slow GPU never queues frames.
         // Snapshot dimensions with the reap: the completion callback can fire on another thread.
         final byte[] frame;
@@ -76,38 +102,105 @@ final class StreamCapture implements AutoCloseable {
             sw = completedWidth;
             sh = completedHeight;
         }
-        if (texture != null && !inFlight) {
-            int tw = texture.getWidth(0), th = texture.getHeight(0);
-            int bytes = tw * th * 4;
-            if (tw > 0 && th > 0 && bytes > 0) {
-                if (readback == null || readback.isClosed() || readbackBytes != bytes) {
-                    if (readback != null) readback.close();
-                    readback = RenderSystem.getDevice().createBuffer(() -> "winlandcraft-capture",
-                            GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST, bytes);
-                    readbackBytes = bytes;
-                }
-                final int fw = tw, fh = th;
-                final long ft = timeUs;
-                inFlight = true;
-                RenderSystem.getDevice().createCommandEncoder().copyTextureToBuffer(
-                        texture, readback, 0, () -> {
-                            synchronized (StreamCapture.this) {
-                                completedWidth = fw;
-                                completedHeight = fh;
-                                completedTimeUs = ft;
-                                completedReady = true;
-                            }
-                            inFlight = false;
-                        }, 0, 0, tw, th, 0);
+        if (!inFlight) {
+            int bytes = w * h * 4;
+            if (readback == null || readback.isClosed() || readbackBytes != bytes) {
+                if (readback != null) readback.close();
+                readback = RenderSystem.getDevice().createBuffer(() -> "winlandcraft-capture",
+                        GpuBuffer.USAGE_MAP_READ | GpuBuffer.USAGE_COPY_DST, bytes);
+                readbackBytes = bytes;
             }
+            final int fw = w, fh = h;
+            final long ft = timeUs;
+            inFlight = true;
+            RenderSystem.getDevice().createCommandEncoder().copyTextureToBuffer(
+                    colorTex, readback, 0, () -> {
+                        synchronized (StreamCapture.this) {
+                            completedWidth = fw;
+                            completedHeight = fh;
+                            completedTimeUs = ft;
+                            completedReady = true;
+                        }
+                        inFlight = false;
+                    }, 0, 0, 0, w, h);
         }
         if (frame == null) return null;
         byte[] scaled = acquire(w * h * 4);
-        scale(frame, sw, sh, scaled, w, h);
+        scaleFlipped(frame, sw, sh, scaled, w, h);
         recycle(frame);
         var stats = statistics(scaled);
-        diagnose(stats, w, h, "browser texture, async gpu copy");
+        diagnose(stats, w, h, "offscreen panel surface");
         return new Pixels(this, scaled, w, h, timeUs);
+    }
+
+    /** Draws the panel surface flat and exactly filling the target. Placement,
+     *  facing, and curvature are ignored (replicas re-apply the curve from the
+     *  stream state), so the video maps 1:1 onto every viewer with no baked
+     *  border and no double bend. Identity rotation keeps the normal at +z
+     *  toward the camera, matching world winding and culling. */
+    private void renderSurface(WorldPanel panel, int w, int h) {
+        float densityX = panel.worldWidth() / panel.pixelWidth();
+        float densityY = panel.worldHeight() / Math.max(1, panel.pixelHeight());
+        float halfW = panel.pixelWidth() * densityX / 2;
+        float halfH = (panel.pixelHeight() + panel.titlebarHeight()) * densityY / 2;
+        float shift = panel.titlebarHeight() * densityY / 2;
+        float fovY = (float) Math.toDegrees(2 * Math.atan(halfH / CAPTURE_DISTANCE));
+        projection.setupPerspective(0.05f, 100f, fovY, halfW * 2, halfH * 2);
+        if (projectionBuffers == null) projectionBuffers = new ProjectionMatrixBuffer("winlandcraft-capture");
+
+        var storage = new SubmitNodeStorage();
+        var pose = new PoseStack();
+        var camera = new CameraRenderState();
+        camera.pos = Vec3.ZERO;
+        var pass = new WorldPass(storage, pose, camera);
+        try (var canvas = new PanelCanvas(pass,
+                new Vec3(0, -shift, -CAPTURE_DISTANCE),
+                new Quaternionf(), densityX, densityY, panel.pixelWidth(), panel.pixelHeight())) {
+            panel.drawSurface(canvas);
+        }
+
+        var dispatcher = Minecraft.getInstance().gameRenderer.featureRenderDispatcher();
+        var frame = dispatcher.prepareFrame(storage);
+        RenderSystem.backupProjectionMatrix();
+        var modelView = RenderSystem.getModelViewStack();
+        modelView.pushMatrix();
+        modelView.identity();
+        try {
+            RenderSystem.setProjectionMatrix(projectionBuffers.getBuffer(projection), ProjectionType.PERSPECTIVE);
+            var encoder = RenderSystem.getDevice().createCommandEncoder();
+            try (var renderPass = encoder.createRenderPass(() -> "winlandcraft-capture", colorView,
+                    Optional.of(CLEAR), depthView, OptionalDouble.of(0.0))) {
+                RenderSystem.bindDefaultUniforms(renderPass);
+                FeatureRenderDispatcher.renderAllFeatures(renderPass, frame);
+            }
+        } finally {
+            modelView.popMatrix();
+            RenderSystem.restoreProjectionMatrix();
+            frame.close();
+        }
+    }
+
+    private void ensureSurface(int w, int h) {
+        if (colorTex != null && !colorTex.isClosed() && surfaceWidth == w && surfaceHeight == h) return;
+        closeSurface();
+        var device = RenderSystem.getDevice();
+        colorTex = device.createTexture("winlandcraft-capture",
+                GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_SRC,
+                GpuFormat.RGBA8_UNORM, w, h, 1, 1);
+        colorView = device.createTextureView(colorTex);
+        depthTex = device.createTexture("winlandcraft-capture-depth",
+                GpuTexture.USAGE_RENDER_ATTACHMENT, GpuFormat.D32_FLOAT, w, h, 1, 1);
+        depthView = device.createTextureView(depthTex);
+        surfaceWidth = w;
+        surfaceHeight = h;
+    }
+
+    private void closeSurface() {
+        if (colorView != null) { colorView.close(); colorView = null; }
+        if (colorTex != null) { colorTex.close(); colorTex = null; }
+        if (depthView != null) { depthView.close(); depthView = null; }
+        if (depthTex != null) { depthTex.close(); depthTex = null; }
+        surfaceWidth = surfaceHeight = 0;
     }
 
     /** Maps the finished copy into a pooled array, or null while the GPU is busy. */
@@ -135,10 +228,10 @@ final class StreamCapture implements AutoCloseable {
         return new byte[size];
     }
 
-    /** Bilinear downscale of top-down RGBA. */
-    private static void scale(byte[] src, int sw, int sh, byte[] dst, int dw, int dh) {
+    /** Bilinear downscale of bottom-up GPU rows into a top-down frame. */
+    private static void scaleFlipped(byte[] src, int sw, int sh, byte[] dst, int dw, int dh) {
         for (int y = 0; y < dh; y++) {
-            float sy = (y + .5f) * sh / dh - .5f;
+            float sy = (sh - 1) - ((y + .5f) * sh / dh - .5f);
             int y0 = Math.clamp((int) Math.floor(sy), 0, sh - 1);
             int y1 = Math.min(y0 + 1, sh - 1);
             float fy = Math.clamp(sy - y0, 0, 1);
@@ -204,6 +297,11 @@ final class StreamCapture implements AutoCloseable {
 
     @Override public void close() {
         RenderSystem.assertOnRenderThread();
+        closeSurface();
+        if (projectionBuffers != null) {
+            projectionBuffers.close();
+            projectionBuffers = null;
+        }
         if (readback != null) {
             readback.close();
             readback = null;

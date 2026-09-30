@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "dev.winlandcraft.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": ["StreamCodecC2SMixin", "StreamCodecS2CMixin", "StreamServerMixin", "StreamServerJoinMixin"],
+  "injectors": {"defaultRequire": 1}
+}

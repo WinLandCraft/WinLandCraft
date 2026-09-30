@@ -1,6 +1,6 @@
 package dev.winlandcraft;
 
-
+import org.lwjgl.sdl.SDLMouse;
 
 public final class AppsPanel extends WorldPanel {
     private final AppWindows apps;
@@ -26,27 +26,27 @@ public final class AppsPanel extends WorldPanel {
     @Override public WorldPanel dragTarget() { return attached ? apps.tasks : this; }
     @Override public void close() { attached = false; menu=null; super.close(); }
     @Override public void mouseDown(int x, int y, int button) {
-        if(button!=0&&button!=1)return;
+        if(button!=SDLMouse.SDL_BUTTON_LEFT&&button!=SDLMouse.SDL_BUTTON_RIGHT)return;
         if(menu!=null) {
             var selected=menu;menu=null;
-            if(button==0&&x>=menuX&&x<menuX+152&&y>=menuY&&y<menuY+32) {
+            if(button==SDLMouse.SDL_BUTTON_LEFT&&x>=menuX&&x<menuX+152&&y>=menuY&&y<menuY+32) {
                 if(apps.appEntries().stream().anyMatch(e->e.panel()==selected.panel())) {
                     if(selected.panel().streaming())apps.streams.stop(selected.panel());else apps.stream(selected);
                 }
                 return;
             }
-            if(button==0)return;
+            if(button==SDLMouse.SDL_BUTTON_LEFT)return;
         }
         if (x >= 18 && x < 342 && y >= 42 && y < 138) {
             var entries = apps.appEntries();
             first = Math.clamp(first, 0, Math.max(0, entries.size() - 3));
             int index = first + (y - 42) / 32;
             if(index<entries.size()) {
-                if(button==1){menu=entries.get(index);menuX=Math.clamp(x,4,204);menuY=Math.clamp(y,38,140);}
+                if(button==SDLMouse.SDL_BUTTON_RIGHT){menu=entries.get(index);menuX=Math.clamp(x,4,204);menuY=Math.clamp(y,38,140);}
                 else apps.launch(entries.get(index));
             }
         }
-        else if (button==0 && x >= 320 && x < 360 && y >= 0 && y < 36) close();
+        else if (button==SDLMouse.SDL_BUTTON_LEFT && x >= 320 && x < 360 && y >= 0 && y < 36) close();
     }
     @Override public void scroll(int x, int y, double amount) {
         menu=null;

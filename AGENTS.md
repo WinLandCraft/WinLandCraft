@@ -19,7 +19,7 @@ These instructions apply to the entire repository.
 - CEF-owned `ByteBuffer` data is valid only for the callback. Copy data before returning if another thread will consume it.
 - Keep frame, audio, network, and render queues bounded. Prefer dropping or coalescing stale media over accumulating latency.
 - Close browser views on the render thread and make cleanup idempotent. Disconnect callbacks can originate on Netty threads.
-- Mixins use `remap = false` only where they target non-Minecraft classes. Register new mixins in `winlandcraft.client.mixins.json` and extend `verifyMixinPackaging` so missing production classes fail the build.
+- Mixins use `remap = false` only where they target non-Minecraft classes. Register new mixins in `winlandcraft.client.mixins.json` (client targets) or `winlandcraft.mixins.json` (dedicated-server-safe targets under `net.minecraft.server`/`net.minecraft.network`); the client config is environment-gated in `fabric.mod.json` so dedicated servers never resolve `net.minecraft.client` targets. Extend `verifyMixinPackaging` so missing production classes fail the build.
 - CEF request objects may only be mutated in callbacks that explicitly allow it. Keep the adblock engine immutable after initialization and bound every page-to-Java cosmetic query.
 - Screen-light sampling reuses `PanelSurface`'s mip chain and asynchronous bounded PBO readback. Do not synchronously read a full browser texture or move pixel analysis off the render thread with a live GL buffer.
 - Solas integration is an explicit, non-destructive shader-pack copy. Keep SSBO binding changes, buffer layout, patch anchors, and compatibility limits synchronized with `docs/screen-lighting.md` and its regression check.

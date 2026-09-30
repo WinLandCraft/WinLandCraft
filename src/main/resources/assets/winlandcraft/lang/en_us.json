@@ -1,6 +1,5 @@
 {
   "item.winlandcraft.tasks": "Tasks",
-  "item.winlandcraft.window_drag": "Window Drag",
   "key.categories.winlandcraft": "WinLandCraft",
   "key.winlandcraft.give_tasks": "Get controls",
   "key.winlandcraft.open_desktop": "Open desktop",
@@ -12,8 +11,6 @@
   "message.winlandcraft.client_side_mode": "Server doesn't have WinLandCraft: running client-side. No control items given; Get controls opens Tasks, using crosshair controls.",
   "message.winlandcraft.spawn_blocked": "No clear space here: window spawned inside blocks. Blue outline marks it.",
   "message.winlandcraft.unsupported_server": "Tasks requires a world running WinLandCraft. Try singleplayer.",
-  "item.winlandcraft.interact": "Interact",
-  "item.winlandcraft.apps": "Apps",
   "item.winlandcraft.laser_pointer": "Laser Pointer",
   "message.winlandcraft.laser_on": "Laser on — %s",
   "message.winlandcraft.laser_off": "Laser off",

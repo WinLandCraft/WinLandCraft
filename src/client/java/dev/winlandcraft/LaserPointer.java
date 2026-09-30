@@ -39,8 +39,8 @@ public final class LaserPointer {
 
     static InteractionHand heldHand(Minecraft client) {
         if(client.player==null)return null;
-        if(client.player.getMainHandItem().is(WinLandCraft.LASER_POINTER))return InteractionHand.MAIN_HAND;
-        return client.player.getMainHandItem().isEmpty()&&client.player.getOffhandItem().is(WinLandCraft.LASER_POINTER)
+        if(WinLandCraft.isLaser(client.player.getMainHandItem()))return InteractionHand.MAIN_HAND;
+        return client.player.getMainHandItem().isEmpty()&&WinLandCraft.isLaser(client.player.getOffhandItem())
                 ?InteractionHand.OFF_HAND:null;
     }
 

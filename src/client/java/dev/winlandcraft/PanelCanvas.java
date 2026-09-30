@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.font.TextRenderable;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.rendertype.RenderTypes;
 import net.minecraft.network.chat.Component;
@@ -19,6 +20,10 @@ import org.joml.Quaternionf;
  * drawing for the 2D desktop hybrid. Call order is draw order in both.
  */
 public final class PanelCanvas implements AutoCloseable {
+    /** 1x1 opaque white: solid rects reuse the world text pipeline, which 26.3
+     *  still draws in the level pass (debugQuads no longer has a world consumer). */
+    private static final Identifier WHITE = Identifier.fromNamespaceAndPath("winlandcraft", "textures/gui/white.png");
+
     /** Packed full-bright lightmap value for emissive UI quads. */
     private static final int FULL_BRIGHT = 0xF000F0;
     private final PoseStack pose;
@@ -33,6 +38,9 @@ public final class PanelCanvas implements AutoCloseable {
     private int baseOrder;
     private float opacity = 1;
     private boolean curved, front = true, closed, pushed;
+    /** Rear shell winding: the world text pipeline culls back faces, so the
+     *  shell (only ever viewed from behind) must be wound to face backward. */
+    private boolean mirror;
 
     public PanelCanvas(WorldPass pass, WorldPanel panel) {
         this(pass, panel, panel.position, panel.orientation,
@@ -94,8 +102,10 @@ public final class PanelCanvas implements AutoCloseable {
 
     private void backside(WorldPanel panel) {
         int title = panel.titlebarHeight();
+        mirror = true;
         rect(-3, -title - 3, panel.pixelWidth() + 6, panel.pixelHeight() + title + 6, 0, 0xFF536579);
         rect(0, -title, panel.pixelWidth(), panel.pixelHeight() + title, .1f, 0xFF111923);
+        mirror = false;
     }
 
     /** Window frame shared by browser, plugin, and other content panels. A border, not a
@@ -110,6 +120,7 @@ public final class PanelCanvas implements AutoCloseable {
     /** Preserve the 3D projection while reserving late order for local control chrome. */
     void foreground() {
         baseOrder += 64;
+        zLift += FOREGROUND_LIFT;
     }
 
     /** Global fade multiplier applied to every draw. */
@@ -123,9 +134,24 @@ public final class PanelCanvas implements AutoCloseable {
         return (alpha << 24) | (color & 0xFFFFFF);
     }
 
-    /** World layers stay coplanar; submit order separates them instead of polygon offset. */
+    /** Submit order separates world layers; depthFor adds the physical separation
+     *  that replaces the old polygon offset (submit order alone leaves ties). */
     private int orderFor(float layer) {
         return baseOrder + Math.clamp(Math.round(layer * 64), 0, 128);
+    }
+
+    /** Panel pixels of physical separation per layer unit. Stacked UI layers need
+     *  real depth distance: submit order alone leaves depth ties whose winner
+     *  flips every frame (depth-sort instability and OIT mixing), which reads as
+     *  flickering. Four pixels per unit separates the finest chrome (0.02 layer
+     *  steps) at interaction range while the whole stack stays sub-centimeter. */
+    private static final float LAYER_DEPTH = 4.0f;
+    /** Foreground chrome floats above every content layer. */
+    private static final float FOREGROUND_LIFT = 4.0f;
+    private float zLift;
+
+    private float depthFor(float layer) {
+        return layer * LAYER_DEPTH + zLift;
     }
 
     private VertexConsumer curved(VertexConsumer target, Matrix4f submit) {
@@ -139,15 +165,26 @@ public final class PanelCanvas implements AutoCloseable {
             return;
         }
         int order = orderFor(z);
-        collector.order(order).submitCustomGeometry(pose, RenderTypes.debugQuads(), (p, vc) -> {
+        final float depth = depthFor(z);
+        final boolean mirrored = mirror;
+        collector.order(order).submitCustomGeometry(pose, RenderTypes.text(WHITE), (p, vc) -> {
             var vertices = curved(vc, p.pose());
             int segments = curved ? Math.max(1, (int) Math.ceil(width / 12)) : 1;
             for (int i = 0; i < segments; i++) {
                 float left = x + width * i / segments, right = x + width * (i + 1) / segments;
-                vertices.addVertex(p, left, y, 0).setColor(drawColor);
-                vertices.addVertex(p, left, y + height, 0).setColor(drawColor);
-                vertices.addVertex(p, right, y + height, 0).setColor(drawColor);
-                vertices.addVertex(p, right, y, 0).setColor(drawColor);
+                // Rear shells use reversed winding to face backward (backface
+                // culling); the same four corners keep their attributes.
+                if (!mirrored) {
+                    vertices.addVertex(p, left, y, depth).setColor(drawColor).setUv(0, 0).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, left, y + height, depth).setColor(drawColor).setUv(0, 1).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y + height, depth).setColor(drawColor).setUv(1, 1).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y, depth).setColor(drawColor).setUv(1, 0).setLight(FULL_BRIGHT);
+                } else {
+                    vertices.addVertex(p, left, y, depth).setColor(drawColor).setUv(0, 0).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y, depth).setColor(drawColor).setUv(1, 0).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y + height, depth).setColor(drawColor).setUv(1, 1).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, left, y + height, depth).setColor(drawColor).setUv(0, 1).setLight(FULL_BRIGHT);
+                }
             }
         });
     }
@@ -171,14 +208,41 @@ public final class PanelCanvas implements AutoCloseable {
             poseStack.popMatrix();
             return;
         }
-        // Curved panels submit glyphs unbent: the submit-text path takes whole strings and
-        // cannot warp individual vertices. Flat panels are unaffected.
+        if (curved) {
+            curvedText(text, x, y, drawColor, scale, layer);
+            return;
+        }
         pose.pushPose();
-        pose.translate(x, y, 0);
+        pose.translate(x, y, depthFor(layer));
         pose.scale(scale, scale, 1);
         collector.order(orderFor(layer)).submitText(pose, 0, 0,
                 Component.literal(text).getVisualOrderText(), false, Font.DisplayMode.NORMAL,
-                FULL_BRIGHT, drawColor, Integer.MIN_VALUE, 0);
+                FULL_BRIGHT, drawColor, 0, 0);
+        pose.popPose();
+    }
+
+    /** Glyph runs bent onto the cylinder. submitText takes whole strings and cannot
+     *  warp vertices, so curved panels bake each run and feed it through the same bend
+     *  wrapper as rects and icons. Runs are prepared at the text origin; the translated
+     *  pose supplies the panel offset, and the identity matrix keeps run coordinates
+     *  un-baked so the wrapper (not the glyph emitter) owns the only transform. */
+    private void curvedText(String text, int x, int y, int color, float scale, float layer) {
+        if (text.isEmpty()) return;
+        var prepared = Minecraft.getInstance().font.prepareText(
+                Component.literal(text).getVisualOrderText(), 0, 0, color, false, false, 0);
+        var runs = new java.util.ArrayList<TextRenderable>();
+        prepared.visit(new Font.GlyphVisitor() {
+            @Override public void acceptRenderable(TextRenderable renderable) { runs.add(renderable); }
+        });
+        if (runs.isEmpty()) return;
+        pose.pushPose();
+        pose.translate(x, y, depthFor(layer));
+        pose.scale(scale, scale, 1);
+        int order = orderFor(layer);
+        var unposed = new Matrix4f();
+        for (var run : runs)
+            collector.order(order).submitCustomGeometry(pose, run.renderType(Font.DisplayMode.NORMAL),
+                    (p, vc) -> run.render(unposed, curved(vc, p.pose()), FULL_BRIGHT, false));
         pose.popPose();
     }
 
@@ -210,6 +274,8 @@ public final class PanelCanvas implements AutoCloseable {
             return;
         }
         int order = orderFor(z);
+        final float depth = depthFor(z);
+        final boolean mirrored = mirror;
         collector.order(order).submitCustomGeometry(pose, RenderTypes.text(texture), (p, vc) -> {
             var vertices = curved(vc, p.pose());
             int segments = curved ? Math.max(1, (int) Math.ceil(width / 12f)) : 1;
@@ -217,10 +283,17 @@ public final class PanelCanvas implements AutoCloseable {
                 float from = i / (float) segments, to = (i + 1) / (float) segments;
                 float left = x + width * from, right = x + width * to;
                 float su = u0 + (u1 - u0) * from, eu = u0 + (u1 - u0) * to;
-                vertices.addVertex(p, left, y, 0).setColor(drawColor).setUv(su, v0).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, left, y + height, 0).setColor(drawColor).setUv(su, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y + height, 0).setColor(drawColor).setUv(eu, v1).setLight(FULL_BRIGHT);
-                vertices.addVertex(p, right, y, 0).setColor(drawColor).setUv(eu, v0).setLight(FULL_BRIGHT);
+                if (!mirrored) {
+                    vertices.addVertex(p, left, y, depth).setColor(drawColor).setUv(su, v0).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, left, y + height, depth).setColor(drawColor).setUv(su, v1).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y + height, depth).setColor(drawColor).setUv(eu, v1).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y, depth).setColor(drawColor).setUv(eu, v0).setLight(FULL_BRIGHT);
+                } else {
+                    vertices.addVertex(p, left, y, depth).setColor(drawColor).setUv(su, v0).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y, depth).setColor(drawColor).setUv(eu, v0).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, right, y + height, depth).setColor(drawColor).setUv(eu, v1).setLight(FULL_BRIGHT);
+                    vertices.addVertex(p, left, y + height, depth).setColor(drawColor).setUv(su, v1).setLight(FULL_BRIGHT);
+                }
             }
         });
     }
